@@ -8,10 +8,6 @@ const config: Config = {
     "ts",
     "js"
   ],
-  // globals: {
-  //   TextDecoder: TextDecoder,
-  //   TextEncoder: TextEncoder
-  // },
   transform: {
     "^.+\\.(ts?)$": "ts-jest",
   },
@@ -20,7 +16,7 @@ const config: Config = {
     "<rootDir>/dist"
   ],
   testRegex: "(/src/.*(\\.|/)(test|spec))\\.(jsx?|tsx?)$",
-  // testEnvironment: "nodejs"
+  testEnvironment: "./jest-environment-jsdom.js"
 };
 
 export default config;
