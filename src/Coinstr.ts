@@ -3,8 +3,8 @@ import { generatePrivateKey } from 'nostr-tools'
 import { BitcoinUtil } from './interfaces'
 import { CoinstrKind, TagType } from './enum'
 import { NostrClient } from './service'
-import { buildEvent, filterBuilder, getTagValue, getTagValues } from './util'
-import { Policy } from './types'
+import { buildEvent, filterBuilder, getTagValue, getTagValues, PaginationOpts } from './util'
+import { Policy, PublishedPolicy, SavePolicyPayload } from './types'
 
 export class Coinstr {
   private authenticator: Authenticator
@@ -39,12 +39,7 @@ export class Coinstr {
     name,
     description,
     miniscript,
-    uiMetadata }: {
-      name: string,
-      description: string,
-      miniscript: string,
-      uiMetadata: any
-    }) {
+    uiMetadata }: SavePolicyPayload): Promise<PublishedPolicy> {
     const extractedPubKeys = this.bitcoinUtil.getKeysFromMiniscript(miniscript)
     const descriptor = this.bitcoinUtil.toDescriptor(miniscript)
     const secretKey = generatePrivateKey()
@@ -55,6 +50,7 @@ export class Coinstr {
       descriptor,
       uiMetadata
     }
+
     const tags = extractedPubKeys.map(pubkey => [TagType.PubKey, pubkey])
     const policyEvent = await buildEvent({
       kind: CoinstrKind.Policy,
@@ -63,10 +59,15 @@ export class Coinstr {
     },
       sharedKeyAuthenticator)
 
+    const policy: PublishedPolicy = {
+      id: policyEvent.id,
+      ...policyContent
+    }
+
     const promises: Promise<void>[] = []
 
     for (const pubkey of extractedPubKeys) {
-      const content = await this.authenticator.encrypt(pubkey, secretKey)
+      const content = await this.authenticator.encrypt(secretKey, pubkey)
       const sharedKeyEvent = await buildEvent({
         kind: CoinstrKind.SharedKey,
         content,
@@ -79,26 +80,28 @@ export class Coinstr {
     await Promise.all(promises)
 
     const pub = this.nostrClient.publish(policyEvent)
-    return pub.onFirstOkOrCompleteFailure()
+    await pub.onFirstOkOrCompleteFailure()
+    return policy
   }
 
   /**
    * Get all policies with shared keys
    * @returns {Promise<Policy[]>}
    */
-  async getPolicies(): Promise<Policy[]> {
+  async getPolicies(paginationOpts: PaginationOpts = {}): Promise<Policy[]> {
 
     const policiesFilter = filterBuilder()
       .kinds(CoinstrKind.Policy)
       .pubkeys(this.authenticator.getPublicKey())
+      .pagination(paginationOpts)
       .toFilters()
     const policyEvents = await this.nostrClient.list(policiesFilter)
-
     const policyIds = policyEvents.map(policy => policy.id)
 
     const sharedKeysFilter = filterBuilder()
       .kinds(CoinstrKind.SharedKey)
       .events(policyIds)
+      .pubkeys(this.authenticator.getPublicKey())
       .toFilters()
 
     const sharedKeyEvents = await this.nostrClient.list(sharedKeysFilter)
@@ -108,7 +111,7 @@ export class Coinstr {
       eventIds.forEach(id => policyIdSharedKeyMap[id] = sharedKeyEvent)
     }
 
-    const policies: Policy[] = []
+    const policies: PublishedPolicy[] = []
     for (const policyEvent of policyEvents) {
       const {
         id: policyId
@@ -124,9 +127,17 @@ export class Coinstr {
         getTagValue(sharedKeyEvent, TagType.PubKey)
       )
       const sharedKeyAuthenticator = new DirectPrivateKeyAuthenticator(sharedKey)
-      policies.push(await sharedKeyAuthenticator.decryptObj(policyEvent.content))
+      const policy = await sharedKeyAuthenticator.decryptObj(policyEvent.content)
+      policies.push({
+        id: policyEvent.id,
+        ...policy
+      })
     }
     return policies
+  }
+
+  disconnect(): void {
+    this.nostrClient.disconnect
   }
 
 }

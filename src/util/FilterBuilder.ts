@@ -7,6 +7,10 @@ import {
   TagType
 } from '../enum/'
 
+import {
+  PaginationOpts
+} from './types'
+
 export class FilterBuilder {
   private filter: Filter
 
@@ -46,6 +50,11 @@ export class FilterBuilder {
 
   search(search: string): FilterBuilder {
     this.filter.search = search
+    return this
+  }
+
+  pagination(opts: PaginationOpts): FilterBuilder {
+    this.filter = { ...this.filter, ...opts }
     return this
   }
 

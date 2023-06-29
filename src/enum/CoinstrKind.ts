@@ -1,4 +1,4 @@
-export declare enum CoinstrKind {
+export enum CoinstrKind {
   SharedKey = 9288,
   Policy = 9289,
   SepndingProposal = 9290,

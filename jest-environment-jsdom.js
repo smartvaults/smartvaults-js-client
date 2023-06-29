@@ -1,3 +1,4 @@
+const { Crypto } = require('@peculiar/webcrypto')
 const { TextEncoder, TextDecoder } = require('util')
 const { default: $JSDOMEnvironment, TestEnvironment } = require('jest-environment-jsdom')
 
@@ -11,6 +12,9 @@ class JSDOMEnvironment extends $JSDOMEnvironment {
     global.TextEncoder = TextEncoder
     global.TextDecoder = TextDecoder
     global.Uint8Array = Uint8Array
+    Object.defineProperty(this.global, 'crypto', {
+      value: new Crypto()
+    })
   }
 }
 

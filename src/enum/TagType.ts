@@ -1,4 +1,4 @@
-export declare enum TagType {
+export enum TagType {
   Event = 'e',
   PubKey = 'p',
 }
