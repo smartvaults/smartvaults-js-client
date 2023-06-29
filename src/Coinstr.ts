@@ -87,7 +87,7 @@ export class Coinstr {
    * Get all policies with shared keys
    * @returns {Promise<Policy[]>}
    */
-  async getPolicies(paginationOpts: PaginationOpts = {}): Promise<Policy[]> {
+  async getPolicies(paginationOpts: PaginationOpts = {}): Promise<PublishedPolicy[]> {
 
     const policiesFilter = filterBuilder()
       .kinds(CoinstrKind.Policy)
