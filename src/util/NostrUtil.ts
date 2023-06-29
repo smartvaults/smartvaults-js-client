@@ -9,12 +9,16 @@ export async function buildEvent<K extends number = Kind>(e: {
 }, authenticator: Authenticator): Promise<Event<K>> {
 
   let event = e as Event<K>
-  event.created_at = Math.floor(Date.now() / 1000)
+  event.created_at = nostrDate()
   event.pubkey = await authenticator.getPublicKey()
   event.id = getEventHash(event)
   event.sig = await authenticator.signEvent(event)
   return event
 
+}
+
+export function nostrDate(date: Date = new Date()) {
+  return Math.floor(date.getTime() / 1000)
 }
 
 export function getTagValues(e: Event, tagType: TagType): string[] {
