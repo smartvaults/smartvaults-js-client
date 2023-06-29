@@ -3,7 +3,7 @@ import { generatePrivateKey } from 'nostr-tools'
 import { BitcoinUtil } from './interfaces'
 import { CoinstrKind, TagType } from './enum'
 import { NostrClient } from './service'
-import { buildEvent, filterBuilder, getTagValue, getTagValues, PaginationOpts } from './util'
+import { buildEvent, filterBuilder, getTagValue, getTagValues, PaginationOpts, toPublished } from './util'
 import { Policy, PublishedPolicy, SavePolicyPayload } from './types'
 
 export class Coinstr {
@@ -39,7 +39,8 @@ export class Coinstr {
     name,
     description,
     miniscript,
-    uiMetadata }: SavePolicyPayload): Promise<PublishedPolicy> {
+    uiMetadata,
+    createdAt }: SavePolicyPayload): Promise<PublishedPolicy> {
     const extractedPubKeys = this.bitcoinUtil.getKeysFromMiniscript(miniscript)
     const descriptor = this.bitcoinUtil.toDescriptor(miniscript)
     const secretKey = generatePrivateKey()
@@ -56,13 +57,11 @@ export class Coinstr {
       kind: CoinstrKind.Policy,
       content: await sharedKeyAuthenticator.encryptObj(policyContent),
       tags: [...tags],
+      createdAt
     },
       sharedKeyAuthenticator)
 
-    const policy: PublishedPolicy = {
-      id: policyEvent.id,
-      ...policyContent
-    }
+    const policy: PublishedPolicy = toPublished(policyContent, policyEvent)
 
     const promises: Promise<void>[] = []
 
@@ -128,10 +127,7 @@ export class Coinstr {
       )
       const sharedKeyAuthenticator = new DirectPrivateKeyAuthenticator(sharedKey)
       const policy = await sharedKeyAuthenticator.decryptObj(policyEvent.content)
-      policies.push({
-        id: policyEvent.id,
-        ...policy
-      })
+      policies.push(toPublished(policy, policyEvent))
     }
     return policies
   }

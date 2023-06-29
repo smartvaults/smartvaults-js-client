@@ -1,5 +1,5 @@
 export type PaginationOpts = {
-  since?: number;
-  until?: number;
+  since?: Date | number;
+  until?: Date | number;
   limit?: number;
 };

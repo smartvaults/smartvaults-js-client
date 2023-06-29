@@ -11,6 +11,10 @@ import {
   PaginationOpts
 } from './types'
 
+import {
+  nostrDate
+} from './NostrUtil'
+
 export class FilterBuilder {
   private filter: Filter
 
@@ -38,8 +42,13 @@ export class FilterBuilder {
     return this.addToArrayProperty('kinds', kinds)
   }
 
-  since(since: number): FilterBuilder {
-    this.filter.since = since
+  since(since: number | Date): FilterBuilder {
+    this.filter.since = nostrDate(since)
+    return this
+  }
+
+  until(until: number | Date): FilterBuilder {
+    this.filter.until = nostrDate(until)
     return this
   }
 
@@ -54,7 +63,9 @@ export class FilterBuilder {
   }
 
   pagination(opts: PaginationOpts): FilterBuilder {
-    this.filter = { ...this.filter, ...opts }
+    opts.limit && this.limit(opts.limit)
+    opts.since && this.since(opts.since)
+    opts.until && this.until(opts.until)
     return this
   }
 
