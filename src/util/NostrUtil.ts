@@ -32,8 +32,7 @@ export function nostrDate(date?: Date | number): number {
 }
 
 export function fromNostrDate(date: number): Date {
-  let ms = new Date(date * 1000)
-  return new Date(ms.setMilliseconds(0))
+  return new Date(date * 1000)
 }
 
 export function getTagValues(e: Event, tagType: TagType): string[] {
