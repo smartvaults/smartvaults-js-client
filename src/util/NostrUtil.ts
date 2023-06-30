@@ -35,18 +35,26 @@ export function fromNostrDate(date: number): Date {
   return new Date(date * 1000)
 }
 
-export function getTagValues(e: Event, tagType: TagType): string[] {
+export function getTagValues(
+  e: Event,
+  tagType: TagType,
+  transformerFn: (params: string[]) => any = (params) => params[0]
+): any[] {
   const values: string[] = []
-  for (const [tt, v] of e.tags) {
+  for (const [tt, ...params] of e.tags) {
     if (tt === tagType) {
-      values.push(v)
+      values.push(transformerFn(params))
     }
   }
   return values
 }
 
-export function getTagValue(e: Event, tagType: TagType): string {
-  const values = getTagValues(e, tagType)
+export function getTagValue(
+  e: Event,
+  tagType: TagType,
+  transformerFn?: (params: string[]) => any
+): any {
+  const values = getTagValues(e, tagType, transformerFn)
   if (!values.length) {
     throw new Error(`No tag of type: ${tagType} found for event: ${JSON.stringify(e)}`)
   }
