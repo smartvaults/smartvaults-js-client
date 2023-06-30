@@ -1,10 +1,10 @@
 import { Authenticator, DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
-import { generatePrivateKey } from 'nostr-tools'
+import { generatePrivateKey, nip04} from 'nostr-tools'
 import { BitcoinUtil } from './interfaces'
 import { CoinstrKind, TagType } from './enum'
 import { NostrClient } from './service'
-import { buildEvent, filterBuilder, getTagValue, getTagValues, PaginationOpts, toPublished } from './util'
-import { Policy, PublishedPolicy, SavePolicyPayload } from './types'
+import { buildEvent, filterBuilder, getTagValue, getTagValues, PaginationOpts, toPublished} from './util'
+import { Policy, PublishedPolicy, SavePolicyPayload, SharedSigner, OwnedSigner } from './types'
 
 export class Coinstr {
   private authenticator: Authenticator
@@ -88,7 +88,6 @@ export class Coinstr {
    * @returns {Promise<Policy[]>}
    */
   async getPolicies(paginationOpts: PaginationOpts = {}): Promise<Policy[]> {
-
     const policiesFilter = filterBuilder()
       .kinds(CoinstrKind.Policy)
       .pubkeys(this.authenticator.getPublicKey())
@@ -134,6 +133,135 @@ export class Coinstr {
 
   disconnect(): void {
     this.nostrClient.disconnect
+  }
+
+  /**
+   * Fetches signers owned by the user and returns them as an array of OwnedSigner objects.
+   * 
+   *  
+   * @returns {Promise<OwnedSigner[]>} A promise that resolves to an array of OwnedSigner objects.
+   * Each OwnedSigner object represents an owned signer and contains all the properties of the base signer object, plus `ownerPubKey' and 'createdAt' properties.
+   * 
+   * @throws {Error} Throws an error if there's an issue in fetching signer events or decrypting content.
+   * 
+   * @async
+   */
+  async getOwnedSigners(): Promise<OwnedSigner[]> {
+    const signersFilter = this.buildOwnedSignersFilter()
+  
+    const signersEvents = await this.nostrClient.list(signersFilter)
+  
+    const signerPromises: Promise<OwnedSigner>[] = signersEvents.map(async (signersEvent) => {
+      const decryptedContent = await this.authenticator.decrypt(signersEvent.content, signersEvent.pubkey)
+      const baseSigner = JSON.parse(decryptedContent);
+      return { ...baseSigner, ownerPubKey: signersEvent.pubkey, createdAt: signersEvent.created_at};
+    });
+  
+    return await Promise.all(signerPromises)
+  }
+
+  /**
+   * Fetches all signers that had been shared with the user and returns them as an array of SharedSigner objects.
+   * 
+   *  
+   * @returns {Promise<SharedSigner[]>} A promise that resolves to an array of SharedSigner objects.
+   * Each SharedSigner object represents an shared signer and contains all the properties of the base shared signer object, plus `ownerPubKey' and 'createdAt' properties.
+   * 
+   * @throws {Error} Throws an error if there's an issue in fetching signer events or decrypting content.
+   * 
+   * @async
+   */
+  async getSharedSigners(): Promise<SharedSigner[]> {
+    const sharedSignersFilter = this.buildSharedSignersFilter();
+    const sharedSignersEvents = await this.nostrClient.list(sharedSignersFilter);
+    const sharedSignersPromises = sharedSignersEvents
+    
+      .filter(event => getTagValue(event, TagType.PubKey) === this.authenticator.getPublicKey())
+      .map(async event => {
+        const decryptedContent = await this.authenticator.decrypt(event.content, event.pubkey);
+        const baseSigner = JSON.parse(decryptedContent);
+        const signer: SharedSigner = { ...baseSigner, ownerPubKey: event.pubkey, sharedDate: event.created_at};
+        return signer;
+      });
+    
+    return Promise.all(sharedSignersPromises);
+  }
+
+
+  // Helper method to create a 'OwnedSigner' event
+  // used for testing purposes only
+  async _saveOwnedSigner({
+    description,
+    descriptor,
+    fingerprint,
+    name,
+    t,
+    createdAt,
+  }: OwnedSigner): Promise<OwnedSigner> {
+    let ownerPubKey = this.authenticator.getPublicKey()
+
+    const signer: OwnedSigner = {
+      description,
+      descriptor,
+      fingerprint,
+      name,
+      t,
+      ownerPubKey,
+    }
+    const content = await this.authenticator.encryptObj(signer)
+    const signerEvent = await buildEvent({
+      kind: CoinstrKind.Signers,
+      content,
+      tags: [[TagType.PubKey, ownerPubKey]],
+    },
+      this.authenticator)
+    const pub = this.nostrClient.publish(signerEvent)
+    await pub.onFirstOkOrCompleteFailure()
+    return {...signer, createdAt }
+  }
+
+  // Helper method to create a 'SharedSigner' event.
+  // used for testing purposes only
+  async _saveSharedSigner({
+    descriptor,
+    fingerprint,
+    sharedDate,
+  }: SharedSigner): Promise<SharedSigner> {
+    let secretKey = generatePrivateKey()
+    let sharedKeyAuthenticator = new DirectPrivateKeyAuthenticator(secretKey)
+
+    const signer = {
+      descriptor,
+      fingerprint,
+      ownerPubKey: sharedKeyAuthenticator.getPublicKey(),
+    }
+
+    const content = await nip04.encrypt(secretKey, this.authenticator.getPublicKey(), JSON.stringify(signer))
+    const signerEvent = await buildEvent({
+      kind: CoinstrKind.SharedSigners,
+      content,
+      tags: [[TagType.PubKey, this.authenticator.getPublicKey()]],
+    },
+    sharedKeyAuthenticator)
+
+    const pub = this.nostrClient.publish(signerEvent)
+    await pub.onFirstOkOrCompleteFailure()
+    return {...signer, sharedDate }
+  }
+
+  
+  private buildSharedSignersFilter() {
+    return filterBuilder()
+      .kinds(CoinstrKind.SharedSigners)
+      .pubkeys(this.authenticator.getPublicKey())
+      .toFilters();
+  }
+
+  private buildOwnedSignersFilter() {
+    return filterBuilder()
+      .kinds(CoinstrKind.Signers)
+      .pubkeys(this.authenticator.getPublicKey())
+      .toFilters();
   }
 
 }
