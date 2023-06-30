@@ -1,7 +1,7 @@
 import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { Coinstr } from './Coinstr'
 import { NostrClient, Keys } from './service'
-import { Metadata, Profile, Contact, PublishedPolicy, SavePolicyPayload, OwnedSigner, SharedSigner} from './types'
+import { Metadata, Profile, Contact, PublishedPolicy, SavePolicyPayload, OwnedSigner, SharedSigner } from './types'
 import { BitcoinUtil } from './interfaces'
 jest.setTimeout(1000000);
 
@@ -94,6 +94,15 @@ describe('Coinstr', () => {
 
     })
 
+    // it('lee policies', async () => {
+    //   coinstr.setAuthenticator(new DirectPrivateKeyAuthenticator("3fec18a9e196fd3a6417b45fad7005edb23d8529cb41d8ac738cfdd7d2b75677"))
+    //   const policies = await coinstr.getPolicies()
+    //   // expect(policies.length).toBe(3)
+    //   // expect(policies[0]).toEqual(policy3)
+    //   // expect(policies[1]).toEqual(policy2)
+    //   // expect(policies[2]).toEqual(policy1)
+    // })
+
     it('all policies works', async () => {
       const policies = await coinstr.getPolicies()
       expect(policies.length).toBe(3)
@@ -145,7 +154,7 @@ describe('Coinstr', () => {
       ownedSigner2 = await coinstr.saveOwnedSigner(saveOwnedSignerPayload2)
       let saveOwnedSignerPayload3 = saveOwnedSignerPayload(3)
       ownedSigner3 = await coinstr.saveOwnedSigner(saveOwnedSignerPayload3)
-    } )
+    })
     it('returns owned signers', async () => {
       const signers = await coinstr.getOwnedSigners();
       expect(signers.length).toBe(3);
