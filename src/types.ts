@@ -28,12 +28,12 @@ export type Policy = BasePolicy & {
 };
 
 export type SharedSigner = BaseSharedSigner & {
-  ownerPubKey: string;
+  ownerPubKey?: string;
   sharedDate?: number;
 };
 
 export type OwnedSigner = BaseOwnedSigner & {
-  ownerPubKey: string;
+  ownerPubKey?: string;
   createdAt?: number;
 };
 

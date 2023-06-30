@@ -91,11 +91,11 @@ describe('Coinstr', () => {
     let ownedSigner3: OwnedSigner
     beforeAll(async () => {
       let saveOwnedSignerPayload1 = saveOwnedSignerPayload(1)
-      ownedSigner1 = await coinstr._saveOwnedSigner(saveOwnedSignerPayload1)
+      ownedSigner1 = await coinstr.saveOwnedSigner(saveOwnedSignerPayload1)
       let saveOwnedSignerPayload2 = saveOwnedSignerPayload(2)
-      ownedSigner2 = await coinstr._saveOwnedSigner(saveOwnedSignerPayload2)
+      ownedSigner2 = await coinstr.saveOwnedSigner(saveOwnedSignerPayload2)
       let saveOwnedSignerPayload3 = saveOwnedSignerPayload(3)
-      ownedSigner3 = await coinstr._saveOwnedSigner(saveOwnedSignerPayload3)
+      ownedSigner3 = await coinstr.saveOwnedSigner(saveOwnedSignerPayload3)
     } )
     it('returns owned signers', async () => {
       const signers = await coinstr.getOwnedSigners();
@@ -119,16 +119,31 @@ describe('Coinstr', () => {
     let sharedSigner1: SharedSigner
     let sharedSigner2: SharedSigner
     let sharedSigner3: SharedSigner
+    let coinstrWithAuthenticator2: Coinstr // New instance of Coinstr
+
     beforeAll(async () => {
+      const keys2 = new Keys() // Second set of keys
+      const authenticator2 = new DirectPrivateKeyAuthenticator(keys2.privateKey) // Second authenticator
+      const nostrClient = new NostrClient([
+        'wss://relay.rip',
+      ])
+      coinstrWithAuthenticator2 = new Coinstr({ // New instance of Coinstr with different authenticator
+        authenticator: authenticator2,
+        bitcoinUtil,
+        nostrClient
+      });
+
+      let pubKey = keys2.publicKey
       let saveSharedSignerPayload1 = saveSharedSignerPayload(1)
-      sharedSigner1 = await coinstr._saveSharedSigner(saveSharedSignerPayload1)
+      sharedSigner1 = await coinstr.saveSharedSigner(saveSharedSignerPayload1, pubKey)
       let saveSharedSignerPayload2 = saveSharedSignerPayload(2)
-      sharedSigner2 = await coinstr._saveSharedSigner(saveSharedSignerPayload2)
+      sharedSigner2 = await coinstr.saveSharedSigner(saveSharedSignerPayload2, pubKey)
       let saveSharedSignerPayload3 = saveSharedSignerPayload(3)
-      sharedSigner3 = await coinstr._saveSharedSigner(saveSharedSignerPayload3)
-    } )
+      sharedSigner3 = await coinstr.saveSharedSigner(saveSharedSignerPayload3, pubKey)
+    })
+
     it('returns shared signers', async () => {
-      const signers = await coinstr.getSharedSigners();
+      const signers = await coinstrWithAuthenticator2.getSharedSigners(); // Using the new instance of Coinstr
       expect(signers.length).toBe(3);
       expect(signers[0]).toEqual(sharedSigner3)
       expect(signers[1]).toEqual(sharedSigner2)
