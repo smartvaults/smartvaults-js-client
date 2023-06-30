@@ -85,11 +85,11 @@ describe('Coinstr', () => {
     let policy3: PublishedPolicy
 
     beforeAll(async () => {
-      let savePayload = getSavePolicyPayload(1, 20)
+      let savePayload = getSavePolicyPayload(1, bitcoinUtil.publicKeys(), 20)
       policy1 = await coinstr.savePolicy(savePayload)
-      savePayload = getSavePolicyPayload(2, 10)
+      savePayload = getSavePolicyPayload(2, bitcoinUtil.publicKeys(), 10)
       policy2 = await coinstr.savePolicy(savePayload)
-      savePayload = getSavePolicyPayload(3)
+      savePayload = getSavePolicyPayload(3, bitcoinUtil.publicKeys())
       policy3 = await coinstr.savePolicy(savePayload)
 
     })
@@ -227,7 +227,7 @@ class BtcUtil implements BitcoinUtil {
       this.keys.push(new Keys())
     }
   }
-  getKeysFromMiniscript(_miniscript: string): string[] {
+  publicKeys(): string[] {
     return this.keys.map(k => k.publicKey)
   }
   toDescriptor(_miniscript: string): string {
@@ -236,7 +236,7 @@ class BtcUtil implements BitcoinUtil {
 
 }
 
-function getSavePolicyPayload(id: number, secondsShift: number = 0): SavePolicyPayload {
+function getSavePolicyPayload(id: number, nostrPublicKeys: string[], secondsShift: number = 0): SavePolicyPayload {
   let createdAt = new Date()
   createdAt.setSeconds(createdAt.getSeconds() - secondsShift)
   return {
@@ -244,6 +244,7 @@ function getSavePolicyPayload(id: number, secondsShift: number = 0): SavePolicyP
     description: `policy desc ${id}`,
     miniscript: `miniscript ${id}`,
     uiMetadata: { p: `property${id}` },
+    nostrPublicKeys,
     createdAt
   }
 }

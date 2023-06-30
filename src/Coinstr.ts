@@ -122,9 +122,9 @@ export class Coinstr {
     description,
     miniscript,
     uiMetadata,
+    nostrPublicKeys,
     createdAt
   }: SavePolicyPayload): Promise<PublishedPolicy> {
-    const extractedPubKeys = this.bitcoinUtil.getKeysFromMiniscript(miniscript)
     const descriptor = this.bitcoinUtil.toDescriptor(miniscript)
     const secretKey = generatePrivateKey()
     let sharedKeyAuthenticator = new DirectPrivateKeyAuthenticator(secretKey)
@@ -135,7 +135,7 @@ export class Coinstr {
       uiMetadata
     }
 
-    const tags = extractedPubKeys.map(pubkey => [TagType.PubKey, pubkey])
+    const tags = nostrPublicKeys.map(pubkey => [TagType.PubKey, pubkey])
     const policyEvent = await buildEvent({
       kind: CoinstrKind.Policy,
       content: await sharedKeyAuthenticator.encryptObj(policyContent),
@@ -148,7 +148,7 @@ export class Coinstr {
 
     const promises: Promise<void>[] = []
 
-    for (const pubkey of extractedPubKeys) {
+    for (const pubkey of nostrPublicKeys) {
       const content = await this.authenticator.encrypt(secretKey, pubkey)
       const sharedKeyEvent = await buildEvent({
         kind: CoinstrKind.SharedKey,
