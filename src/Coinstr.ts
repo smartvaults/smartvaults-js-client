@@ -255,19 +255,34 @@ export class Coinstr {
    * 
    * @async
    */
-  async getSharedSigners(): Promise<SharedSigner[]> {
+  async getSharedSigners(publicKeys?: string | string[]): Promise<SharedSigner[]> {
     const sharedSignersFilter = this.buildSharedSignersFilter();
-    const sharedSignersEvents = await this.nostrClient.list(sharedSignersFilter);
+    let sharedSignersEvents = await this.nostrClient.list(sharedSignersFilter);
+
+    let keysToFilter: string[] = [];
+
+    if (typeof publicKeys === "string") {
+        keysToFilter = [publicKeys];
+    } else if (Array.isArray(publicKeys)) {
+        keysToFilter = [...publicKeys];
+    }
+
+    if (keysToFilter.length > 0) {
+        sharedSignersEvents = sharedSignersEvents.filter(event => keysToFilter.includes(event.pubkey));
+    }
+
     const sharedSignersPromises = sharedSignersEvents
         .map(async event => {
-        const decryptedContent = await this.authenticator.decrypt(event.content, event.pubkey);
-        const baseSigner = JSON.parse(decryptedContent);
-        const signer: SharedSigner = { ...baseSigner, ownerPubKey: event.pubkey, sharedDate: event.created_at};
-        return signer;
-      });
-    
+            const decryptedContent = await this.authenticator.decrypt(event.content, event.pubkey);
+            const baseSigner = JSON.parse(decryptedContent);
+            const signer: SharedSigner = { ...baseSigner, ownerPubKey: event.pubkey, sharedDate: event.created_at };
+            return signer;
+        });
+
     return Promise.all(sharedSignersPromises);
-  }
+}
+
+
 
 
   /**
@@ -309,6 +324,10 @@ export class Coinstr {
       this.authenticator)
     const pub = this.nostrClient.publish(signerEvent)
     await pub.onFirstOkOrCompleteFailure()
+
+    // Use the current date in seconds if sharedDate is not passed in
+    createdAt = createdAt ?  createdAt : Math.floor(Date.now() / 1000);
+
     return {...signer, ownerPubKey, createdAt }
   }
 
@@ -346,6 +365,10 @@ export class Coinstr {
 
     const pub = this.nostrClient.publish(signerEvent)
     await pub.onFirstOkOrCompleteFailure()
+
+    // Use the current date in seconds if sharedDate is not passed in
+    sharedDate = sharedDate ? sharedDate : Math.floor(Date.now() / 1000);
+
     return {...signer, ownerPubKey, sharedDate }
   }
 

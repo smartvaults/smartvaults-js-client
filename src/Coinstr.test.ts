@@ -168,11 +168,15 @@ describe('Coinstr', () => {
     let sharedSigner1: SharedSigner
     let sharedSigner2: SharedSigner
     let sharedSigner3: SharedSigner
+    let sharedSigner4: SharedSigner
+    let sharedSigner5: SharedSigner
     let coinstrWithAuthenticator2: Coinstr // New instance of Coinstr
 
     beforeAll(async () => {
       const keys2 = new Keys() // Second set of keys
+      const keys3 = new Keys() // Third set of keys
       const authenticator2 = new DirectPrivateKeyAuthenticator(keys2.privateKey) // Second authenticator
+      const authenticator3 = new DirectPrivateKeyAuthenticator(keys3.privateKey) // Third authenticator
       const nostrClient = new NostrClient([
         'wss://relay.rip',
       ])
@@ -189,14 +193,28 @@ describe('Coinstr', () => {
       sharedSigner2 = await coinstr.saveSharedSigner(saveSharedSignerPayload2, pubKey)
       let saveSharedSignerPayload3 = saveSharedSignerPayload(3)
       sharedSigner3 = await coinstr.saveSharedSigner(saveSharedSignerPayload3, pubKey)
+
+      let coinstrWithAuthenticator3 = new Coinstr({ // New instance of Coinstr with different authenticator
+        authenticator: authenticator3,
+        bitcoinUtil,
+        nostrClient
+      });
+
+      saveSharedSignerPayload1 = saveSharedSignerPayload(6)
+      sharedSigner4 = await coinstrWithAuthenticator3.saveSharedSigner(saveSharedSignerPayload1, pubKey)
+      saveSharedSignerPayload1 = saveSharedSignerPayload(7)
+      sharedSigner5 = await coinstrWithAuthenticator3.saveSharedSigner(saveSharedSignerPayload1, pubKey)
+
     })
 
-    it('returns shared signers', async () => {
+    it('returns shared all signers (default)', async () => {
       const signers = await coinstrWithAuthenticator2.getSharedSigners(); // Using the new instance of Coinstr
-      expect(signers.length).toBe(3);
-      expect(signers[0]).toEqual(sharedSigner3)
-      expect(signers[1]).toEqual(sharedSigner2)
-      expect(signers[2]).toEqual(sharedSigner1)
+      expect(signers.length).toBe(5);
+      expect(signers[0]).toEqual(sharedSigner5)
+      expect(signers[1]).toEqual(sharedSigner4)
+      expect(signers[2]).toEqual(sharedSigner3)
+      expect(signers[3]).toEqual(sharedSigner2)
+      expect(signers[4]).toEqual(sharedSigner1)
 
       signers.forEach(signer => {
         expect(signer).toHaveProperty('ownerPubKey');
@@ -204,7 +222,41 @@ describe('Coinstr', () => {
         expect(signer).toHaveProperty('fingerprint');
       });
     });
+
+    it ('returns shared signers for a specific owner', async () => {
+      if (!sharedSigner1.ownerPubKey) {
+        throw new Error('SharedSigner1 ownerPubKey is undefined');
+      }
+      const signers1 = await coinstrWithAuthenticator2.getSharedSigners(sharedSigner1.ownerPubKey);
+      expect(signers1.length).toBe(3);
+      expect(signers1[0]).toEqual(sharedSigner3)
+      expect(signers1[1]).toEqual(sharedSigner2)
+      expect(signers1[2]).toEqual(sharedSigner1)
+
+
+      const signers2 = await coinstrWithAuthenticator2.getSharedSigners(sharedSigner4.ownerPubKey);
+      expect(signers2.length).toBe(2);
+      expect(signers2[0]).toEqual(sharedSigner5);
+      expect(signers2[1]).toEqual(sharedSigner4);
+    });
+
+    it('returns all signer for an array of owners', async () => {
+
+      if (!sharedSigner1.ownerPubKey || !sharedSigner4.ownerPubKey) {
+        throw new Error('SharedSigner1 ownerPubKey is undefined');
+      }
+      const signers = await coinstrWithAuthenticator2.getSharedSigners([sharedSigner1.ownerPubKey , sharedSigner4.ownerPubKey]);
+      expect(signers.length).toBe(5);
+      expect(signers[0]).toEqual(sharedSigner5)
+      expect(signers[1]).toEqual(sharedSigner4)
+      expect(signers[2]).toEqual(sharedSigner3)
+      expect(signers[3]).toEqual(sharedSigner2)
+      expect(signers[4]).toEqual(sharedSigner1)
+    }
+    );
+    
   });
+
 })
 
 
