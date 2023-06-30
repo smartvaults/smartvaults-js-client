@@ -3,8 +3,10 @@ import { generatePrivateKey, Kind, Event} from 'nostr-tools'
 import { BitcoinUtil } from './interfaces'
 import { CoinstrKind, TagType } from './enum'
 import { NostrClient } from './service'
-import { buildEvent, filterBuilder, getTagValue, getTagValues, PaginationOpts, toPublished} from './util'
-import { Contact, ContactProfile, Metadata, Policy, Profile, PublishedPolicy, SavePolicyPayload, SharedSigner, OwnedSigner } from './types'
+import { buildEvent, filterBuilder, getTagValue, getTagValues, PaginationOpts, toPublished, fromNostrDate} from './util'
+import { Contact, ContactProfile, Metadata, Policy, Profile, PublishedPolicy, SavePolicyPayload, SharedSigner, OwnedSigner,
+  PublishedOwnedSigner, PublishedSharedSigner
+} from './types'
 
 export class Coinstr {
   private authenticator: Authenticator
@@ -230,20 +232,21 @@ export class Coinstr {
    * 
    * @async
    */
-  async getOwnedSigners(): Promise<OwnedSigner[]> {
+  async getOwnedSigners(): Promise<PublishedOwnedSigner[]> {
     const signersFilter = this.buildOwnedSignersFilter()
-  
-    const signersEvents = await this.nostrClient.list(signersFilter)
-  
-    const signerPromises: Promise<OwnedSigner>[] = signersEvents.map(async (signersEvent) => {
-      const decryptedContent = await this.authenticator.decrypt(signersEvent.content, signersEvent.pubkey)
-      const baseSigner = JSON.parse(decryptedContent);
-      return { ...baseSigner, ownerPubKey: signersEvent.pubkey, createdAt: signersEvent.created_at};
-    });
-  
-    return await Promise.all(signerPromises)
-  }
 
+    const signersEvents = await this.nostrClient.list(signersFilter)
+
+    const signers: PublishedOwnedSigner[] = [];
+
+    for (const signersEvent of signersEvents) {
+        const decryptedContent = await this.authenticator.decrypt(signersEvent.content, signersEvent.pubkey)
+        const baseSigner = JSON.parse(decryptedContent);
+        signers.push({ ...baseSigner, id: signersEvent.id, ownerPubKey: signersEvent.pubkey, createdAt: fromNostrDate(signersEvent.created_at)});
+    }
+
+    return signers;
+}
   /**
    * Fetches all signers that had been shared with the user and returns them as an array of SharedSigner objects.
    * 
@@ -255,10 +258,7 @@ export class Coinstr {
    * 
    * @async
    */
-  async getSharedSigners(publicKeys?: string | string[]): Promise<SharedSigner[]> {
-    const sharedSignersFilter = this.buildSharedSignersFilter();
-    let sharedSignersEvents = await this.nostrClient.list(sharedSignersFilter);
-
+  async getSharedSigners(publicKeys?: string | string[]): Promise<PublishedSharedSigner[]> {
     let keysToFilter: string[] = [];
 
     if (typeof publicKeys === "string") {
@@ -267,21 +267,25 @@ export class Coinstr {
         keysToFilter = [...publicKeys];
     }
 
+    let sharedSignersFilter = this.buildSharedSignersFilter();
+
     if (keysToFilter.length > 0) {
-        sharedSignersEvents = sharedSignersEvents.filter(event => keysToFilter.includes(event.pubkey));
+        sharedSignersFilter = sharedSignersFilter.authors(keysToFilter);
     }
 
-    const sharedSignersPromises = sharedSignersEvents
-        .map(async event => {
-            const decryptedContent = await this.authenticator.decrypt(event.content, event.pubkey);
-            const baseSigner = JSON.parse(decryptedContent);
-            const signer: SharedSigner = { ...baseSigner, ownerPubKey: event.pubkey, sharedDate: event.created_at };
-            return signer;
-        });
+    const sharedSignersEvents = await this.nostrClient.list(sharedSignersFilter.toFilters());
 
-    return Promise.all(sharedSignersPromises);
-}
+    const signers: PublishedSharedSigner[] = [];
 
+    for (const event of sharedSignersEvents) {
+        const decryptedContent = await this.authenticator.decrypt(event.content, event.pubkey);
+        const baseSigner = JSON.parse(decryptedContent);
+        const signer: PublishedSharedSigner = { ...baseSigner,id: event.id, ownerPubKey: event.pubkey, createdAt: fromNostrDate(event.created_at)};
+        signers.push(signer);
+    }
+
+    return signers;
+  }
 
 
 
@@ -291,12 +295,12 @@ export class Coinstr {
    *
    * @async
    * @param {Object} params - Parameters for the owned signer, including `description`, `descriptor`, 
-   * `fingerprint`, `name`, `t`, and `createdAt`.
+   * `fingerprint`, `name`, `t`.
    * @returns {Promise<OwnedSigner>} A promise that resolves to an OwnedSigner object with encrypted 
    * data and includes the owner's public key and creation date.
    * @throws Will throw an error if the event publishing fails.
    * @example
-   * const signer = await saveOwnedSigner({description, descriptor, fingerprint, name, t, createdAt});
+   * const signer = await saveOwnedSigner({description, descriptor, fingerprint, name, t});
    */
   async saveOwnedSigner({
     description,
@@ -304,8 +308,7 @@ export class Coinstr {
     fingerprint,
     name,
     t,
-    createdAt,
-  }: OwnedSigner): Promise<OwnedSigner> {
+  }: OwnedSigner): Promise<PublishedOwnedSigner> {
     let ownerPubKey = this.authenticator.getPublicKey()
 
     const signer: OwnedSigner = {
@@ -319,36 +322,33 @@ export class Coinstr {
     const signerEvent = await buildEvent({
       kind: CoinstrKind.Signers,
       content,
-      tags: [[TagType.PubKey, ownerPubKey]],
+      tags: [],
     },
-      this.authenticator)
+    this.authenticator)
     const pub = this.nostrClient.publish(signerEvent)
     await pub.onFirstOkOrCompleteFailure()
+    const id = signerEvent.id
+    const createdAt = fromNostrDate(signerEvent.created_at);
 
-    // Use the current date in seconds if sharedDate is not passed in
-    createdAt = createdAt ?  createdAt : Math.floor(Date.now() / 1000);
-
-    return {...signer, ownerPubKey, createdAt }
+    return {...signer, id, ownerPubKey, createdAt }
   }
 
 /**
  * Asynchronously creates and publishes a 'SharedSigner' event.
  *
  * @async
- * @param {Object} params - Parameters for the shared signer, including `descriptor`, `fingerprint`, 
- * and `sharedDate`.
+ * @param {Object} params - Parameters for the shared signer, including `descriptor` and `fingerpring`
  * @param {string} pubKey - Public key of the user with whom the signer is being shared.
- * @returns {Promise<SharedSigner>} A promise that resolves to a SharedSigner object, includes 
+ * @returns {Promise<SharedSigner>} A promise that resolves to a PublishedSharedSigner object, includes 
  * the owner's public key and shared date.
  * @throws Will throw an error if the event publishing fails.
  * @example
- * const signer = await saveSharedSigner({descriptor, fingerprint, sharedDate}, pubKey);
+ * const signer = await saveSharedSigner({descriptor, fingerprint}, pubKey);
  */
   async saveSharedSigner({
     descriptor,
     fingerprint,
-    sharedDate,
-  }: SharedSigner, pubKey: string): Promise<SharedSigner> {
+  }: SharedSigner, pubKey: string): Promise<PublishedSharedSigner> {
 
     const ownerPubKey = this.authenticator.getPublicKey()
     const signer: SharedSigner = {
@@ -366,10 +366,10 @@ export class Coinstr {
     const pub = this.nostrClient.publish(signerEvent)
     await pub.onFirstOkOrCompleteFailure()
 
-    // Use the current date in seconds if sharedDate is not passed in
-    sharedDate = sharedDate ? sharedDate : Math.floor(Date.now() / 1000);
+    const id = signerEvent.id
+    const createdAt = fromNostrDate(signerEvent.created_at)
 
-    return {...signer, ownerPubKey, sharedDate }
+    return {...signer, id, ownerPubKey, createdAt }
   }
 
   
@@ -377,7 +377,6 @@ export class Coinstr {
     return filterBuilder()
       .kinds(CoinstrKind.SharedSigners)
       .pubkeys(this.authenticator.getPublicKey())
-      .toFilters();
   }
 
   private buildOwnedSignersFilter() {

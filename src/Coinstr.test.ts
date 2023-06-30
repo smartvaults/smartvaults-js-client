@@ -205,16 +205,13 @@ describe('Coinstr', () => {
       saveSharedSignerPayload1 = saveSharedSignerPayload(7)
       sharedSigner5 = await coinstrWithAuthenticator3.saveSharedSigner(saveSharedSignerPayload1, pubKey)
 
+
     })
 
     it('returns shared all signers (default)', async () => {
       const signers = await coinstrWithAuthenticator2.getSharedSigners(); // Using the new instance of Coinstr
       expect(signers.length).toBe(5);
-      expect(signers[0]).toEqual(sharedSigner5)
-      expect(signers[1]).toEqual(sharedSigner4)
-      expect(signers[2]).toEqual(sharedSigner3)
-      expect(signers[3]).toEqual(sharedSigner2)
-      expect(signers[4]).toEqual(sharedSigner1)
+      expect(new Set(signers)).toEqual(new Set([sharedSigner1, sharedSigner2, sharedSigner3, sharedSigner4, sharedSigner5]));
 
       signers.forEach(signer => {
         expect(signer).toHaveProperty('ownerPubKey');
@@ -229,15 +226,12 @@ describe('Coinstr', () => {
       }
       const signers1 = await coinstrWithAuthenticator2.getSharedSigners(sharedSigner1.ownerPubKey);
       expect(signers1.length).toBe(3);
-      expect(signers1[0]).toEqual(sharedSigner3)
-      expect(signers1[1]).toEqual(sharedSigner2)
-      expect(signers1[2]).toEqual(sharedSigner1)
+      expect (new Set (signers1)).toEqual(new Set ([sharedSigner1, sharedSigner2, sharedSigner3]));
 
 
       const signers2 = await coinstrWithAuthenticator2.getSharedSigners(sharedSigner4.ownerPubKey);
       expect(signers2.length).toBe(2);
-      expect(signers2[0]).toEqual(sharedSigner5);
-      expect(signers2[1]).toEqual(sharedSigner4);
+      expect (new Set (signers2)).toEqual(new Set ([sharedSigner4, sharedSigner5]))
     });
 
     it('returns all signer for an array of owners', async () => {
@@ -247,11 +241,7 @@ describe('Coinstr', () => {
       }
       const signers = await coinstrWithAuthenticator2.getSharedSigners([sharedSigner1.ownerPubKey , sharedSigner4.ownerPubKey]);
       expect(signers.length).toBe(5);
-      expect(signers[0]).toEqual(sharedSigner5)
-      expect(signers[1]).toEqual(sharedSigner4)
-      expect(signers[2]).toEqual(sharedSigner3)
-      expect(signers[3]).toEqual(sharedSigner2)
-      expect(signers[4]).toEqual(sharedSigner1)
+      expect( new Set (signers) ).toEqual(new Set ([sharedSigner1, sharedSigner2, sharedSigner3, sharedSigner4, sharedSigner5]));
     }
     );
     
@@ -316,16 +306,13 @@ async function setProfile(id: number, coinstr: Coinstr): Promise<Profile> {
 }
 
 function saveSharedSignerPayload(id: number): SharedSigner {
-  let createdAt = Math.floor(Date.now() / 1000)
   return {
     descriptor: `descriptor${id}`,
     fingerprint: `fingerprint${id}`,
     ownerPubKey: `ownerPubKey${id}`,
-    sharedDate: createdAt
   }
 }
 function saveOwnedSignerPayload(id: number): OwnedSigner {
-  let createdAt = Math.floor(Date.now() / 1000)
   return {
     descriptor: `descriptor${id}`,
     fingerprint: `fingerprint${id}`,
@@ -333,6 +320,5 @@ function saveOwnedSignerPayload(id: number): OwnedSigner {
     name: `name${id}`,
     t: `t${id}`,
     description: `description${id}`,
-    createdAt
   }
 }
