@@ -1,7 +1,7 @@
 import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { Coinstr } from './Coinstr'
 import { NostrClient, Keys } from './service'
-import { Metadata, Profile, Contact, PublishedPolicy, SavePolicyPayload, OwnedSigner, SharedSigner} from './types'
+import { Metadata, Profile, Contact, PublishedPolicy, SavePolicyPayload, OwnedSigner, SharedSigner } from './types'
 import { BitcoinUtil } from './interfaces'
 jest.setTimeout(1000000);
 
@@ -85,14 +85,23 @@ describe('Coinstr', () => {
     let policy3: PublishedPolicy
 
     beforeAll(async () => {
-      let savePayload = getSavePolicyPayload(1, 20)
+      let savePayload = getSavePolicyPayload(1, bitcoinUtil.publicKeys(), 20)
       policy1 = await coinstr.savePolicy(savePayload)
-      savePayload = getSavePolicyPayload(2, 10)
+      savePayload = getSavePolicyPayload(2, bitcoinUtil.publicKeys(), 10)
       policy2 = await coinstr.savePolicy(savePayload)
-      savePayload = getSavePolicyPayload(3)
+      savePayload = getSavePolicyPayload(3, bitcoinUtil.publicKeys())
       policy3 = await coinstr.savePolicy(savePayload)
 
     })
+
+    // it('lee policies', async () => {
+    //   coinstr.setAuthenticator(new DirectPrivateKeyAuthenticator("3fec18a9e196fd3a6417b45fad7005edb23d8529cb41d8ac738cfdd7d2b75677"))
+    //   const policies = await coinstr.getPolicies()
+    //   // expect(policies.length).toBe(3)
+    //   // expect(policies[0]).toEqual(policy3)
+    //   // expect(policies[1]).toEqual(policy2)
+    //   // expect(policies[2]).toEqual(policy1)
+    // })
 
     it('all policies works', async () => {
       const policies = await coinstr.getPolicies()
@@ -145,7 +154,7 @@ describe('Coinstr', () => {
       ownedSigner2 = await coinstr.saveOwnedSigner(saveOwnedSignerPayload2)
       let saveOwnedSignerPayload3 = saveOwnedSignerPayload(3)
       ownedSigner3 = await coinstr.saveOwnedSigner(saveOwnedSignerPayload3)
-    } )
+    })
     it('returns owned signers', async () => {
       const signers = await coinstr.getOwnedSigners();
       expect(signers.length).toBe(3);
@@ -260,7 +269,7 @@ class BtcUtil implements BitcoinUtil {
       this.keys.push(new Keys())
     }
   }
-  getKeysFromMiniscript(_miniscript: string): string[] {
+  publicKeys(): string[] {
     return this.keys.map(k => k.publicKey)
   }
   toDescriptor(_miniscript: string): string {
@@ -269,7 +278,7 @@ class BtcUtil implements BitcoinUtil {
 
 }
 
-function getSavePolicyPayload(id: number, secondsShift: number = 0): SavePolicyPayload {
+function getSavePolicyPayload(id: number, nostrPublicKeys: string[], secondsShift: number = 0): SavePolicyPayload {
   let createdAt = new Date()
   createdAt.setSeconds(createdAt.getSeconds() - secondsShift)
   return {
@@ -277,6 +286,7 @@ function getSavePolicyPayload(id: number, secondsShift: number = 0): SavePolicyP
     description: `policy desc ${id}`,
     miniscript: `miniscript ${id}`,
     uiMetadata: { p: `property${id}` },
+    nostrPublicKeys,
     createdAt
   }
 }

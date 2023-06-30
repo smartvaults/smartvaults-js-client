@@ -1,9 +1,9 @@
 import { Authenticator, DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
-import { generatePrivateKey, Kind, Event} from 'nostr-tools'
+import { generatePrivateKey, Kind, Event } from 'nostr-tools'
 import { BitcoinUtil } from './interfaces'
 import { CoinstrKind, TagType } from './enum'
 import { NostrClient } from './service'
-import { buildEvent, filterBuilder, getTagValue, getTagValues, PaginationOpts, toPublished, fromNostrDate} from './util'
+import { buildEvent, filterBuilder, getTagValues, PaginationOpts, toPublished , fromNostrDate} from './util'
 import { Contact, ContactProfile, Metadata, Policy, Profile, PublishedPolicy, SavePolicyPayload, SharedSigner, OwnedSigner,
   PublishedOwnedSigner, PublishedSharedSigner
 } from './types'
@@ -124,9 +124,9 @@ export class Coinstr {
     description,
     miniscript,
     uiMetadata,
+    nostrPublicKeys,
     createdAt
   }: SavePolicyPayload): Promise<PublishedPolicy> {
-    const extractedPubKeys = this.bitcoinUtil.getKeysFromMiniscript(miniscript)
     const descriptor = this.bitcoinUtil.toDescriptor(miniscript)
     const secretKey = generatePrivateKey()
     let sharedKeyAuthenticator = new DirectPrivateKeyAuthenticator(secretKey)
@@ -137,7 +137,7 @@ export class Coinstr {
       uiMetadata
     }
 
-    const tags = extractedPubKeys.map(pubkey => [TagType.PubKey, pubkey])
+    const tags = nostrPublicKeys.map(pubkey => [TagType.PubKey, pubkey])
     const policyEvent = await buildEvent({
       kind: CoinstrKind.Policy,
       content: await sharedKeyAuthenticator.encryptObj(policyContent),
@@ -150,7 +150,7 @@ export class Coinstr {
 
     const promises: Promise<void>[] = []
 
-    for (const pubkey of extractedPubKeys) {
+    for (const pubkey of nostrPublicKeys) {
       const content = await this.authenticator.encrypt(secretKey, pubkey)
       const sharedKeyEvent = await buildEvent({
         kind: CoinstrKind.SharedKey,
@@ -205,10 +205,9 @@ export class Coinstr {
         console.error(`Shared Key for policy id: ${policyId} not found`)
         continue
       }
-
       const sharedKey = await this.authenticator.decrypt(
         sharedKeyEvent.content,
-        getTagValue(sharedKeyEvent, TagType.PubKey)
+        sharedKeyEvent.pubkey
       )
       const sharedKeyAuthenticator = new DirectPrivateKeyAuthenticator(sharedKey)
       const policy = await sharedKeyAuthenticator.decryptObj(policyEvent.content)
@@ -372,7 +371,7 @@ export class Coinstr {
     return {...signer, id, ownerPubKey, createdAt }
   }
 
-  
+
   private buildSharedSignersFilter() {
     return filterBuilder()
       .kinds(CoinstrKind.SharedSigners)

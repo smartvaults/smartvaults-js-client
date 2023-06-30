@@ -19,7 +19,7 @@ type BaseOwnedSigner = {
   name: string,
   t: string,
 }
-  
+
 
 export type Published = {
   id: string
@@ -46,6 +46,7 @@ export type PublishedPolicy = Policy & Published;
 
 export type SavePolicyPayload = BasePolicy & {
   miniscript: string,
+  nostrPublicKeys: string[],
   createdAt?: Date,
 }
 
