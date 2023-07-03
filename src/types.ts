@@ -83,6 +83,21 @@ export type ContactProfile = Profile & {
   petname?: string
 }
 
+type BaseProposal = {
+  descriptor: string
+  psbt: string // to be change to PSBT
+}
+
+export type SpendingProposal = BaseProposal & {
+  to_address: string
+  amount: number
+  description: string
+}
+
+export type ProofOfReserveProposal = BaseProposal & {
+  message: string
+}
+
 export class Contact {
   publicKey: string
   relay?: string

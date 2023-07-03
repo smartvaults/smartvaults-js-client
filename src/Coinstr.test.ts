@@ -1,7 +1,7 @@
 import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { Coinstr } from './Coinstr'
 import { NostrClient, Keys } from './service'
-import { Metadata, Profile, Contact, PublishedPolicy, SavePolicyPayload, OwnedSigner, SharedSigner } from './types'
+import { Metadata, Profile, Contact, PublishedPolicy, SavePolicyPayload, OwnedSigner, SharedSigner, SpendingProposal, ProofOfReserveProposal } from './types'
 import { BitcoinUtil } from './interfaces'
 jest.setTimeout(1000000);
 
@@ -256,6 +256,92 @@ describe('Coinstr', () => {
     
   });
 
+  describe('getProposals', () => {
+    let spendProposal1;
+    let spendProposal2;
+    let spendProposal3;
+    let spendProposal4;
+    let proofOfReserveProposal1;
+    let proofOfReserveProposal2;
+    let proofOfReserveProposal3;
+    let proofOfReserveProposal4;
+    let bitcoinUtil2: BtcUtil
+    let coinstr2: Coinstr
+
+    const nostrClient = new NostrClient([
+      'wss://relay.rip',
+    ])
+
+    const keys2 = new Keys()
+
+
+
+
+
+    beforeAll(async () => {
+
+      bitcoinUtil2 = new BtcUtil(keys2, 3, "vault descriptor 2")
+    
+      const authenticator = new DirectPrivateKeyAuthenticator(keys2.privateKey)
+  
+      coinstr2 = new Coinstr({
+        authenticator,
+        bitcoinUtil: bitcoinUtil2,
+        nostrClient
+      })
+
+      let savePolicyPayload1 = getSavePolicyPayload(11, bitcoinUtil.publicKeys(), 10)
+      let policy1 = await coinstr.savePolicy(savePolicyPayload1)
+      let savePolicyPayload2 = getSavePolicyPayload(12, bitcoinUtil.publicKeys(), 15)
+      let policy2 = await coinstr.savePolicy(savePolicyPayload2)
+      let savePolicyPayload3 = getSavePolicyPayload(13, bitcoinUtil.publicKeys(), 20)
+      let policy3 = await coinstr.savePolicy(savePolicyPayload3)
+
+      
+      // Create policies with different public keys
+      let savePolicyPayload4 = getSavePolicyPayload(14, bitcoinUtil2.publicKeys(), 10)
+      let policy4 = await coinstr.savePolicy(savePolicyPayload4)
+      let savePolicyPayload5 = getSavePolicyPayload(15, bitcoinUtil2.publicKeys(), 15)
+      let policy5 = await coinstr.savePolicy(savePolicyPayload5)
+
+
+
+      let saveSpendProposalPayload1 = saveSpendProposalPayload(11)
+      let saveSpendProposalPayload2 = saveSpendProposalPayload(12)
+      let saveSpendProposalPayload3 = saveSpendProposalPayload(13)
+
+      spendProposal1 = await coinstr._saveSpendProposal(policy1.id,saveSpendProposalPayload1, '11')
+      spendProposal2 = await coinstr._saveSpendProposal(policy2.id,saveSpendProposalPayload2, '12')
+      spendProposal3 = await coinstr._saveSpendProposal(policy3.id,saveSpendProposalPayload3, '13')
+
+     // nly those whose pk are in the policy can see use it to create a proposal
+      spendProposal4 = await coinstr2._saveSpendProposal(policy4.id,saveSpendProposalPayload1, '11')
+
+      let saveProofOfReserveProposalPayload1 = saveProofOfReserveProposalPayload(11)
+      let saveProofOfReserveProposalPayload2 = saveProofOfReserveProposalPayload(12)
+      let saveProofOfReserveProposalPayload3 = saveProofOfReserveProposalPayload(13)
+
+      proofOfReserveProposal1 = await coinstr._saveProofOfReserveProposal(policy1.id,saveProofOfReserveProposalPayload1)
+      proofOfReserveProposal2 = await coinstr._saveProofOfReserveProposal(policy2.id,saveProofOfReserveProposalPayload2)
+      proofOfReserveProposal3 = await coinstr._saveProofOfReserveProposal(policy3.id,saveProofOfReserveProposalPayload3)
+
+      proofOfReserveProposal4 = await coinstr2._saveProofOfReserveProposal(policy5.id,saveProofOfReserveProposalPayload1)
+
+    }
+    )
+    it('returns proposals', async () => {
+      const proposals1 = await coinstr.getProposals();
+      expect(proposals1.length).toBe(6);
+      const proposals2 = await coinstr2.getProposals();
+      expect(proposals2.length).toBe(2);
+      expect(new Set(proposals1)).toEqual( new Set ([spendProposal1, spendProposal2, spendProposal3, proofOfReserveProposal1, proofOfReserveProposal2, proofOfReserveProposal3]));
+      expect(new Set(proposals2)).toEqual( new Set ([spendProposal4, proofOfReserveProposal4]));
+      console.log(proposals1);
+      console.log(proposals2);
+    });
+  }
+  )
+
 })
 
 
@@ -330,5 +416,23 @@ function saveOwnedSignerPayload(id: number): OwnedSigner {
     name: `name${id}`,
     t: `t${id}`,
     description: `description${id}`,
+  }
+}
+
+function saveSpendProposalPayload(id: number): SpendingProposal {
+  return {
+    to_address: `to_address${id}`,
+    descriptor: `descriptor${id}`,
+    description: `description${id}`,
+    amount: id,
+    psbt: `${id}`,
+  }
+}
+
+function saveProofOfReserveProposalPayload(id: number): ProofOfReserveProposal {
+  return {
+    descriptor: `descriptor${id}`,
+    message: `message${id}`,
+    psbt: `psdbt${id}`,
   }
 }
