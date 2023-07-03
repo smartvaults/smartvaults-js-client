@@ -2,7 +2,7 @@ import { Authenticator, DirectPrivateKeyAuthenticator } from '@smontero/nostr-ua
 import initCoinstrWasm, { miniscript_to_descriptor as toDescriptor } from '@smontero/coinstr-wasm'
 import { generatePrivateKey, Kind, Event } from 'nostr-tools'
 import { CoinstrKind, TagType } from './enum'
-import { NostrClient } from './service'
+import { NostrClient, PubPool } from './service'
 import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished } from './util'
 import { BitcoinOpts, Contact, Policy, PublishedPolicy } from './models'
 import {
@@ -281,6 +281,7 @@ export class Coinstr {
     const pub = this.nostrClient.publish(proposalEvent)
     await pub.onFirstOkOrCompleteFailure()
 
+
     return toPublished(proposalContent, proposalEvent)
 
   }
@@ -438,6 +439,17 @@ export class Coinstr {
     const createdAt = fromNostrDate(signerEvent.created_at)
 
     return { ...signer, id, ownerPubKey, createdAt }
+  }
+
+  async sendDirectMsg(msg: string, publicKey: string): Promise<PubPool> {
+    const content = await this.authenticator.encrypt(msg, publicKey)
+    const directMsgEvent = await buildEvent({
+      kind: Kind.EncryptedDirectMessage,
+      content,
+      tags: [[TagType.PubKey, publicKey]],
+    },
+      this.authenticator)
+    return this.nostrClient.publish(directMsgEvent)
   }
 
 
