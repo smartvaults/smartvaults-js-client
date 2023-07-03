@@ -1,30 +1,36 @@
 import { Authenticator, DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
+import initCoinstrWasm, { miniscript_to_descriptor as toDescriptor } from '@smontero/coinstr-wasm'
 import { generatePrivateKey, Kind, Event } from 'nostr-tools'
-import { BitcoinUtil } from './interfaces'
 import { CoinstrKind, TagType } from './enum'
 import { NostrClient } from './service'
-import { buildEvent, filterBuilder, getTagValues, PaginationOpts, toPublished , fromNostrDate} from './util'
-import { Contact, ContactProfile, Metadata, Policy, Profile, PublishedPolicy, SavePolicyPayload, SharedSigner, OwnedSigner,
-  PublishedOwnedSigner, PublishedSharedSigner
+import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished } from './util'
+import { BitcoinOpts, Contact, Policy, PublishedPolicy } from './models'
+import {
+  ContactProfile, Metadata, Profile, SavePolicyPayload, SharedSigner, OwnedSigner,
+  PublishedOwnedSigner, PublishedSharedSigner, SpendProposalPayload, Proposal, PublishedProposal
 } from './types'
 
 export class Coinstr {
   private authenticator: Authenticator
-  private bitcoinUtil: BitcoinUtil
+  private bitcoinOpts: BitcoinOpts
   private nostrClient: NostrClient
 
   constructor({
     authenticator,
-    bitcoinUtil,
+    bitcoinOpts,
     nostrClient,
   }: {
     authenticator: Authenticator,
-    bitcoinUtil: BitcoinUtil,
+    bitcoinOpts: BitcoinOpts,
     nostrClient: NostrClient,
   }) {
     this.authenticator = authenticator
-    this.bitcoinUtil = bitcoinUtil
+    this.bitcoinOpts = bitcoinOpts
     this.nostrClient = nostrClient
+  }
+
+  async init(): Promise<void> {
+    await initCoinstrWasm()
   }
 
   setAuthenticator(authenticator: Authenticator): void {
@@ -127,7 +133,7 @@ export class Coinstr {
     nostrPublicKeys,
     createdAt
   }: SavePolicyPayload): Promise<PublishedPolicy> {
-    const descriptor = this.bitcoinUtil.toDescriptor(miniscript)
+    const descriptor = toDescriptor(miniscript)
     const secretKey = generatePrivateKey()
     let sharedKeyAuthenticator = new DirectPrivateKeyAuthenticator(secretKey)
     let policyContent: Policy = {
@@ -146,8 +152,6 @@ export class Coinstr {
     },
       sharedKeyAuthenticator)
 
-    const policy: PublishedPolicy = toPublished(policyContent, policyEvent)
-
     const promises: Promise<void>[] = []
 
     for (const pubkey of nostrPublicKeys) {
@@ -165,7 +169,13 @@ export class Coinstr {
 
     const pub = this.nostrClient.publish(policyEvent)
     await pub.onFirstOkOrCompleteFailure()
-    return policy
+    return PublishedPolicy.fromPolicyAndEvent({
+      policyContent,
+      policyEvent,
+      bitcoinOpts: this.bitcoinOpts,
+      nostrPublicKeys,
+      sharedKeyAuth: sharedKeyAuthenticator
+    })
   }
 
   /**
@@ -188,7 +198,7 @@ export class Coinstr {
       .pubkeys(this.authenticator.getPublicKey())
       .toFilters()
 
-    const sharedKeyEvents = await this.nostrClient.list(sharedKeysFilter)
+    const sharedKeyEvents = await this.nostrClient.list<CoinstrKind.Policy>(sharedKeysFilter)
     const policyIdSharedKeyMap = {}
     for (const sharedKeyEvent of sharedKeyEvents) {
       const eventIds = getTagValues(sharedKeyEvent, TagType.Event)
@@ -210,10 +220,69 @@ export class Coinstr {
         sharedKeyEvent.pubkey
       )
       const sharedKeyAuthenticator = new DirectPrivateKeyAuthenticator(sharedKey)
-      const policy = await sharedKeyAuthenticator.decryptObj(policyEvent.content)
-      policies.push(toPublished(policy, policyEvent))
+      const policyContent = await sharedKeyAuthenticator.decryptObj(policyEvent.content)
+      policies.push(PublishedPolicy.fromPolicyAndEvent({
+        policyContent,
+        policyEvent,
+        bitcoinOpts: this.bitcoinOpts,
+        nostrPublicKeys: getTagValues(policyEvent, TagType.PubKey),
+        sharedKeyAuth: sharedKeyAuthenticator
+      }))
     }
     return policies
+  }
+
+  /**
+   * 
+   * @param policy to spend from
+   * @param to_address destination address
+   * @param description spend proposal description
+   * @param amountDescriptor amount to spend, can be max or an amount in sats
+   * @param feeRatePriority can be low, medium, high or a numeric value for the target block
+   */
+  async spend({
+    policy,
+    to_address,
+    description,
+    amountDescriptor,
+    feeRatePriority,
+    createdAt
+  }: SpendProposalPayload): Promise<PublishedProposal> {
+
+    let { amount, psbt } = await policy.build_trx({
+      address: to_address,
+      amount: amountDescriptor,
+      feeRate: feeRatePriority
+    })
+
+    let {
+      descriptor,
+      nostrPublicKeys,
+      sharedKeyAuth
+    } = policy
+
+    let proposalContent: Proposal = {
+      descriptor,
+      description,
+      to_address,
+      amount,
+      psbt
+    }
+
+    const tags = nostrPublicKeys.map(pubkey => [TagType.PubKey, pubkey])
+    const proposalEvent = await buildEvent({
+      kind: CoinstrKind.SpendingProposal,
+      content: await sharedKeyAuth.encryptObj(proposalContent),
+      tags: [...tags],
+      createdAt
+    },
+      sharedKeyAuth)
+
+    const pub = this.nostrClient.publish(proposalEvent)
+    await pub.onFirstOkOrCompleteFailure()
+
+    return toPublished(proposalContent, proposalEvent)
+
   }
 
   disconnect(): void {
@@ -239,13 +308,13 @@ export class Coinstr {
     const signers: PublishedOwnedSigner[] = [];
 
     for (const signersEvent of signersEvents) {
-        const decryptedContent = await this.authenticator.decrypt(signersEvent.content, signersEvent.pubkey)
-        const baseSigner = JSON.parse(decryptedContent);
-        signers.push({ ...baseSigner, id: signersEvent.id, ownerPubKey: signersEvent.pubkey, createdAt: fromNostrDate(signersEvent.created_at)});
+      const decryptedContent = await this.authenticator.decrypt(signersEvent.content, signersEvent.pubkey)
+      const baseSigner = JSON.parse(decryptedContent);
+      signers.push({ ...baseSigner, id: signersEvent.id, ownerPubKey: signersEvent.pubkey, createdAt: fromNostrDate(signersEvent.created_at) });
     }
 
     return signers;
-}
+  }
   /**
    * Fetches all signers that had been shared with the user and returns them as an array of SharedSigner objects.
    * 
@@ -261,15 +330,15 @@ export class Coinstr {
     let keysToFilter: string[] = [];
 
     if (typeof publicKeys === "string") {
-        keysToFilter = [publicKeys];
+      keysToFilter = [publicKeys];
     } else if (Array.isArray(publicKeys)) {
-        keysToFilter = [...publicKeys];
+      keysToFilter = [...publicKeys];
     }
 
     let sharedSignersFilter = this.buildSharedSignersFilter();
 
     if (keysToFilter.length > 0) {
-        sharedSignersFilter = sharedSignersFilter.authors(keysToFilter);
+      sharedSignersFilter = sharedSignersFilter.authors(keysToFilter);
     }
 
     const sharedSignersEvents = await this.nostrClient.list(sharedSignersFilter.toFilters());
@@ -277,10 +346,10 @@ export class Coinstr {
     const signers: PublishedSharedSigner[] = [];
 
     for (const event of sharedSignersEvents) {
-        const decryptedContent = await this.authenticator.decrypt(event.content, event.pubkey);
-        const baseSigner = JSON.parse(decryptedContent);
-        const signer: PublishedSharedSigner = { ...baseSigner,id: event.id, ownerPubKey: event.pubkey, createdAt: fromNostrDate(event.created_at)};
-        signers.push(signer);
+      const decryptedContent = await this.authenticator.decrypt(event.content, event.pubkey);
+      const baseSigner = JSON.parse(decryptedContent);
+      const signer: PublishedSharedSigner = { ...baseSigner, id: event.id, ownerPubKey: event.pubkey, createdAt: fromNostrDate(event.created_at) };
+      signers.push(signer);
     }
 
     return signers;
@@ -323,27 +392,27 @@ export class Coinstr {
       content,
       tags: [],
     },
-    this.authenticator)
+      this.authenticator)
     const pub = this.nostrClient.publish(signerEvent)
     await pub.onFirstOkOrCompleteFailure()
     const id = signerEvent.id
     const createdAt = fromNostrDate(signerEvent.created_at);
 
-    return {...signer, id, ownerPubKey, createdAt }
+    return { ...signer, id, ownerPubKey, createdAt }
   }
 
-/**
- * Asynchronously creates and publishes a 'SharedSigner' event.
- *
- * @async
- * @param {Object} params - Parameters for the shared signer, including `descriptor` and `fingerpring`
- * @param {string} pubKey - Public key of the user with whom the signer is being shared.
- * @returns {Promise<SharedSigner>} A promise that resolves to a PublishedSharedSigner object, includes 
- * the owner's public key and shared date.
- * @throws Will throw an error if the event publishing fails.
- * @example
- * const signer = await saveSharedSigner({descriptor, fingerprint}, pubKey);
- */
+  /**
+   * Asynchronously creates and publishes a 'SharedSigner' event.
+   *
+   * @async
+   * @param {Object} params - Parameters for the shared signer, including `descriptor` and `fingerpring`
+   * @param {string} pubKey - Public key of the user with whom the signer is being shared.
+   * @returns {Promise<SharedSigner>} A promise that resolves to a PublishedSharedSigner object, includes 
+   * the owner's public key and shared date.
+   * @throws Will throw an error if the event publishing fails.
+   * @example
+   * const signer = await saveSharedSigner({descriptor, fingerprint}, pubKey);
+   */
   async saveSharedSigner({
     descriptor,
     fingerprint,
@@ -368,7 +437,7 @@ export class Coinstr {
     const id = signerEvent.id
     const createdAt = fromNostrDate(signerEvent.created_at)
 
-    return {...signer, id, ownerPubKey, createdAt }
+    return { ...signer, id, ownerPubKey, createdAt }
   }
 
 

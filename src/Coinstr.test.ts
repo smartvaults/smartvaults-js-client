@@ -1,6 +1,7 @@
 import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { Coinstr } from './Coinstr'
 import { NostrClient, Keys } from './service'
+import { TimeUtil } from './util'
 import { Metadata, Profile, Contact, PublishedPolicy, SavePolicyPayload, OwnedSigner, SharedSigner } from './types'
 import { BitcoinUtil } from './interfaces'
 jest.setTimeout(1000000);
@@ -229,18 +230,18 @@ describe('Coinstr', () => {
       });
     });
 
-    it ('returns shared signers for a specific owner', async () => {
+    it('returns shared signers for a specific owner', async () => {
       if (!sharedSigner1.ownerPubKey) {
         throw new Error('SharedSigner1 ownerPubKey is undefined');
       }
       const signers1 = await coinstrWithAuthenticator2.getSharedSigners(sharedSigner1.ownerPubKey);
       expect(signers1.length).toBe(3);
-      expect (new Set (signers1)).toEqual(new Set ([sharedSigner1, sharedSigner2, sharedSigner3]));
+      expect(new Set(signers1)).toEqual(new Set([sharedSigner1, sharedSigner2, sharedSigner3]));
 
 
       const signers2 = await coinstrWithAuthenticator2.getSharedSigners(sharedSigner4.ownerPubKey);
       expect(signers2.length).toBe(2);
-      expect (new Set (signers2)).toEqual(new Set ([sharedSigner4, sharedSigner5]))
+      expect(new Set(signers2)).toEqual(new Set([sharedSigner4, sharedSigner5]))
     });
 
     it('returns all signer for an array of owners', async () => {
@@ -248,12 +249,12 @@ describe('Coinstr', () => {
       if (!sharedSigner1.ownerPubKey || !sharedSigner4.ownerPubKey) {
         throw new Error('SharedSigner1 ownerPubKey is undefined');
       }
-      const signers = await coinstrWithAuthenticator2.getSharedSigners([sharedSigner1.ownerPubKey , sharedSigner4.ownerPubKey]);
+      const signers = await coinstrWithAuthenticator2.getSharedSigners([sharedSigner1.ownerPubKey, sharedSigner4.ownerPubKey]);
       expect(signers.length).toBe(5);
-      expect( new Set (signers) ).toEqual(new Set ([sharedSigner1, sharedSigner2, sharedSigner3, sharedSigner4, sharedSigner5]));
+      expect(new Set(signers)).toEqual(new Set([sharedSigner1, sharedSigner2, sharedSigner3, sharedSigner4, sharedSigner5]));
     }
     );
-    
+
   });
 
 })
@@ -279,8 +280,7 @@ class BtcUtil implements BitcoinUtil {
 }
 
 function getSavePolicyPayload(id: number, nostrPublicKeys: string[], secondsShift: number = 0): SavePolicyPayload {
-  let createdAt = new Date()
-  createdAt.setSeconds(createdAt.getSeconds() - secondsShift)
+  let createdAt = TimeUtil.addSeconds(-1 * secondsShift)
   return {
     name: `policy${id}`,
     description: `policy desc ${id}`,

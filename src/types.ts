@@ -1,11 +1,4 @@
-import { StringUtil } from './util'
-import { TagType } from './enum'
-
-type BasePolicy = {
-  name: string;
-  description: string;
-  uiMetadata: any;
-};
+import { BasePolicy, PublishedPolicy } from './models'
 
 type BaseSharedSigner = {
   descriptor: string;
@@ -20,14 +13,14 @@ type BaseOwnedSigner = {
   t: string,
 }
 
+type BaseProposal = {
+  to_address: string,
+  description: string,
+}
 
 export type Published = {
   id: string
   createdAt: Date
-};
-
-export type Policy = BasePolicy & {
-  descriptor: string
 };
 
 export type SharedSigner = BaseSharedSigner & {
@@ -42,13 +35,26 @@ export type OwnedSigner = BaseOwnedSigner & {
 
 export type PublishedOwnedSigner = OwnedSigner & Published;
 
-export type PublishedPolicy = Policy & Published;
-
 export type SavePolicyPayload = BasePolicy & {
   miniscript: string,
   nostrPublicKeys: string[],
   createdAt?: Date,
 }
+
+export type SpendProposalPayload = BaseProposal & {
+  policy: PublishedPolicy,
+  amountDescriptor: string,
+  feeRatePriority: string,
+  createdAt?: Date,
+}
+
+export type Proposal = BaseProposal & {
+  descriptor: string,
+  amount: number,
+  psbt: string
+}
+
+export type PublishedProposal = Proposal & Published
 
 export type Metadata = {
   /// Name
@@ -81,56 +87,4 @@ export type ContactProfile = Profile & {
   publicKey: string
   relay?: string
   petname?: string
-}
-
-export class Contact {
-  publicKey: string
-  relay?: string
-  petname?: string
-
-  constructor({
-    publicKey,
-    relay,
-    petname
-  }:
-    {
-      publicKey: string
-      relay?: string
-      petname?: string
-    }) {
-    this.publicKey = publicKey
-    this.relay = StringUtil.emptyToUndefined(relay)
-    this.petname = StringUtil.emptyToUndefined(petname)
-  }
-
-  toTag(): string[] {
-    return [TagType.PubKey, this.publicKey, this.relay || "", this.petname || ""]
-  }
-
-  static fromParams([publicKey, relay, petname]: string[]) {
-    return new Contact({
-      publicKey,
-      relay,
-      petname
-    })
-  }
-
-  static toTags(contacts: Contact[]): string[][] {
-    return contacts.map(c => c.toTag())
-  }
-
-  static find(publicKey, contacts: Contact[]): number {
-    return contacts.findIndex(c => c.publicKey === publicKey)
-  }
-
-  static merge(contacts: Contact[], newContacts: Contact[]): Contact[] {
-    let contactsMap = Contact.toMap(contacts)
-    contactsMap = Contact.toMap(newContacts, contactsMap)
-    return [...contactsMap.values()]
-  }
-
-  static toMap(contacts: Contact[], contactsMap: Map<string, Contact> = new Map()): Map<string, Contact> {
-    contacts.forEach(c => contactsMap.set(c.publicKey, c))
-    return contactsMap
-  }
 }
