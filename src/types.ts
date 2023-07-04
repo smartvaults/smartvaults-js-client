@@ -97,6 +97,16 @@ export type SpendingProposal = BaseProposal & {
 export type ProofOfReserveProposal = BaseProposal & {
   message: string
 }
+type PublishedProposal = {
+  policy_id: string
+  proposal_id: string
+  type: string
+  signer: string
+  status: string
+}
+
+export type PublishedSpendingProposal = SpendingProposal & PublishedProposal
+export type PublishedProofOfReserveProposal = ProofOfReserveProposal & PublishedProposal
 
 export class Contact {
   publicKey: string

@@ -336,8 +336,6 @@ describe('Coinstr', () => {
       expect(proposals2.length).toBe(2);
       expect(new Set(proposals1)).toEqual( new Set ([spendProposal1, spendProposal2, spendProposal3, proofOfReserveProposal1, proofOfReserveProposal2, proofOfReserveProposal3]));
       expect(new Set(proposals2)).toEqual( new Set ([spendProposal4, proofOfReserveProposal4]));
-      console.log(proposals1);
-      console.log(proposals2);
     });
   }
   )

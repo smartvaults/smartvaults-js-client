@@ -5,7 +5,7 @@ import { CoinstrKind, TagType } from './enum'
 import { NostrClient } from './service'
 import { buildEvent, filterBuilder, getTagValues, PaginationOpts, toPublished , fromNostrDate} from './util'
 import { Contact, ContactProfile, Metadata, Policy, Profile, PublishedPolicy, SavePolicyPayload, SharedSigner, OwnedSigner,
-  PublishedOwnedSigner, PublishedSharedSigner, SpendingProposal, ProofOfReserveProposal
+  PublishedOwnedSigner, PublishedSharedSigner, SpendingProposal, ProofOfReserveProposal, PublishedSpendingProposal, PublishedProofOfReserveProposal
 } from './types'
 
 export class Coinstr {
@@ -455,6 +455,12 @@ async getPolicyEvent(policy_id: string): Promise<any> {
       const sharedKeyAuthenticator = new DirectPrivateKeyAuthenticator(sharedKey)
       const decryptedProposal = await sharedKeyAuthenticator.decryptObj(proposalEvent.content)
 
+      decryptedProposal.type = "to_address" in decryptedProposal ? "spending" : "proof_of_reserve"
+      decryptedProposal.policy_id = policyId
+      decryptedProposal.proposal_id = proposalEvent.id
+      decryptedProposal.signer = ""
+      decryptedProposal.status = "unsigned"
+
       decryptedProposals.push(decryptedProposal)
     }
 
@@ -462,7 +468,7 @@ async getPolicyEvent(policy_id: string): Promise<any> {
 }
 
   //Mock method to create a proposal, this will be replaced when the policy class is created
-  async _saveSpendProposal(policy_id: string, {to_address, amount, description}: SpendingProposal, fee_rate: string): Promise<SpendingProposal> {
+  async _saveSpendProposal(policy_id: string, {to_address, amount, description}: SpendingProposal, fee_rate: string): Promise<PublishedSpendingProposal> {
 
     const policyEvent = await this.getPolicyEvent(policy_id)
     const policyIdSharedKeyMap = await this.getSharedKeysForPolicies(null,policy_id)
@@ -498,12 +504,15 @@ async getPolicyEvent(policy_id: string): Promise<any> {
 
     const pub = this.nostrClient.publish(proposalEvent)
     await pub.onFirstOkOrCompleteFailure()
-
-    return proposal
+    const proposal_id = proposalEvent.id
+    const type = "spending"
+    const signer = ""
+    const status = "unsigned"
+    return {...proposal, proposal_id, type, signer, status, policy_id}
 
   }
 
-  async _saveProofOfReserveProposal(policy_id: string, {message}: ProofOfReserveProposal): Promise<ProofOfReserveProposal> {
+  async _saveProofOfReserveProposal(policy_id: string, {message}: ProofOfReserveProposal): Promise<PublishedProofOfReserveProposal> {
 
     const policyEvent = await this.getPolicyEvent(policy_id)
     const policyIdSharedKeyMap = await this.getSharedKeysForPolicies(null,policy_id)
@@ -537,8 +546,12 @@ async getPolicyEvent(policy_id: string): Promise<any> {
 
     const pub = this.nostrClient.publish(proposalEvent)
     await pub.onFirstOkOrCompleteFailure()
+    const proposal_id = proposalEvent.id
+    const type = "proof_of_reserve"
+    const signer = ""
+    const status = "unsigned"
 
-    return proposal
+    return {...proposal, proposal_id, type, signer, status, policy_id}
 
   }
 
