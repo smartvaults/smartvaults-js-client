@@ -1,6 +1,5 @@
 import {
   type Filter,
-  type Kind
 } from 'nostr-tools'
 
 import {

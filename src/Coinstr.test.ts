@@ -1,30 +1,39 @@
+jest.mock('@smontero/coinstr-wasm')
 import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { Coinstr } from './Coinstr'
 import { NostrClient, Keys } from './service'
 import { TimeUtil } from './util'
-import { Metadata, Profile, Contact, PublishedPolicy, SavePolicyPayload, OwnedSigner, SharedSigner } from './types'
-import { BitcoinUtil } from './interfaces'
+import { BitcoinOpts, Contact, PublishedPolicy } from './models'
+import { Metadata, Profile, SavePolicyPayload, OwnedSigner, SharedSigner } from './types'
 jest.setTimeout(1000000);
 
 describe('Coinstr', () => {
   let coinstr: Coinstr
-  let bitcoinUtil: BtcUtil
   let authenticator: DirectPrivateKeyAuthenticator
-
+  let bitcoinOpts: BitcoinOpts
+  const keys1 = new Keys()
+  const keys2 = new Keys()
+  const keys3 = new Keys()
   beforeAll(async () => {
 
     const nostrClient = new NostrClient([
-      'wss://relay.rip',
+      // 'wss://relay.rip',
+      'ws://localhost:7777'
     ])
-    const keys = new Keys()
-    authenticator = new DirectPrivateKeyAuthenticator(keys.privateKey)
-    bitcoinUtil = new BtcUtil(keys, 2, "vault descriptor")
+    
+    authenticator = new DirectPrivateKeyAuthenticator(keys1.privateKey)
+    bitcoinOpts = {
+      endpoint: 'https://blockstream.info/testnet/api/',
+      network: 'testnet',
+      requestStopGap: 30,
+      syncTimeGap: 1
+    }
     coinstr = new Coinstr({
       authenticator,
-      bitcoinUtil,
+      bitcoinOpts,
       nostrClient
     })
-
+    // await coinstr.init()
   })
 
   afterEach(() => {
@@ -86,11 +95,12 @@ describe('Coinstr', () => {
     let policy3: PublishedPolicy
 
     beforeAll(async () => {
-      let savePayload = getSavePolicyPayload(1, bitcoinUtil.publicKeys(), 20)
+      let savePayload = getSavePolicyPayload(1, [keys1.publicKey, keys2.publicKey, keys3.publicKey], 20)
       policy1 = await coinstr.savePolicy(savePayload)
-      savePayload = getSavePolicyPayload(2, bitcoinUtil.publicKeys(), 10)
+      const pubKeys = [keys1.publicKey, keys2.publicKey]
+      savePayload = getSavePolicyPayload(2, pubKeys, 10)
       policy2 = await coinstr.savePolicy(savePayload)
-      savePayload = getSavePolicyPayload(3, bitcoinUtil.publicKeys())
+      savePayload = getSavePolicyPayload(3, pubKeys)
       policy3 = await coinstr.savePolicy(savePayload)
 
     })
@@ -192,7 +202,7 @@ describe('Coinstr', () => {
       ])
       coinstrWithAuthenticator2 = new Coinstr({ // New instance of Coinstr with different authenticator
         authenticator: authenticator2,
-        bitcoinUtil,
+        bitcoinOpts,
         nostrClient
       });
 
@@ -206,7 +216,7 @@ describe('Coinstr', () => {
 
       let coinstrWithAuthenticator3 = new Coinstr({ // New instance of Coinstr with different authenticator
         authenticator: authenticator3,
-        bitcoinUtil,
+        bitcoinOpts,
         nostrClient
       });
 
@@ -259,25 +269,6 @@ describe('Coinstr', () => {
 
 })
 
-
-class BtcUtil implements BitcoinUtil {
-  keys: Keys[]
-  descriptor: string
-  constructor(ownKey: Keys, numExtraKeys: number, descriptor: string) {
-    this.descriptor = descriptor
-    this.keys = [ownKey]
-    for (let i = 0; i < numExtraKeys; i++) {
-      this.keys.push(new Keys())
-    }
-  }
-  publicKeys(): string[] {
-    return this.keys.map(k => k.publicKey)
-  }
-  toDescriptor(_miniscript: string): string {
-    return this.descriptor
-  }
-
-}
 
 function getSavePolicyPayload(id: number, nostrPublicKeys: string[], secondsShift: number = 0): SavePolicyPayload {
   let createdAt = TimeUtil.addSeconds(-1 * secondsShift)

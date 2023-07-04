@@ -23,6 +23,13 @@ export type Published = {
   createdAt: Date
 };
 
+export type DirectMessage = {
+  message: string
+  publicKey: string
+}
+
+export type PublishedDirectMessage = DirectMessage & Published
+
 export type SharedSigner = BaseSharedSigner & {
   ownerPubKey?: string;
 };

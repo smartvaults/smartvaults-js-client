@@ -7,7 +7,7 @@ import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate,
 import { BitcoinOpts, Contact, Policy, PublishedPolicy } from './models'
 import {
   ContactProfile, Metadata, Profile, SavePolicyPayload, SharedSigner, OwnedSigner,
-  PublishedOwnedSigner, PublishedSharedSigner, SpendProposalPayload, Proposal, PublishedProposal
+  PublishedOwnedSigner, PublishedSharedSigner, SpendProposalPayload, Proposal, PublishedProposal, PublishedDirectMessage
 } from './types'
 
 export class Coinstr {
@@ -281,7 +281,17 @@ export class Coinstr {
     const pub = this.nostrClient.publish(proposalEvent)
     await pub.onFirstOkOrCompleteFailure()
 
-
+    let msg = "New spending proposal:\n"
+    msg += `- Amount: ${amount}\n`
+    msg += `- Description: ${description}\n`
+    const promises: Promise<void>[] = []
+    for (const publicKey of nostrPublicKeys) {
+      if (publicKey !== this.authenticator.getPublicKey()) {
+        const pub  = await this.sendDirectMsg(msg, publicKey)
+        promises.push(pub.onFirstOkOrCompleteFailure())
+      }
+    }
+    Promise.all(promises)
     return toPublished(proposalContent, proposalEvent)
 
   }
@@ -450,6 +460,30 @@ export class Coinstr {
     },
       this.authenticator)
     return this.nostrClient.publish(directMsgEvent)
+  }
+
+  /**
+   * Get direct messages
+   * @returns {Promise<PublishedDirectMessage[]>}
+   */
+  async getDirectMessages(paginationOpts: PaginationOpts = {}): Promise<PublishedDirectMessage[]> {
+
+    const directMessagesFilter = filterBuilder()
+      .kinds(Kind.EncryptedDirectMessage)
+      .pubkeys(this.authenticator.getPublicKey())
+      .pagination(paginationOpts)
+      .toFilters()
+    const directMessageEvents = await this.nostrClient.list(directMessagesFilter)
+    let directMessages: PublishedDirectMessage[] = []
+    for(let directMessageEvent of directMessageEvents){
+      let {
+        content,
+        pubkey
+      } = directMessageEvent
+      const message = await this.authenticator.decrypt(content, pubkey)
+      directMessages.push(toPublished({message, publicKey: pubkey}, directMessageEvent))
+    }
+    return directMessages
   }
 
 

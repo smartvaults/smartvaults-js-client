@@ -3,10 +3,10 @@ import type { Config } from 'jest';
 import 'websocket-polyfill'
 
 const config: Config = {
-  verbose: false,
+  verbose: true,
   moduleFileExtensions: [
     "ts",
-    "js"
+    "js",
   ],
   transform: {
     "^.+\\.(ts?)$": "ts-jest",
@@ -15,6 +15,7 @@ const config: Config = {
     "<rootDir>/node_modules",
     "<rootDir>/dist"
   ],
+  // transformIgnorePatterns: ["/node_modules/(?!(@smontero/coinstr-wasm))/"],
   testRegex: "(/src/.*(\\.|/)(test|spec))\\.(jsx?|tsx?)$",
   testEnvironment: "./jest-environment-jsdom.js"
 };
