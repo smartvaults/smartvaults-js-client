@@ -1,8 +1,8 @@
 import { Authenticator } from '@smontero/nostr-ual'
 import { Event } from 'nostr-tools'
-import { Wallet } from '@smontero/coinstr-wasm'
 import { Balance } from './Balance'
-import { BitcoinOpts, Trx, Policy } from './types'
+import { Trx, Policy } from './types'
+import {BitcoinUtil, Wallet} from './interfaces'
 import { TimeUtil, toPublished } from '../util'
 
 
@@ -24,20 +24,20 @@ export class PublishedPolicy {
   static fromPolicyAndEvent<K extends number>({
     policyContent,
     policyEvent,
-    bitcoinOpts,
+    bitcoinUtil,
     nostrPublicKeys,
     sharedKeyAuth
   }:
     {
       policyContent: Policy,
       policyEvent: Event<K>,
-      bitcoinOpts: BitcoinOpts,
+      bitcoinUtil: BitcoinUtil,
       nostrPublicKeys: string[],
       sharedKeyAuth: Authenticator
     }): PublishedPolicy {
     return new PublishedPolicy(
       toPublished(policyContent, policyEvent),
-      bitcoinOpts,
+      bitcoinUtil,
       nostrPublicKeys,
       sharedKeyAuth
     )
@@ -58,12 +58,7 @@ export class PublishedPolicy {
     uiMetadata?: any
     createdAt: Date
   },
-    {
-      endpoint,
-      network,
-      requestStopGap,
-      syncTimeGap
-    }: BitcoinOpts,
+    bitcoinUtil: BitcoinUtil,
     nostrPublicKeys: string[],
     sharedKeyAuth: Authenticator) {
     this.id = id
@@ -73,9 +68,9 @@ export class PublishedPolicy {
     this.uiMetadata = uiMetadata
     this.createdAt = createdAt
     this.nostrPublicKeys = nostrPublicKeys
-    this.syncTimeGap = syncTimeGap
+    this.syncTimeGap = bitcoinUtil.walletSyncTimeGap
     this.sharedKeyAuth = sharedKeyAuth
-    this.wallet = new Wallet(descriptor, network, endpoint, requestStopGap)
+    this.wallet = bitcoinUtil.createWallet(descriptor)
   }
 
   async sync(): Promise<void> {

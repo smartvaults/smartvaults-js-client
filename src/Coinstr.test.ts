@@ -1,36 +1,34 @@
-jest.mock('@smontero/coinstr-wasm')
+import {MockProxy, mock} from 'jest-mock-extended'
 import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { Coinstr } from './Coinstr'
 import { NostrClient, Keys } from './service'
 import { TimeUtil } from './util'
-import { BitcoinOpts, Contact, PublishedPolicy } from './models'
+import { Contact, PublishedPolicy } from './models'
+import { BitcoinUtil, Wallet } from './models/interfaces'
 import { Metadata, Profile, SavePolicyPayload, OwnedSigner, SharedSigner } from './types'
+
 jest.setTimeout(1000000);
 
 describe('Coinstr', () => {
   let coinstr: Coinstr
+  let nostrClient: NostrClient
   let authenticator: DirectPrivateKeyAuthenticator
-  let bitcoinOpts: BitcoinOpts
+  let bitcoinUtil: MockProxy<BitcoinUtil>
   const keys1 = new Keys()
   const keys2 = new Keys()
   const keys3 = new Keys()
   beforeAll(async () => {
 
-    const nostrClient = new NostrClient([
+    nostrClient = new NostrClient([
       // 'wss://relay.rip',
       'ws://localhost:7777'
     ])
-    
+    bitcoinUtil = mock<BitcoinUtil>()
+    bitcoinUtil.toDescriptor.mockReturnValue("Descriptor")
     authenticator = new DirectPrivateKeyAuthenticator(keys1.privateKey)
-    bitcoinOpts = {
-      endpoint: 'https://blockstream.info/testnet/api/',
-      network: 'testnet',
-      requestStopGap: 30,
-      syncTimeGap: 1
-    }
     coinstr = new Coinstr({
       authenticator,
-      bitcoinOpts,
+      bitcoinUtil,
       nostrClient
     })
     // await coinstr.init()
@@ -38,6 +36,18 @@ describe('Coinstr', () => {
 
   afterEach(() => {
     coinstr.disconnect()
+  })
+
+  describe('mock', () => {
+    it('bit', async () => {
+      bitcoinUtil.walletSyncTimeGap = 1
+      bitcoinUtil.createWallet("asds")
+      const wallet = mock<Wallet>()
+      wallet.sync()
+      expect(bitcoinUtil.walletSyncTimeGap).toBe(1)
+      expect(bitcoinUtil.createWallet).toHaveBeenCalledWith("asds")
+      expect(wallet.sync).toBeCalledTimes(1)
+    })
   })
 
   describe('profiles', () => {
@@ -117,26 +127,26 @@ describe('Coinstr', () => {
     it('all policies works', async () => {
       const policies = await coinstr.getPolicies()
       expect(policies.length).toBe(3)
-      expect(policies[0]).toEqual(policy3)
-      expect(policies[1]).toEqual(policy2)
-      expect(policies[2]).toEqual(policy1)
+      assertPublishedPolicy(policies[0], policy3)
+      assertPublishedPolicy(policies[1], policy2)
+      assertPublishedPolicy(policies[2], policy1)
     })
 
     it('since works', async () => {
       let policies = await coinstr.getPolicies({ since: policy2.createdAt })
       expect(policies.length).toBe(2)
-      expect(policies[0]).toEqual(policy3)
-      expect(policies[1]).toEqual(policy2)
+      assertPublishedPolicy(policies[0], policy3)
+      assertPublishedPolicy(policies[1], policy2)
 
       policies = await coinstr.getPolicies({ since: policy3.createdAt })
       expect(policies.length).toBe(1)
-      expect(policies[0]).toEqual(policy3)
+      assertPublishedPolicy(policies[0], policy3)
     })
 
     it('until works', async () => {
       let policies = await coinstr.getPolicies({ until: policy2.createdAt })
       expect(policies.length).toBe(1)
-      expect(policies[0]).toEqual(policy1)
+      assertPublishedPolicy(policies[0], policy1)
 
       policies = await coinstr.getPolicies({ until: policy1.createdAt })
       expect(policies.length).toBe(0)
@@ -145,12 +155,12 @@ describe('Coinstr', () => {
     it('limit works', async () => {
       let policies = await coinstr.getPolicies({ limit: 2 })
       expect(policies.length).toBe(2)
-      expect(policies[0]).toEqual(policy3)
-      expect(policies[1]).toEqual(policy2)
+      assertPublishedPolicy(policies[0], policy3)
+      assertPublishedPolicy(policies[1], policy2)
 
       policies = await coinstr.getPolicies({ since: policy2.createdAt, limit: 1 })
       expect(policies.length).toBe(1)
-      expect(policies[0]).toEqual(policy3)
+      assertPublishedPolicy(policies[0], policy3)
     })
   })
 
@@ -193,16 +203,12 @@ describe('Coinstr', () => {
     let coinstrWithAuthenticator2: Coinstr // New instance of Coinstr
 
     beforeAll(async () => {
-      const keys2 = new Keys() // Second set of keys
-      const keys3 = new Keys() // Third set of keys
+      
       const authenticator2 = new DirectPrivateKeyAuthenticator(keys2.privateKey) // Second authenticator
       const authenticator3 = new DirectPrivateKeyAuthenticator(keys3.privateKey) // Third authenticator
-      const nostrClient = new NostrClient([
-        'wss://relay.rip',
-      ])
       coinstrWithAuthenticator2 = new Coinstr({ // New instance of Coinstr with different authenticator
         authenticator: authenticator2,
-        bitcoinOpts,
+        bitcoinUtil,
         nostrClient
       });
 
@@ -216,7 +222,7 @@ describe('Coinstr', () => {
 
       let coinstrWithAuthenticator3 = new Coinstr({ // New instance of Coinstr with different authenticator
         authenticator: authenticator3,
-        bitcoinOpts,
+        bitcoinUtil,
         nostrClient
       });
 
@@ -268,6 +274,19 @@ describe('Coinstr', () => {
   });
 
 })
+
+function assertPublishedPolicy(actual: PublishedPolicy, expected: PublishedPolicy){
+  expect(actual.id).toBe(expected.id)
+  expect(actual.name).toBe(expected.name)
+  expect(actual.description).toBe(expected.description)
+  expect(actual.descriptor).toBe(expected.descriptor)
+  expect(actual.uiMetadata).toEqual(expected.uiMetadata)
+  expect(actual.createdAt).toEqual(expected.createdAt)
+  expect(actual.nostrPublicKeys).toEqual(expected.nostrPublicKeys)  
+  expect(actual.sharedKeyAuth).toBeDefined()
+  expect(expected.sharedKeyAuth).toBeDefined()
+  
+}
 
 
 function getSavePolicyPayload(id: number, nostrPublicKeys: string[], secondsShift: number = 0): SavePolicyPayload {

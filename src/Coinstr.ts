@@ -1,10 +1,9 @@
 import { Authenticator, DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
-import initCoinstrWasm, { miniscript_to_descriptor as toDescriptor } from '@smontero/coinstr-wasm'
 import { generatePrivateKey, Kind, Event } from 'nostr-tools'
 import { CoinstrKind, TagType } from './enum'
 import { NostrClient, PubPool } from './service'
 import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished } from './util'
-import { BitcoinOpts, Contact, Policy, PublishedPolicy } from './models'
+import { BitcoinUtil, Contact, Policy, PublishedPolicy } from './models'
 import {
   ContactProfile, Metadata, Profile, SavePolicyPayload, SharedSigner, OwnedSigner,
   PublishedOwnedSigner, PublishedSharedSigner, SpendProposalPayload, Proposal, PublishedProposal, PublishedDirectMessage
@@ -12,25 +11,21 @@ import {
 
 export class Coinstr {
   private authenticator: Authenticator
-  private bitcoinOpts: BitcoinOpts
+  private bitcoinUtil: BitcoinUtil
   private nostrClient: NostrClient
 
   constructor({
     authenticator,
-    bitcoinOpts,
+    bitcoinUtil,
     nostrClient,
   }: {
     authenticator: Authenticator,
-    bitcoinOpts: BitcoinOpts,
+    bitcoinUtil: BitcoinUtil,
     nostrClient: NostrClient,
   }) {
     this.authenticator = authenticator
-    this.bitcoinOpts = bitcoinOpts
+    this.bitcoinUtil = bitcoinUtil
     this.nostrClient = nostrClient
-  }
-
-  async init(): Promise<void> {
-    await initCoinstrWasm()
   }
 
   setAuthenticator(authenticator: Authenticator): void {
@@ -133,7 +128,7 @@ export class Coinstr {
     nostrPublicKeys,
     createdAt
   }: SavePolicyPayload): Promise<PublishedPolicy> {
-    const descriptor = toDescriptor(miniscript)
+    const descriptor = this.bitcoinUtil.toDescriptor(miniscript)
     const secretKey = generatePrivateKey()
     let sharedKeyAuthenticator = new DirectPrivateKeyAuthenticator(secretKey)
     let policyContent: Policy = {
@@ -172,7 +167,7 @@ export class Coinstr {
     return PublishedPolicy.fromPolicyAndEvent({
       policyContent,
       policyEvent,
-      bitcoinOpts: this.bitcoinOpts,
+      bitcoinUtil: this.bitcoinUtil,
       nostrPublicKeys,
       sharedKeyAuth: sharedKeyAuthenticator
     })
@@ -224,7 +219,7 @@ export class Coinstr {
       policies.push(PublishedPolicy.fromPolicyAndEvent({
         policyContent,
         policyEvent,
-        bitcoinOpts: this.bitcoinOpts,
+        bitcoinUtil: this.bitcoinUtil,
         nostrPublicKeys: getTagValues(policyEvent, TagType.PubKey),
         sharedKeyAuth: sharedKeyAuthenticator
       }))
