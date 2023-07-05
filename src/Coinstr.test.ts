@@ -3,10 +3,8 @@ import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { Coinstr } from './Coinstr'
 import { NostrClient, Keys } from './service'
 import { TimeUtil } from './util'
-import { Contact, PublishedPolicy } from './models'
-import { BitcoinUtil, Wallet } from './models/interfaces'
-import { Metadata, Profile, SavePolicyPayload, OwnedSigner, SharedSigner } from './types'
-
+import { Contact, PublishedPolicy, BitcoinUtil, Wallet } from './models'
+import { Metadata, Profile, SavePolicyPayload, OwnedSigner, SharedSigner, SpendProposalPayload, ProofOfReserveProposal, PublishedDirectMessage, PublishedSpendingProposal } from './types'
 jest.setTimeout(1000000);
 
 describe('Coinstr', () => {
@@ -14,24 +12,27 @@ describe('Coinstr', () => {
   let nostrClient: NostrClient
   let authenticator: DirectPrivateKeyAuthenticator
   let bitcoinUtil: MockProxy<BitcoinUtil>
-  const keys1 = new Keys()
-  const keys2 = new Keys()
-  const keys3 = new Keys()
-  beforeAll(async () => {
+  let keySet1
+  let keySet2
+  let altKeySet
 
+  beforeAll(async () => {
+    keySet1 = new KeySet(3)
+    keySet2 = keySet1.derive(2)
+    altKeySet = new KeySet(2)
     nostrClient = new NostrClient([
       // 'wss://relay.rip',
       'ws://localhost:7777'
     ])
     bitcoinUtil = mock<BitcoinUtil>()
     bitcoinUtil.toDescriptor.mockReturnValue("Descriptor")
-    authenticator = new DirectPrivateKeyAuthenticator(keys1.privateKey)
+    authenticator = new DirectPrivateKeyAuthenticator(keySet1.mainKey().privateKey)
     coinstr = new Coinstr({
       authenticator,
       bitcoinUtil,
       nostrClient
     })
-    // await coinstr.init()
+
   })
 
   afterEach(() => {
@@ -105,12 +106,11 @@ describe('Coinstr', () => {
     let policy3: PublishedPolicy
 
     beforeAll(async () => {
-      let savePayload = getSavePolicyPayload(1, [keys1.publicKey, keys2.publicKey, keys3.publicKey], 20)
+      let savePayload = getSavePolicyPayload(1, keySet1.getPublicKeys(), 20)
       policy1 = await coinstr.savePolicy(savePayload)
-      const pubKeys = [keys1.publicKey, keys2.publicKey]
-      savePayload = getSavePolicyPayload(2, pubKeys, 10)
+      savePayload = getSavePolicyPayload(2, keySet1.getPublicKeys(), 10)
       policy2 = await coinstr.savePolicy(savePayload)
-      savePayload = getSavePolicyPayload(3, pubKeys)
+      savePayload = getSavePolicyPayload(3, keySet2.getPublicKeys())
       policy3 = await coinstr.savePolicy(savePayload)
 
     })
@@ -203,16 +203,15 @@ describe('Coinstr', () => {
     let coinstrWithAuthenticator2: Coinstr // New instance of Coinstr
 
     beforeAll(async () => {
-      
-      const authenticator2 = new DirectPrivateKeyAuthenticator(keys2.privateKey) // Second authenticator
-      const authenticator3 = new DirectPrivateKeyAuthenticator(keys3.privateKey) // Third authenticator
+      const authenticator2 = new DirectPrivateKeyAuthenticator(keySet1.keys[1].privateKey) // Second authenticator
+      const authenticator3 = new DirectPrivateKeyAuthenticator(keySet1.keys[2].privateKey) // Third authenticator
       coinstrWithAuthenticator2 = new Coinstr({ // New instance of Coinstr with different authenticator
         authenticator: authenticator2,
         bitcoinUtil,
         nostrClient
       });
 
-      let pubKey = keys2.publicKey
+      let pubKey = keySet1.keys[1].publicKey
       let saveSharedSignerPayload1 = saveSharedSignerPayload(1)
       sharedSigner1 = await coinstr.saveSharedSigner(saveSharedSignerPayload1, pubKey)
       let saveSharedSignerPayload2 = saveSharedSignerPayload(2)
@@ -270,8 +269,104 @@ describe('Coinstr', () => {
       expect(new Set(signers)).toEqual(new Set([sharedSigner1, sharedSigner2, sharedSigner3, sharedSigner4, sharedSigner5]));
     }
     );
-
+    
   });
+
+  describe('getProposals', () => {
+    let spendProposal1;
+    let spendProposal2;
+    let spendProposal3;
+    let spendProposal4;
+    let proofOfReserveProposal1;
+    let proofOfReserveProposal2;
+    let proofOfReserveProposal3;
+    let proofOfReserveProposal4;
+    let coinstr2: Coinstr
+
+    beforeAll(async () => {
+      
+  
+      coinstr2 = newCoinstr(altKeySet.mainKey())
+      let wallet = mock<Wallet>()
+      wallet.sync.mockResolvedValue()
+      wallet.build_trx
+      .mockResolvedValueOnce({amount: 1000, psbt:"encoded psbt1"})
+      .mockResolvedValueOnce({amount: 2000, psbt:"encoded psbt2"})
+      .mockResolvedValueOnce({amount: 3000, psbt:"encoded psbt3"})
+      .mockResolvedValueOnce({amount: 4000, psbt:"encoded psbt4"})
+      bitcoinUtil.createWallet.mockReturnValue(wallet)
+      let savePolicyPayload1 = getSavePolicyPayload(11, keySet1.getPublicKeys(), 10)
+      let policy1 = await coinstr.savePolicy(savePolicyPayload1)
+      let savePolicyPayload2 = getSavePolicyPayload(12, keySet1.getPublicKeys(), 15)
+      let policy2 = await coinstr.savePolicy(savePolicyPayload2)
+      let savePolicyPayload3 = getSavePolicyPayload(13, keySet1.getPublicKeys(), 20)
+      let policy3 = await coinstr.savePolicy(savePolicyPayload3)
+
+      
+      // Create policies with different public keys
+      let savePolicyPayload4 = getSavePolicyPayload(14, altKeySet.getPublicKeys(), 10)
+      let policy4 = await coinstr.savePolicy(savePolicyPayload4)
+      let savePolicyPayload5 = getSavePolicyPayload(15, altKeySet.getPublicKeys(), 15)
+      let policy5 = await coinstr.savePolicy(savePolicyPayload5)
+
+
+      let spendProposalPayload1 = spendProposalPayload(11, policy1)
+      let spendProposalPayload2 = spendProposalPayload(12, policy2)
+      let spendProposalPayload3 = spendProposalPayload(13, policy3)
+
+      spendProposal1 = await coinstr.spend(spendProposalPayload1)
+      spendProposal2 = await coinstr.spend(spendProposalPayload2)
+      spendProposal3 = await coinstr.spend(spendProposalPayload3)
+
+      let spendProposalPayload4 = spendProposalPayload(14, policy4)
+     // nly those whose pk are in the policy can see use it to create a proposal
+      spendProposal4 = await coinstr2.spend(spendProposalPayload4)
+
+      let saveProofOfReserveProposalPayload1 = saveProofOfReserveProposalPayload(11)
+      let saveProofOfReserveProposalPayload2 = saveProofOfReserveProposalPayload(12)
+      let saveProofOfReserveProposalPayload3 = saveProofOfReserveProposalPayload(13)
+
+      proofOfReserveProposal1 = await coinstr._saveProofOfReserveProposal(policy1.id,saveProofOfReserveProposalPayload1)
+      proofOfReserveProposal2 = await coinstr._saveProofOfReserveProposal(policy2.id,saveProofOfReserveProposalPayload2)
+      proofOfReserveProposal3 = await coinstr._saveProofOfReserveProposal(policy3.id,saveProofOfReserveProposalPayload3)
+
+      proofOfReserveProposal4 = await coinstr2._saveProofOfReserveProposal(policy5.id,saveProofOfReserveProposalPayload1)
+
+    }
+    )
+    it('returns proposals', async () => {
+      const proposals1 = await coinstr.getProposals();
+      expect(proposals1.length).toBe(6);
+      expect(new Set(proposals1)).toEqual( new Set ([spendProposal1, spendProposal2, spendProposal3, proofOfReserveProposal1, proofOfReserveProposal2, proofOfReserveProposal3]));
+      const proposals2 = await coinstr2.getProposals();
+      expect(proposals2.length).toBe(2);
+      expect(new Set(proposals2)).toEqual( new Set ([spendProposal4, proofOfReserveProposal4]));
+    });
+
+    it('sent proposal direct messages', async () => {
+      let coinstr = newCoinstr(keySet1.keys[1])
+      let directMessages = await coinstr.getDirectMessages();
+      expect(directMessages.length).toBe(3)
+      let publicKey = keySet1.mainKey().publicKey
+      assertProposalDirectMessage(directMessages[0], spendProposal3, publicKey)
+      assertProposalDirectMessage(directMessages[1], spendProposal2, publicKey)
+      assertProposalDirectMessage(directMessages[2], spendProposal1, publicKey)
+
+      coinstr = newCoinstr(altKeySet.keys[1])
+      directMessages = await coinstr.getDirectMessages();
+      expect(directMessages.length).toBe(1)
+      publicKey = altKeySet.mainKey().publicKey
+      assertProposalDirectMessage(directMessages[0], spendProposal4, publicKey)
+    });
+  })
+
+  function newCoinstr(keys: Keys): Coinstr {
+    return new Coinstr({
+      authenticator: new DirectPrivateKeyAuthenticator(keys.privateKey),
+      bitcoinUtil,
+      nostrClient
+    })
+  }
 
 })
 
@@ -288,6 +383,11 @@ function assertPublishedPolicy(actual: PublishedPolicy, expected: PublishedPolic
   
 }
 
+function assertProposalDirectMessage(directMessage:PublishedDirectMessage, proposal: PublishedSpendingProposal, pubkey: string){
+  expect(directMessage.publicKey).toBe(pubkey)
+  expect(directMessage.message).toContain(`Amount: ${proposal.amount}`)
+  expect(directMessage.message).toContain(`Description: ${proposal.description}`)
+}
 
 function getSavePolicyPayload(id: number, nostrPublicKeys: string[], secondsShift: number = 0): SavePolicyPayload {
   let createdAt = TimeUtil.addSeconds(-1 * secondsShift)
@@ -340,5 +440,45 @@ function saveOwnedSignerPayload(id: number): OwnedSigner {
     name: `name${id}`,
     t: `t${id}`,
     description: `description${id}`,
+  }
+}
+
+function spendProposalPayload(id: number, policy: PublishedPolicy): SpendProposalPayload {
+  return {
+    policy,
+    to_address: `to_address${id}`,
+    description: `description${id}`,
+    amountDescriptor: "1000",
+    feeRatePriority: "low"
+  }
+}
+
+function saveProofOfReserveProposalPayload(id: number): ProofOfReserveProposal {
+  return {
+    descriptor: `descriptor${id}`,
+    message: `message${id}`,
+    psbt: `psdbt${id}`,
+  }
+}
+
+class KeySet {
+  keys: Keys[]
+  constructor(numPeerKeys: number, mainKey = new Keys()){
+    this.keys = [mainKey]
+    for(let i = 0; i < numPeerKeys; i ++){
+      this.keys.push(new Keys())
+    }
+  }
+
+  getPublicKeys(): string[] {
+    return this.keys.map(k => k.publicKey)
+  }
+
+  derive(numPeerKeys: number): KeySet {
+    return new KeySet(numPeerKeys, this.keys[0])
+  }
+
+  mainKey(): Keys {
+    return this.keys[0]
   }
 }

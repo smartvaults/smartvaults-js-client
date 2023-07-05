@@ -13,10 +13,6 @@ type BaseOwnedSigner = {
   t: string,
 }
 
-type BaseProposal = {
-  to_address: string,
-  description: string,
-}
 
 export type Published = {
   id: string
@@ -42,26 +38,21 @@ export type OwnedSigner = BaseOwnedSigner & {
 
 export type PublishedOwnedSigner = OwnedSigner & Published;
 
+
 export type SavePolicyPayload = BasePolicy & {
   miniscript: string,
   nostrPublicKeys: string[],
   createdAt?: Date,
 }
 
-export type SpendProposalPayload = BaseProposal & {
+export type SpendProposalPayload = {
   policy: PublishedPolicy,
+  to_address: string,
+  description: string,
   amountDescriptor: string,
   feeRatePriority: string,
   createdAt?: Date,
 }
-
-export type Proposal = BaseProposal & {
-  descriptor: string,
-  amount: number,
-  psbt: string
-}
-
-export type PublishedProposal = Proposal & Published
 
 export type Metadata = {
   /// Name
@@ -95,3 +86,28 @@ export type ContactProfile = Profile & {
   relay?: string
   petname?: string
 }
+type BaseProposal = {
+  descriptor: string
+  psbt: string // to be change to PSBT
+}
+
+export type SpendingProposal = BaseProposal & {
+  to_address: string
+  amount: number
+  description: string
+}
+
+export type ProofOfReserveProposal = BaseProposal & {
+  message: string
+}
+type PublishedProposal = {
+  policy_id: string
+  proposal_id: string
+  type: string
+  signer: string
+  status: string
+}
+
+export type PublishedSpendingProposal = SpendingProposal & PublishedProposal
+export type PublishedProofOfReserveProposal = ProofOfReserveProposal & PublishedProposal
+
