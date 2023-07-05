@@ -2,7 +2,7 @@ import { Authenticator } from '@smontero/nostr-ual'
 import { Event } from 'nostr-tools'
 import { Balance } from './Balance'
 import { Trx, Policy } from './types'
-import {BitcoinUtil, Wallet} from './interfaces'
+import { BitcoinUtil, Wallet } from './interfaces'
 import { TimeUtil, toPublished } from '../util'
 
 
