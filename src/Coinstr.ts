@@ -594,8 +594,6 @@ export class Coinstr {
 
   private async hasUserApprovedProposal(pubkey: string , proposal_id: string): Promise<boolean> {
     const approvalsResult = await this.getApprovals(proposal_id);
-    //console.log('approvalsResult', approvalsResult)
-    //console.log('pubkey', pubkey)
     const approvals = approvalsResult[proposal_id];
     if (!approvals) return false;
   
