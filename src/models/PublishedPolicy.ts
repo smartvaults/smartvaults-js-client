@@ -73,8 +73,9 @@ export class PublishedPolicy {
     this.wallet = bitcoinUtil.createWallet(descriptor)
   }
 
-  async sync(): Promise<void> {
+  sync(): Promise<void> {
     if (!this.syncPromise) {
+      console.log("calling wallet sync")
       this.syncPromise = this.wallet.sync()
       this.syncPromise
         .then(() => this.lastSyncTime = new Date())
