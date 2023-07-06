@@ -4,10 +4,7 @@ import { CoinstrKind, TagType, ProposalType } from './enum'
 import { NostrClient, PubPool } from './service'
 import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished } from './util'
 import { BitcoinUtil, Contact, Policy, PublishedPolicy } from './models'
-import {
-  ContactProfile, Metadata, Profile, SavePolicyPayload, SharedSigner, OwnedSigner,
-  PublishedOwnedSigner, PublishedSharedSigner, SpendProposalPayload, PublishedDirectMessage, SpendingProposal, ProofOfReserveProposal, PublishedSpendingProposal, PublishedProofOfReserveProposal
-} from './types'
+import * as CoinstrTypes from './types'
 
 export class Coinstr {
   private authenticator: Authenticator
@@ -47,7 +44,7 @@ export class Coinstr {
     return contactsEvent
   }
 
-  async setProfile(metadata: Metadata): Promise<Profile> {
+  async setProfile(metadata: CoinstrTypes.Metadata): Promise<CoinstrTypes.Profile> {
     const setMetadataEvent = await buildEvent({
       kind: Kind.Metadata,
       content: JSON.stringify(metadata),
@@ -62,13 +59,13 @@ export class Coinstr {
     }
   }
 
-  async getProfile(publicKey?: string): Promise<Profile> {
+  async getProfile(publicKey?: string): Promise<CoinstrTypes.Profile> {
     publicKey = publicKey || this.authenticator.getPublicKey()
     const [profile] = await this.getProfiles([publicKey])
     return profile
   }
 
-  async getProfiles(publicKeys: string[]): Promise<Profile[]> {
+  async getProfiles(publicKeys: string[]): Promise<CoinstrTypes.Profile[]> {
     const metadataFilter = filterBuilder()
       .kinds(Kind.Metadata)
       .authors(publicKeys)
@@ -91,7 +88,7 @@ export class Coinstr {
     })
   }
 
-  async getContactProfiles(contacts?: Contact[]): Promise<ContactProfile[]> {
+  async getContactProfiles(contacts?: Contact[]): Promise<CoinstrTypes.ContactProfile[]> {
     contacts = contacts || await this.getContacts()
     const contactsMap = Contact.toMap(contacts)
     const profiles = await this.getProfiles([...contactsMap.keys()])
@@ -127,7 +124,7 @@ export class Coinstr {
     uiMetadata,
     nostrPublicKeys,
     createdAt
-  }: SavePolicyPayload): Promise<PublishedPolicy> {
+  }: CoinstrTypes.SavePolicyPayload): Promise<PublishedPolicy> {
     const descriptor = this.bitcoinUtil.toDescriptor(miniscript)
     const secretKey = generatePrivateKey()
     let sharedKeyAuthenticator = new DirectPrivateKeyAuthenticator(secretKey)
@@ -267,7 +264,7 @@ export class Coinstr {
     amountDescriptor,
     feeRatePriority,
     createdAt
-  }: SpendProposalPayload): Promise<PublishedSpendingProposal> {
+  }: CoinstrTypes.SpendProposalPayload): Promise<CoinstrTypes.PublishedSpendingProposal> {
 
     let { amount, psbt } = await policy.build_trx({
       address: to_address,
@@ -281,7 +278,7 @@ export class Coinstr {
       sharedKeyAuth
     } = policy
 
-    let proposalContent: SpendingProposal = {
+    let proposalContent: CoinstrTypes.SpendingProposal = {
       descriptor,
       description,
       to_address,
@@ -337,12 +334,12 @@ export class Coinstr {
    * 
    * @async
    */
-  async getOwnedSigners(): Promise<PublishedOwnedSigner[]> {
+  async getOwnedSigners(): Promise<CoinstrTypes.PublishedOwnedSigner[]> {
     const signersFilter = this.buildOwnedSignersFilter()
 
     const signersEvents = await this.nostrClient.list(signersFilter)
 
-    const signers: PublishedOwnedSigner[] = [];
+    const signers: CoinstrTypes.PublishedOwnedSigner[] = [];
 
     for (const signersEvent of signersEvents) {
       const decryptedContent = await this.authenticator.decrypt(signersEvent.content, signersEvent.pubkey)
@@ -363,7 +360,7 @@ export class Coinstr {
    * 
    * @async
    */
-  async getSharedSigners(publicKeys?: string | string[]): Promise<PublishedSharedSigner[]> {
+  async getSharedSigners(publicKeys?: string | string[]): Promise<CoinstrTypes.PublishedSharedSigner[]> {
     let keysToFilter: string[] = [];
 
     if (typeof publicKeys === "string") {
@@ -380,12 +377,12 @@ export class Coinstr {
 
     const sharedSignersEvents = await this.nostrClient.list(sharedSignersFilter.toFilters());
 
-    const signers: PublishedSharedSigner[] = [];
+    const signers: CoinstrTypes.PublishedSharedSigner[] = [];
 
     for (const event of sharedSignersEvents) {
       const decryptedContent = await this.authenticator.decrypt(event.content, event.pubkey);
       const baseSigner = JSON.parse(decryptedContent);
-      const signer: PublishedSharedSigner = { ...baseSigner, id: event.id, ownerPubKey: event.pubkey, createdAt: fromNostrDate(event.created_at) };
+      const signer: CoinstrTypes.PublishedSharedSigner = { ...baseSigner, id: event.id, ownerPubKey: event.pubkey, createdAt: fromNostrDate(event.created_at) };
       signers.push(signer);
     }
 
@@ -413,10 +410,10 @@ export class Coinstr {
     fingerprint,
     name,
     t,
-  }: OwnedSigner): Promise<PublishedOwnedSigner> {
+  }: CoinstrTypes.OwnedSigner): Promise<CoinstrTypes.PublishedOwnedSigner> {
     let ownerPubKey = this.authenticator.getPublicKey()
 
-    const signer: OwnedSigner = {
+    const signer: CoinstrTypes.OwnedSigner = {
       description,
       descriptor,
       fingerprint,
@@ -444,7 +441,7 @@ export class Coinstr {
    * @async
    * @param {Object} params - Parameters for the shared signer, including `descriptor` and `fingerpring`
    * @param {string} pubKey - Public key of the user with whom the signer is being shared.
-   * @returns {Promise<SharedSigner>} A promise that resolves to a PublishedSharedSigner object, includes 
+   * @returns {Promise<CoinstrTypes.SharedSigner>} A promise that resolves to a PublishedSharedSigner object, includes 
    * the owner's public key and shared date.
    * @throws Will throw an error if the event publishing fails.
    * @example
@@ -453,10 +450,10 @@ export class Coinstr {
   async saveSharedSigner({
     descriptor,
     fingerprint,
-  }: SharedSigner, pubKey: string): Promise<PublishedSharedSigner> {
+  }: CoinstrTypes.SharedSigner, pubKey: string): Promise<CoinstrTypes.PublishedSharedSigner> {
 
     const ownerPubKey = this.authenticator.getPublicKey()
-    const signer: SharedSigner = {
+    const signer: CoinstrTypes.SharedSigner = {
       descriptor,
       fingerprint,
     }
@@ -490,9 +487,9 @@ export class Coinstr {
 
   /**
    * Get direct messages
-   * @returns {Promise<PublishedDirectMessage[]>}
+   * @returns {Promise<CoinstrTypes.PublishedDirectMessage[]>}
    */
-  async getDirectMessages(paginationOpts: PaginationOpts = {}): Promise<PublishedDirectMessage[]> {
+  async getDirectMessages(paginationOpts: PaginationOpts = {}): Promise<CoinstrTypes.PublishedDirectMessage[]> {
 
     const directMessagesFilter = filterBuilder()
       .kinds(Kind.EncryptedDirectMessage)
@@ -500,7 +497,7 @@ export class Coinstr {
       .pagination(paginationOpts)
       .toFilters()
     const directMessageEvents = await this.nostrClient.list(directMessagesFilter)
-    let directMessages: PublishedDirectMessage[] = []
+    let directMessages: CoinstrTypes.PublishedDirectMessage[] = []
     for (let directMessageEvent of directMessageEvents) {
       let {
         content,
@@ -532,6 +529,27 @@ export class Coinstr {
       .toFilters();
   }
 
+  private buildCompletedProposalsFilter() {
+    return filterBuilder()
+      .kinds(CoinstrKind.CompletedProposal)
+      .pubkeys(this.authenticator.getPublicKey())
+      .toFilters();
+  }
+
+  private buildApprovedProposalsFilter() {
+    return filterBuilder()
+      .kinds(CoinstrKind.ApprovedProposal)
+      .pubkeys(this.authenticator.getPublicKey())
+      .toFilters();
+  }
+
+  private buildPolicyFilter() {
+    return filterBuilder()
+      .kinds(CoinstrKind.Policy)
+      .pubkeys(this.authenticator.getPublicKey())
+      .toFilters();
+  }
+
   private async getSharedKeysForPolicies(policyEvents?, policy_id?: string): Promise<Record<string, any>> {
     let policyIds: any = []
     if (policy_id) {
@@ -557,16 +575,128 @@ export class Coinstr {
     return policyIdSharedKeyEventMap;
   }
 
+  private async getProposalEvent(proposal_id: any){
+    const proposalsFilter = filterBuilder()
+      .kinds(CoinstrKind.Proposal)
+      .ids(proposal_id)
+      .toFilters()
+  
+    const proposalEvents = await this.nostrClient.list(proposalsFilter)
+  
+    if (proposalEvents.length === 0) {
+      throw new Error(`Proposal with id ${proposal_id} not found`)
+    }
+  
+    if (proposalEvents.length !== 1) {
+      throw new Error(`More than one proposal with id ${proposal_id} found`)
+    }
+  
+    return proposalEvents[0]
+  }
+  
+  /**
+   * Fetches all completed proposals.
+   *
+   * @returns A promise that resolves to an array of completed proposals, both spending and proof-of-reserve types.
+   * Each proposal is decrypted and augmented with additional data (e.g., policy_id, proposal_id, completed_by, completion_date, status).
+   *
+   * @async
+   */
+  async getCompletedProposals(): Promise<(CoinstrTypes.PublishedCompletedSpendingProposal | CoinstrTypes.PublishedCompletedProofOfReserveProposal)[]> {
+    const policiesFilter = this.buildPolicyFilter()
+    const policyEvents = await this.nostrClient.list(policiesFilter)
+    const policyIdSharedKeyMap = await this.getSharedKeysForPolicies(policyEvents)
+    const completedProposalsFilter = this.buildCompletedProposalsFilter()
+    const completedProposalEvents = await this.nostrClient.list(completedProposalsFilter)
+    const completedProposals: (CoinstrTypes.PublishedCompletedProofOfReserveProposal| CoinstrTypes.PublishedCompletedSpendingProposal)[] = []
+    for (const completedProposalEvent of completedProposalEvents) {
+      const policyId = getTagValues(completedProposalEvent, TagType.Event)[1] 
+      const proposalId = getTagValues(completedProposalEvent, TagType.Event)[0]
+
+      const sharedKeyEvent = policyIdSharedKeyMap[policyId]
+      if (!sharedKeyEvent) continue;
+
+      const sharedKey = await this.authenticator.decrypt(sharedKeyEvent.content, sharedKeyEvent.pubkey)
+      const sharedKeyAuthenticator = new DirectPrivateKeyAuthenticator(sharedKey)
+      const decryptedProposal: (CoinstrTypes.CompletedProofOfReserveProposal| CoinstrTypes.CompletedSpendingProposal) = await sharedKeyAuthenticator.decryptObj(completedProposalEvent.content)
+
+
+      const publishedCompleteProposal = {
+        ...decryptedProposal,
+        policy_id: policyId,
+        proposal_id: proposalId,
+        completed_by: completedProposalEvent.pubkey,
+        completion_date: fromNostrDate(completedProposalEvent.created_at),
+        status: "completed"
+      }
+      completedProposals.push(publishedCompleteProposal)
+    }
+    
+    return completedProposals
+  }
 
   /**
-   * Method to retrieve and decrypt proposals.
+   * Fetches approved proposals by given proposal IDs.
    * 
-   * This method retrieves proposals, decrypts them using shared keys corresponding to 
+   * @param proposalIds - Optional. An array of proposal IDs or a single proposal ID string.
+   * If no proposal IDs are provided, the function fetches all approved proposals.
+   * @returns A promise that resolves to a map where keys are proposal IDs and values are arrays of associated approved proposals.
+   * Each proposal is decrypted and augmented with additional data (e.g., policy_id, proposal_id, approved_by, approval_date, expiration_date, status).
+   * 
+   * @async
+   */
+  async getApprovalsByProposalId(proposalIds?: string | string[]): Promise<{ [key: string]: CoinstrTypes.PublishedApprovedProposal[] }> {
+    const policiesFilter = this.buildPolicyFilter();
+    const policyEvents = await this.nostrClient.list(policiesFilter);
+    const policyIdSharedKeyMap = await this.getSharedKeysForPolicies(policyEvents);
+    const approvedProposalsFilter = this.buildApprovedProposalsFilter();
+    const approvedProposalEvents = await this.nostrClient.list(approvedProposalsFilter);
+    const approvedProposalsMap: { [key: string]: any[] } = {};
+
+    const proposalIdsArr: string[] = Array.isArray(proposalIds) ? proposalIds : (proposalIds ? [proposalIds] : []);
+    // Convert to Set for faster lookup
+    const proposalIdsSet = new Set(proposalIdsArr);
+
+    for (const approvedProposalEvent of approvedProposalEvents) {
+        const policyId = getTagValues(approvedProposalEvent, TagType.Event)[1];
+        const proposalId = getTagValues(approvedProposalEvent, TagType.Event)[0];
+
+        // Skip the iteration if proposalId is not in proposalIdsSet
+        if (proposalIdsSet.size > 0 && !proposalIdsSet.has(proposalId)) continue;
+
+        const sharedKeyEvent = policyIdSharedKeyMap[policyId];
+        if (!sharedKeyEvent) continue;
+
+        const sharedKey = await this.authenticator.decrypt(sharedKeyEvent.content, sharedKeyEvent.pubkey);
+        const sharedKeyAuthenticator = new DirectPrivateKeyAuthenticator(sharedKey);
+        const decryptedProposal = await sharedKeyAuthenticator.decryptObj(approvedProposalEvent.content);
+
+        decryptedProposal.policy_id = policyId;
+        decryptedProposal.proposal_id = proposalId;
+        decryptedProposal.approved_by = approvedProposalEvent.pubkey;
+        decryptedProposal.approval_date = fromNostrDate(approvedProposalEvent.created_at);
+        decryptedProposal.expiration_date = fromNostrDate(getTagValues(approvedProposalEvent, TagType.Expiration)[0]);
+
+        decryptedProposal.status = decryptedProposal.expiration_date < new Date() ? "expired" : "active";
+
+        approvedProposalsMap[proposalId] = approvedProposalsMap[proposalId] || [];
+        approvedProposalsMap[proposalId].push(decryptedProposal);
+    }
+
+    return approvedProposalsMap;
+}
+
+  /**
+   * Method to retrieve and decrypt not completed proposals.
+   * 
+   * This method retrieves all not completed proposals, decrypts them using shared keys corresponding to 
    * each policy ID, and returns the decrypted proposals.
    * 
    * @returns A Promise that resolves to an array of decrypted proposals.
    */
-  async getProposals(): Promise<(PublishedSpendingProposal | PublishedProofOfReserveProposal)[]> {
+  async getProposals(): Promise<(CoinstrTypes.PublishedSpendingProposal | CoinstrTypes.PublishedProofOfReserveProposal)[]> {
+
+    const completedProposals = await this.getCompletedProposals()
 
     const policiesFilter = filterBuilder()
       .kinds(CoinstrKind.Policy)
@@ -588,7 +718,7 @@ export class Coinstr {
       const sharedKey = await this.authenticator.decrypt(sharedKeyEvent.content, sharedKeyEvent.pubkey)
       const sharedKeyAuthenticator = new DirectPrivateKeyAuthenticator(sharedKey)
       const decryptedProposal = await sharedKeyAuthenticator.decryptObj(proposalEvent.content)
-
+      if(completedProposals.find(completedProposal => completedProposal.proposal_id === proposalEvent.id)) continue; // skip if proposal is already completed
       decryptedProposal.type = "to_address" in decryptedProposal ? ProposalType.Spending : ProposalType.ProofOfReserve
       decryptedProposal.policy_id = policyId
       decryptedProposal.proposal_id = proposalEvent.id
@@ -602,7 +732,7 @@ export class Coinstr {
   }
 
   //Mock method to create a proposal, this will be replaced when the policy class is created
-  async _saveSpendProposal(policy_id: string, { to_address, amount, description }: SpendingProposal, fee_rate: string): Promise<PublishedSpendingProposal> {
+  async _saveSpendProposal(policy_id: string, { to_address, amount, description }: CoinstrTypes.SpendingProposal, fee_rate: string): Promise<CoinstrTypes.PublishedSpendingProposal> {
 
     const policyEvent = await this.getPolicyEvent(policy_id)
     const policyIdSharedKeyMap = await this.getSharedKeysForPolicies(null, policy_id)
@@ -620,7 +750,7 @@ export class Coinstr {
     const policy = toPublished(await sharedKeyAuthenticator.decryptObj(policyEvent.content), policyEvent)
 
     //proposal = policy.spend(wallet,addres,amount,description,fee_rate)
-    const proposal: SpendingProposal = {
+    const proposal: CoinstrTypes.SpendingProposal = {
       to_address,
       amount,
       description,
@@ -646,7 +776,7 @@ export class Coinstr {
 
   }
 
-  async _saveProofOfReserveProposal(policy_id: string, { message }: ProofOfReserveProposal): Promise<PublishedProofOfReserveProposal> {
+  async _saveProofOfReserveProposal(policy_id: string, { message }: CoinstrTypes.ProofOfReserveProposal): Promise<CoinstrTypes.PublishedProofOfReserveProposal> {
 
     const policyEvent = await this.getPolicyEvent(policy_id)
     const policyIdSharedKeyMap = await this.getSharedKeysForPolicies(null, policy_id)
@@ -664,7 +794,7 @@ export class Coinstr {
     const policy = toPublished(await sharedKeyAuthenticator.decryptObj(policyEvent.content), policyEvent)
 
     //proposal = policy.proof_of_reserve(wallet,message)
-    const proposal: ProofOfReserveProposal = {
+    const proposal: CoinstrTypes.ProofOfReserveProposal = {
       message,
       descriptor: policy.descriptor,
       psbt: message,
@@ -686,6 +816,102 @@ export class Coinstr {
     const status = "unsigned"
 
     return { ...proposal, proposal_id, type, signer, status, policy_id }
+
+  }
+
+  async _saveApprovedProposal(proposal_id: string): Promise<CoinstrTypes.PublishedApprovedProposal> {
+    const proposalEvent = await this.getProposalEvent(proposal_id)
+    const policyId = getTagValues(proposalEvent, TagType.Event)[0]
+    const policyEvent = await this.getPolicyEvent(policyId)
+    const policyIdSharedKeyMap = await this.getSharedKeysForPolicies(null, policyId)
+    const sharedKeyEvent = policyIdSharedKeyMap[policyId]
+  
+    if (!sharedKeyEvent) {
+      throw new Error(`Shared key for policy with id ${policyId} not found`)
+    }
+  
+    const policyMembers = policyEvent.tags.flatMap(tagArray => tagArray.slice(1));
+    const tags = policyMembers.map((member) => [TagType.PubKey, member]);
+  
+    const sharedKey = await this.authenticator.decrypt(sharedKeyEvent.content, sharedKeyEvent.pubkey)
+    const sharedKeyAuthenticator = new DirectPrivateKeyAuthenticator(sharedKey)
+  
+    const decryptedProposal = await sharedKeyAuthenticator.decryptObj(proposalEvent.content)
+  
+    const approvedProposal = {
+      psbt: decryptedProposal.psbt,
+    }
+  
+    const expirationDate = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7 // 7 days
+    const content = await sharedKeyAuthenticator.encryptObj(approvedProposal)
+    const approvedProposalEvent = await buildEvent({
+      kind: CoinstrKind.ApprovedProposal,
+      content,
+      tags: [...tags, [TagType.Event, proposal_id], [TagType.Event, policyId], [TagType.Expiration, expirationDate.toString()]],
+    },
+      sharedKeyAuthenticator)
+      
+    const publishedApprovedProposal: CoinstrTypes.PublishedApprovedProposal = {
+      proposal_id,
+      psbt: decryptedProposal.psbt,
+      policy_id: policyId,
+      approved_by: approvedProposalEvent.pubkey,
+      approval_date : fromNostrDate(approvedProposalEvent.created_at),
+      expiration_date: fromNostrDate(expirationDate),
+      status: "active"
+    }
+  
+    const pub = this.nostrClient.publish(approvedProposalEvent)
+    await pub.onFirstOkOrCompleteFailure()
+  
+    return publishedApprovedProposal
+  }
+
+ async _saveCompletedProposal(proposal_id: string, payload: CoinstrTypes.CompletedProofOfReserveProposal): Promise<any> {
+    const proposalEvent = await this.getProposalEvent(proposal_id)
+    const policyId = getTagValues(proposalEvent, TagType.Event)[0]
+    const policyEvent = await this.getPolicyEvent(policyId)
+    const policyIdSharedKeyMap = await this.getSharedKeysForPolicies(null, policyId)
+    const sharedKeyEvent = policyIdSharedKeyMap[policyId]
+  
+    if (!sharedKeyEvent) {
+      throw new Error(`Shared key for policy with id ${policyId} not found`)
+    }
+  
+    const policyMembers = policyEvent.tags.flatMap(tagArray => tagArray.slice(1));
+    const tags = policyMembers.map((member) => [TagType.PubKey, member]);
+  
+    const sharedKey = await this.authenticator.decrypt(sharedKeyEvent.content, sharedKeyEvent.pubkey)
+    const sharedKeyAuthenticator = new DirectPrivateKeyAuthenticator(sharedKey)
+  
+    //const decryptedProposal = await sharedKeyAuthenticator.decryptObj(proposalEvent.content)
+
+    const completedProposal: CoinstrTypes.CompletedProofOfReserveProposal | CoinstrTypes.CompletedSpendingProposal = {
+      ...payload
+    }
+
+    const content = await sharedKeyAuthenticator.encryptObj(completedProposal)
+
+    const completedProposalEvent = await buildEvent({
+      kind: CoinstrKind.CompletedProposal,
+      content,
+      tags: [...tags, [TagType.Event, proposal_id], [TagType.Event, policyId]],
+    },
+      sharedKeyAuthenticator)
+
+    const pub = this.nostrClient.publish(completedProposalEvent)
+    await pub.onFirstOkOrCompleteFailure()
+
+    const publishedCompletedProposal: CoinstrTypes.PublishedCompletedProofOfReserveProposal = {
+      ...payload,
+      proposal_id,
+      policy_id: policyId,
+      completed_by: completedProposalEvent.pubkey,
+      completion_date : fromNostrDate(completedProposalEvent.created_at),
+      status: "completed"
+    }
+
+    return publishedCompletedProposal
 
   }
 

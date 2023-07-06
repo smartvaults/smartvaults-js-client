@@ -108,6 +108,38 @@ type PublishedProposal = {
   status: string
 }
 
+type BaseApprovedProposal = {
+  psbt: string
+}
+
+export type PublishedApprovedProposal = BaseApprovedProposal & {
+  proposal_id: string,
+  policy_id: string,
+  approved_by: string,
+  approval_date : Date,
+  expiration_date: Date,
+  status: string,
+}
+
 export type PublishedSpendingProposal = SpendingProposal & PublishedProposal
 export type PublishedProofOfReserveProposal = ProofOfReserveProposal & PublishedProposal
+
+export type CompletedSpendingProposal = {
+  tx: string
+  description : string
+}
+
+
+export type CompletedProofOfReserveProposal = ProofOfReserveProposal
+
+type PublishedCompleted = {
+  proposal_id: string
+  policy_id: string
+  completed_by: string
+  completion_date: Date
+  status: string
+}
+export type PublishedCompletedSpendingProposal = CompletedSpendingProposal & PublishedCompleted
+
+export type PublishedCompletedProofOfReserveProposal = CompletedProofOfReserveProposal & PublishedCompleted
 
