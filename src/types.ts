@@ -52,6 +52,7 @@ export type SpendProposalPayload = {
   amountDescriptor: string,
   feeRatePriority: string,
   createdAt?: Date,
+  status: string,
 }
 
 export type Metadata = {
@@ -104,11 +105,10 @@ type PublishedProposal = {
   policy_id: string
   proposal_id: string
   type: string
-  signer: string
   status: string
 }
 
-type BaseApprovedProposal = {
+export type BaseApprovedProposal = {
   psbt: string
 }
 

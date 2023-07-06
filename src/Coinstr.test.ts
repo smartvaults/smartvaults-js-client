@@ -4,7 +4,7 @@ import { Coinstr } from './Coinstr'
 import { NostrClient, Keys } from './service'
 import { TimeUtil } from './util'
 import { Contact, PublishedPolicy, BitcoinUtil, Wallet } from './models'
-import { Metadata, Profile, SavePolicyPayload, OwnedSigner, SharedSigner, SpendProposalPayload, ProofOfReserveProposal, PublishedDirectMessage, PublishedSpendingProposal } from './types'
+import { Metadata, Profile, SavePolicyPayload, OwnedSigner, SharedSigner, SpendProposalPayload, PublishedDirectMessage, PublishedSpendingProposal } from './types'
 
 jest.setTimeout(100000);
 
@@ -286,20 +286,19 @@ describe('Coinstr', () => {
     let spendProposal1;
     let spendProposal2;
     let spendProposal3;
-    let spendProposal4;
     let proofOfReserveProposal1;
     let proofOfReserveProposal2;
     let proofOfReserveProposal3;
-    let proofOfReserveProposal4;
-    let coinstr2: Coinstr
-    let saveApprovedProposal;
+    let saveApprovedProposal1;
     let saveApprovedProposal2;
     let saveApprovedProposal3;
     let saveApprovedProposal4;
-    let proposal_id1;
-    let proposal_id2;
-    let completedProposal1;
+    let proposalApproved1;
+    let proposalApproved2;
     let completedProposal2;
+    let completedProposal3;
+
+    let coinstr2: Coinstr
 
     beforeAll(async () => {
 
@@ -313,100 +312,110 @@ describe('Coinstr', () => {
         .mockResolvedValueOnce({ amount: 3000, psbt: "encoded psbt3" })
         .mockResolvedValueOnce({ amount: 4000, psbt: "encoded psbt4" })
       bitcoinUtil.createWallet.mockReturnValue(wallet)
+
       let savePolicyPayload1 = getSavePolicyPayload(11, keySet1.getPublicKeys(), 10)
-      let policy1 = await coinstr.savePolicy(savePolicyPayload1)
-      let savePolicyPayload2 = getSavePolicyPayload(12, keySet1.getPublicKeys(), 15)
-      let policy2 = await coinstr.savePolicy(savePolicyPayload2)
-      let savePolicyPayload3 = getSavePolicyPayload(13, keySet1.getPublicKeys(), 20)
-      let policy3 = await coinstr.savePolicy(savePolicyPayload3)
-
-
-      // Create policies with different public keys
-      let savePolicyPayload4 = getSavePolicyPayload(14, altKeySet.getPublicKeys(), 10)
-      let policy4 = await coinstr.savePolicy(savePolicyPayload4)
-      let savePolicyPayload5 = getSavePolicyPayload(15, altKeySet.getPublicKeys(), 15)
-      let policy5 = await coinstr.savePolicy(savePolicyPayload5)
+      let policy1 = await coinstr.savePolicy(savePolicyPayload1) // Policy 1 is created by authenticator 1
+      let savePolicyPayload2 = getSavePolicyPayload(12, altKeySet.getPublicKeys(), 12)
+      let policy2 = await coinstr2.savePolicy(savePolicyPayload2) // Policy 2 is created by authenticator 2
+      let payloadWithBothKeys = getSavePolicyPayload(13, [...keySet1.getPublicKeys(), ...altKeySet.getPublicKeys()], 13)
+      let policy3 = await coinstr.savePolicy(payloadWithBothKeys) // Policy 3 is created by authenticator 1 but has both keys
 
 
       let spendProposalPayload1 = spendProposalPayload(11, policy1)
       let spendProposalPayload2 = spendProposalPayload(12, policy2)
-      let spendProposalPayload3 = spendProposalPayload(13, policy3)
+      let spendProposalPayload3 = spendProposalPayload(13, policy3, 'signed') // 'signed' needed since it will be approved
 
       spendProposal1 = await coinstr.spend(spendProposalPayload1)
-      spendProposal2 = await coinstr.spend(spendProposalPayload2)
+      spendProposal2 = await coinstr2.spend(spendProposalPayload2)
       spendProposal3 = await coinstr.spend(spendProposalPayload3)
-
-      let spendProposalPayload4 = spendProposalPayload(14, policy4)
-      // Only those whose pk are in the policy can use it to create a proposal
-      spendProposal4 = await coinstr2.spend(spendProposalPayload4)
 
       let saveProofOfReserveProposalPayload1 = saveProofOfReserveProposalPayload(11)
       let saveProofOfReserveProposalPayload2 = saveProofOfReserveProposalPayload(12)
-      let saveProofOfReserveProposalPayload3 = saveProofOfReserveProposalPayload(13)
+      let saveProofOfReserveProposalPayload3 = saveProofOfReserveProposalPayload(13, 'signed')
 
       proofOfReserveProposal1 = await coinstr._saveProofOfReserveProposal(policy1.id, saveProofOfReserveProposalPayload1)
-      proofOfReserveProposal2 = await coinstr._saveProofOfReserveProposal(policy2.id, saveProofOfReserveProposalPayload2)
+      proofOfReserveProposal2 = await coinstr2._saveProofOfReserveProposal(policy2.id, saveProofOfReserveProposalPayload2)
       proofOfReserveProposal3 = await coinstr._saveProofOfReserveProposal(policy3.id, saveProofOfReserveProposalPayload3)
 
-      proofOfReserveProposal4 = await coinstr2._saveProofOfReserveProposal(policy5.id, saveProofOfReserveProposalPayload1)
 
-      proposal_id1 = proofOfReserveProposal1.proposal_id
-      proposal_id2 = spendProposal2.proposal_id
-      saveApprovedProposal = await coinstr._saveApprovedProposal(proposal_id1)
-      saveApprovedProposal2 = await coinstr._saveApprovedProposal(proposal_id2)
-      saveApprovedProposal3 = await coinstr._saveApprovedProposal(proposal_id1)
-      saveApprovedProposal4 = await coinstr._saveApprovedProposal(proposal_id2)
+      proposalApproved1 = proofOfReserveProposal3.proposal_id
+      proposalApproved2 = spendProposal3.proposal_id
 
-      completedProposal1 = await coinstr._saveCompletedProposal(proposal_id1, saveProofOfReserveProposalPayload1 )
-      completedProposal2 = await coinstr._saveCompletedProposal(proposal_id2, saveProofOfReserveProposalPayload2 )
     }
     )
     it('returns proposals', async () => {
-      const proposals1 = await coinstr.getProposals();
-      expect(proposals1.length).toBe(4); // Since proofOfReserveProposal1 and spendProposal2 are completed
-      expect(new Set(proposals1)).toEqual(new Set([spendProposal1,spendProposal3, proofOfReserveProposal2, proofOfReserveProposal3]));
-      const proposals2 = await coinstr2.getProposals();
-      expect(proposals2.length).toBe(2);
-      expect(new Set(proposals2)).toEqual(new Set([spendProposal4, proofOfReserveProposal4]));
+      saveApprovedProposal1 = await coinstr._saveApprovedProposal(proposalApproved1)
+      saveApprovedProposal2 = await coinstr._saveApprovedProposal(proposalApproved2)
+      saveApprovedProposal3 = await coinstr2._saveApprovedProposal(proposalApproved2)
+      saveApprovedProposal4 = await coinstr2._saveApprovedProposal(proposalApproved1)
+
+      const proposalsAuth1 = await coinstr.getProposals();
+      const proposalsAuth2 = await coinstr2.getProposals();
+      expect(proposalsAuth1.length).toBe(4); // 2 created by auth 1, 2 created by auth 1 but with both keys
+      expect(proposalsAuth2.length).toBe(4); // 2 created by auth 2, 2 created by auth 1 but with both keys
+      expect (new Set(proposalsAuth1)).toEqual(new Set([spendProposal1, proofOfReserveProposal1, proofOfReserveProposal3, spendProposal3]))
+      expect (new Set(proposalsAuth2)).toEqual(new Set([spendProposal2, proofOfReserveProposal2, proofOfReserveProposal3, spendProposal3]))
+    });
+
+    it('returns proposals with limit works', async () => {
+        const proposalsAuth1 = await coinstr.getProposals( { limit: 2 } );
+        const proposalsAuth2 = await coinstr2.getProposals({ limit: 3 } );
+        expect(proposalsAuth1.length).toBe(2);
+        expect(proposalsAuth2.length).toBe(3); 
     });
 
     it('sent proposal direct messages', async () => {
+
+      // Each set of keys creates one SpendProposal (1 and 2), SpendProposal3 is created by auth 1 but has both keys in the policy
+      // hence the message is sent to both Auth 1 and Auth 2.
+
       let coinstr = newCoinstr(keySet1.keys[1])
       let directMessages = await coinstr.getDirectMessages();
-      expect(directMessages.length).toBe(3)
-      let publicKey = keySet1.mainKey().publicKey
-      assertProposalDirectMessage(directMessages[0], spendProposal3, publicKey)
-      assertProposalDirectMessage(directMessages[1], spendProposal2, publicKey)
-      assertProposalDirectMessage(directMessages[2], spendProposal1, publicKey)
+      expect(directMessages.length).toBe(2) // 2 proposals sent by key 1
+      let publicKeyAuth1 = keySet1.mainKey().publicKey
+      assertProposalDirectMessage(directMessages[0], spendProposal3, publicKeyAuth1)
+      assertProposalDirectMessage(directMessages[1], spendProposal1, publicKeyAuth1)
 
       coinstr = newCoinstr(altKeySet.keys[1])
       directMessages = await coinstr.getDirectMessages();
-      expect(directMessages.length).toBe(1)
-      publicKey = altKeySet.mainKey().publicKey
-      assertProposalDirectMessage(directMessages[0], spendProposal4, publicKey)
+      let publicKeyAuth2 = altKeySet.mainKey().publicKey
+      expect(directMessages.length).toBe(2)
+      assertProposalDirectMessage(directMessages[0], spendProposal3, publicKeyAuth1)
+      assertProposalDirectMessage(directMessages[1], spendProposal2, publicKeyAuth2)
     });
 
-    it('get approvals works', async () => {
-      let approvals = await coinstr.getApprovalsByProposalId()
-      let approvals1 = await coinstr.getApprovalsByProposalId(proposal_id1)
-      let approvals2 = await coinstr.getApprovalsByProposalId(proposal_id2)
-      expect(Object.keys(approvals).length).toBe(2)
-      expect(Object.keys(approvals1).length).toBe(1)
-      expect(Object.keys(approvals2).length).toBe(1)
-      expect(approvals1[proposal_id1].length).toBe(2)
-      expect(approvals2[proposal_id2].length).toBe(2)
-      expect(new Set (approvals1[proposal_id1])).toEqual(new Set([saveApprovedProposal, saveApprovedProposal3]))
-      expect(new Set (approvals2[proposal_id2])).toEqual(new Set([saveApprovedProposal2, saveApprovedProposal4]))
-    })
 
-    it('get completed proposals works', async () => {
-      let completedProposals = await coinstr.getCompletedProposals()
-      expect(completedProposals.length).toBe(2)
-      expect(new Set(completedProposals)).toEqual(new Set ([completedProposal1, completedProposal2]))
-    }
-    )
 
+    it('getApprovals works', async () => {
+      const approvedProposals = await coinstr.getApprovals();
+      expect(Object.keys(approvedProposals).length).toBe(2);
+      expect(approvedProposals[proposalApproved1].length).toBe(2);
+      expect(approvedProposals[proposalApproved2].length).toBe(2);
+      expect(new Set(approvedProposals[proposalApproved1])).toEqual(new Set([saveApprovedProposal1, saveApprovedProposal4]));
+      expect(new Set(approvedProposals[proposalApproved2])).toEqual(new Set([saveApprovedProposal2, saveApprovedProposal3]));
+      for (let proposal_id in approvedProposals) {
+        approvedProposals[proposal_id].forEach((proposal) => {
+          expect(proposal).toHaveProperty('approved_by');
+          expect(proposal).toHaveProperty('approval_date');
+          expect(proposal).toHaveProperty('status');
+        });
+      }
   })
+
+    it('getCompletedProposals works', async () => {
+      completedProposal2 = await coinstr._saveCompletedProposal(proposalApproved1, saveProofOfReserveProposalPayload(12))
+      completedProposal3 = await coinstr2._saveCompletedProposal(proposalApproved2, saveProofOfReserveProposalPayload(13))
+      const completedProposals = await coinstr.getCompletedProposals();
+      expect(completedProposals.length).toBe(2);
+      expect(new Set(completedProposals)).toEqual(new Set([completedProposal2, completedProposal3]));
+      let activeProposalsAuth1 = await coinstr.getProposals();
+      expect(activeProposalsAuth1.length).toBe(2);
+      let activeProposalsAuth2 = await coinstr2.getProposals();
+      expect(activeProposalsAuth2.length).toBe(2);
+
+  });
+
+});
 
   function newCoinstr(keys: Keys): Coinstr {
     return new Coinstr({
@@ -491,21 +500,23 @@ function saveOwnedSignerPayload(id: number): OwnedSigner {
   }
 }
 
-function spendProposalPayload(id: number, policy: PublishedPolicy): SpendProposalPayload {
+function spendProposalPayload(id: number, policy: PublishedPolicy, status: string = 'unsigned'): SpendProposalPayload {
   return {
     policy,
     to_address: `to_address${id}`,
     description: `description${id}`,
     amountDescriptor: "1000",
-    feeRatePriority: "low"
+    feeRatePriority: "low",
+    status,
   }
 }
 
-function saveProofOfReserveProposalPayload(id: number): ProofOfReserveProposal {
+function saveProofOfReserveProposalPayload(id: number, status: string = 'unsigned') {
   return {
     descriptor: `descriptor${id}`,
     message: `message${id}`,
-    psbt: `psdbt${id}`,
+    psbt: `psbt${id}`,
+    status,
   }
 }
 
