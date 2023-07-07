@@ -625,11 +625,9 @@ export class Coinstr {
     return proposalEvents[0]
   }
 
-  private async hasUserApprovedProposal(pubkey: string , proposal_id: string): Promise<boolean> {
-    const approvalsResult = await this.getApprovals(proposal_id);
-    const approvals = approvalsResult[proposal_id];
+  private async hasUserApprovedProposal(approvalsMap:{ [key: string]: CoinstrTypes.PublishedApprovedProposal[] } ,pubkey: string , proposal_id: string): Promise<boolean> {
+    const approvals = approvalsMap[proposal_id];
     if (!approvals) return false;
-  
     for (const approval of approvals) {
       if (approval.approved_by === pubkey && approval.status === "active") {
         return true;
@@ -758,6 +756,7 @@ export class Coinstr {
     const proposalsFilter = this.buildProposalsFilter().pagination(paginationOpts).toFilters()
     const proposalEvents = await this.nostrClient.list(proposalsFilter)
     const decryptedProposals: any[] = []
+    const approvals = await this.getApprovals()
 
     for (const proposalEvent of proposalEvents) {
       const policyId = getTagValues(proposalEvent, TagType.Event)[0]
@@ -769,7 +768,7 @@ export class Coinstr {
       const sharedKeyAuthenticator = new DirectPrivateKeyAuthenticator(sharedKey)
       const decryptedProposal: CoinstrTypes.SpendingProposal | CoinstrTypes.ProofOfReserveProposal = await sharedKeyAuthenticator.decryptObj(proposalEvent.content)
       const type = "to_address" in decryptedProposal ? ProposalType.Spending : ProposalType.ProofOfReserve // There's no way to know the type of proposal from the event, so we need to check the content
-      const approvedResult = await this.hasUserApprovedProposal(this.authenticator.getPublicKey(), proposalEvent.id)
+      const approvedResult = await this.hasUserApprovedProposal(approvals,this.authenticator.getPublicKey(), proposalEvent.id)
       const statuss = approvedResult ? "signed" : "unsigned"
 
       if(completedProposals.find(completedProposal => completedProposal.proposal_id === proposalEvent.id)) continue; // Skip if proposal is already completed
