@@ -743,8 +743,6 @@ export class Coinstr {
    */
   async getProposals(paginationOpts: PaginationOpts = {}): Promise<(CoinstrTypes.PublishedSpendingProposal | CoinstrTypes.PublishedProofOfReserveProposal)[]> {
 
-    const completedProposals = await this.getCompletedProposals()
-
     const policiesFilter = filterBuilder()
       .kinds(CoinstrKind.Policy)
       .pubkeys(this.authenticator.getPublicKey())
@@ -756,7 +754,8 @@ export class Coinstr {
     const proposalsFilter = this.buildProposalsFilter().pagination(paginationOpts).toFilters()
     const proposalEvents = await this.nostrClient.list(proposalsFilter)
     const decryptedProposals: any[] = []
-    const approvals = await this.getApprovals()
+    const proposalIds = proposalEvents.map(proposalEvent => proposalEvent.id)
+    const approvals = await this.getApprovals(proposalIds)
 
     for (const proposalEvent of proposalEvents) {
       const policyId = getTagValues(proposalEvent, TagType.Event)[0]
@@ -771,7 +770,6 @@ export class Coinstr {
       const approvedResult = await this.hasUserApprovedProposal(approvals, this.authenticator.getPublicKey(), proposalEvent.id)
       const status = approvedResult ? "signed" : "unsigned"
 
-      if (completedProposals.find(completedProposal => completedProposal.proposal_id === proposalEvent.id)) continue; // Skip if proposal is already completed
       const publishedProposal: CoinstrTypes.PublishedSpendingProposal | CoinstrTypes.PublishedProofOfReserveProposal = {
         ...decryptedProposal,
         type,
@@ -884,8 +882,7 @@ export class Coinstr {
       throw new Error(`Shared key for policy with id ${policyId} not found`)
     }
 
-    const policyMembers = policyEvent.tags.flatMap(tagArray => tagArray.slice(1));
-    const tags = policyMembers.map((member) => [TagType.PubKey, member]);
+    const policyMembers = policyEvent.tags
 
     const sharedKey = await this.authenticator.decrypt(sharedKeyEvent.content, sharedKeyEvent.pubkey)
     const sharedKeyAuthenticator = new DirectPrivateKeyAuthenticator(sharedKey)
@@ -901,13 +898,23 @@ export class Coinstr {
     const completedProposalEvent = await buildEvent({
       kind: CoinstrKind.CompletedProposal,
       content,
-      tags: [...tags, [TagType.Event, proposal_id], [TagType.Event, policyId]],
+      tags: [...policyMembers, [TagType.Event, proposal_id], [TagType.Event, policyId]],
     },
       this.authenticator)
 
     const pub = this.nostrClient.publish(completedProposalEvent)
     await pub.onFirstOkOrCompleteFailure()
 
+    const deletedProposalEvent = await buildEvent({
+      kind: Kind.EventDeletion,
+      content: "",
+      tags: [...policyMembers, [TagType.Event, proposal_id]],
+    }
+    , sharedKeyAuthenticator)
+
+    const pubDelete = this.nostrClient.publish(deletedProposalEvent)
+    await pubDelete.onFirstOkOrCompleteFailure()
+    
     const publishedCompletedProposal: CoinstrTypes.PublishedCompletedProofOfReserveProposal = {
       ...payload,
       proposal_id,
