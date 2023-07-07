@@ -52,7 +52,6 @@ export type SpendProposalPayload = {
   amountDescriptor: string,
   feeRatePriority: string,
   createdAt?: Date,
-  status: string,
 }
 
 export type Metadata = {
@@ -105,7 +104,6 @@ type PublishedProposal = {
   policy_id: string
   proposal_id: string
   type: string
-  status: string
 }
 
 export type BaseApprovedProposal = {
@@ -137,7 +135,6 @@ type PublishedCompleted = {
   policy_id: string
   completed_by: string
   completion_date: Date
-  status: string
 }
 export type PublishedCompletedSpendingProposal = CompletedSpendingProposal & PublishedCompleted
 

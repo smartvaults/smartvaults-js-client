@@ -362,7 +362,7 @@ describe('Coinstr', () => {
 
       let spendProposalPayload1 = spendProposalPayload(11, policy1)
       let spendProposalPayload2 = spendProposalPayload(12, policy2)
-      let spendProposalPayload3 = spendProposalPayload(13, policy3, 'signed') // 'signed' needed since it will be approved
+      let spendProposalPayload3 = spendProposalPayload(13, policy3) // 'signed' needed since it will be approved
 
       spendProposal1 = await coinstr.spend(spendProposalPayload1)
       spendProposal2 = await coinstr2.spend(spendProposalPayload2)
@@ -370,7 +370,7 @@ describe('Coinstr', () => {
 
       let saveProofOfReserveProposalPayload1 = saveProofOfReserveProposalPayload(11)
       let saveProofOfReserveProposalPayload2 = saveProofOfReserveProposalPayload(12)
-      let saveProofOfReserveProposalPayload3 = saveProofOfReserveProposalPayload(13, 'signed')
+      let saveProofOfReserveProposalPayload3 = saveProofOfReserveProposalPayload(13)
 
       proofOfReserveProposal1 = await coinstr._saveProofOfReserveProposal(policy1.id, saveProofOfReserveProposalPayload1)
       proofOfReserveProposal2 = await coinstr2._saveProofOfReserveProposal(policy2.id, saveProofOfReserveProposalPayload2)
@@ -550,23 +550,21 @@ function saveOwnedSignerPayload(id: number): OwnedSigner {
   }
 }
 
-function spendProposalPayload(id: number, policy: PublishedPolicy, status: string = 'unsigned'): SpendProposalPayload {
+function spendProposalPayload(id: number, policy: PublishedPolicy): SpendProposalPayload {
   return {
     policy,
     to_address: `to_address${id}`,
     description: `description${id}`,
     amountDescriptor: "1000",
     feeRatePriority: "low",
-    status,
   }
 }
 
-function saveProofOfReserveProposalPayload(id: number, status: string = 'unsigned') {
+function saveProofOfReserveProposalPayload(id: number) {
   return {
     descriptor: `descriptor${id}`,
     message: `message${id}`,
     psbt: `psbt${id}`,
-    status,
   }
 }
 

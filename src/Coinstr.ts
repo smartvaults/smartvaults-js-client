@@ -270,7 +270,6 @@ export class Coinstr {
     amountDescriptor,
     feeRatePriority,
     createdAt,
-    status
   }: CoinstrTypes.SpendProposalPayload): Promise<CoinstrTypes.PublishedSpendingProposal> {
 
     let { amount, psbt } = await policy.build_trx({
@@ -320,7 +319,6 @@ export class Coinstr {
       type: ProposalType.Spending,
       policy_id: policy.id,
       proposal_id: proposalEvent.id,
-      status,
     }
 
   }
@@ -625,24 +623,12 @@ export class Coinstr {
     return proposalEvents[0]
   }
 
-  private async hasUserApprovedProposal(approvalsMap: { [key: string]: CoinstrTypes.PublishedApprovedProposal[] }, pubkey: string, proposal_id: string): Promise<boolean> {
-    const approvals = approvalsMap[proposal_id];
-    if (!approvals) return false;
-    for (const approval of approvals) {
-      if (approval.approved_by === pubkey && approval.status === "active") {
-        return true;
-      }
-    }
-    return false;
-  }
-
-
 
   /**
    * Fetches all completed proposals.
    *
    * @returns A promise that resolves to an array of completed proposals, both spending and proof-of-reserve types.
-   * Each proposal is decrypted and augmented with additional data (e.g., policy_id, proposal_id, completed_by, completion_date, status).
+   * Each proposal is decrypted and augmented with additional data (e.g., policy_id, proposal_id, completed_by, completion_date).
    *
    * @async
    */
@@ -671,7 +657,6 @@ export class Coinstr {
         proposal_id: proposalId,
         completed_by: completedProposalEvent.pubkey,
         completion_date: fromNostrDate(completedProposalEvent.created_at),
-        status: "completed"
       }
       completedProposals.push(publishedCompleteProposal)
     }
@@ -754,8 +739,6 @@ export class Coinstr {
     const proposalsFilter = this.buildProposalsFilter().pagination(paginationOpts).toFilters()
     const proposalEvents = await this.nostrClient.list(proposalsFilter)
     const decryptedProposals: any[] = []
-    const proposalIds = proposalEvents.map(proposalEvent => proposalEvent.id)
-    const approvals = await this.getApprovals(proposalIds)
 
     for (const proposalEvent of proposalEvents) {
       const policyId = getTagValues(proposalEvent, TagType.Event)[0]
@@ -767,15 +750,11 @@ export class Coinstr {
       const sharedKeyAuthenticator = new DirectPrivateKeyAuthenticator(sharedKey)
       const decryptedProposal: CoinstrTypes.SpendingProposal | CoinstrTypes.ProofOfReserveProposal = await sharedKeyAuthenticator.decryptObj(proposalEvent.content)
       const type = "to_address" in decryptedProposal ? ProposalType.Spending : ProposalType.ProofOfReserve // There's no way to know the type of proposal from the event, so we need to check the content
-      const approvedResult = await this.hasUserApprovedProposal(approvals, this.authenticator.getPublicKey(), proposalEvent.id)
-      const status = approvedResult ? "signed" : "unsigned"
-
       const publishedProposal: CoinstrTypes.PublishedSpendingProposal | CoinstrTypes.PublishedProofOfReserveProposal = {
         ...decryptedProposal,
         type,
         policy_id: policyId,
         proposal_id: proposalEvent.id,
-        status: status,
       }
       decryptedProposals.push(publishedProposal)
     }
@@ -784,7 +763,7 @@ export class Coinstr {
   }
 
   //Mock method to create a proposal, this will be replaced when the policy class is created
-  async _saveProofOfReserveProposal(policy_id: string, { message, psbt, descriptor, status }): Promise<CoinstrTypes.PublishedProofOfReserveProposal> {
+  async _saveProofOfReserveProposal(policy_id: string, { message, psbt, descriptor}): Promise<CoinstrTypes.PublishedProofOfReserveProposal> {
 
     const policyEvent = await this.getPolicyEvent(policy_id)
     const policyIdSharedKeyMap = await this.getSharedKeysForPolicies(null, policy_id)
@@ -820,7 +799,7 @@ export class Coinstr {
     const proposal_id = proposalEvent.id
     const type = "proof_of_reserve"
 
-    return { ...proposal, proposal_id, type, status, policy_id }
+    return { ...proposal, proposal_id, type, policy_id }
 
   }
 
@@ -921,7 +900,6 @@ export class Coinstr {
       policy_id: policyId,
       completed_by: completedProposalEvent.pubkey,
       completion_date: fromNostrDate(completedProposalEvent.created_at),
-      status: "completed"
     }
 
     return publishedCompletedProposal
