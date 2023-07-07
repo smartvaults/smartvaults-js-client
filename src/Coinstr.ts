@@ -1,18 +1,21 @@
 import { Authenticator, DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
-import { generatePrivateKey, Kind, Event } from 'nostr-tools'
+import { generatePrivateKey, Kind, Event, Filter, Sub } from 'nostr-tools'
 import { CoinstrKind, TagType, ProposalType } from './enum'
-import { NostrClient, PubPool } from './service'
-import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished } from './util'
+import { NostrClient, PubPool, Store } from './service'
+import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished, nostrDate } from './util'
 import { BitcoinUtil, Contact, Policy, PublishedPolicy } from './models'
 import {
   ContactProfile, Metadata, Profile, SavePolicyPayload, SharedSigner, OwnedSigner,
   PublishedOwnedSigner, PublishedSharedSigner, SpendProposalPayload, PublishedDirectMessage, SpendingProposal, ProofOfReserveProposal, PublishedSpendingProposal, PublishedProofOfReserveProposal
 } from './types'
+import { EventKindHandlerFactory } from './event-kind-handler'
 
 export class Coinstr {
-  private authenticator: Authenticator
-  private bitcoinUtil: BitcoinUtil
-  private nostrClient: NostrClient
+  authenticator: Authenticator
+  bitcoinUtil: BitcoinUtil
+  nostrClient: NostrClient
+  stores!: Map<number, Store>
+  private eventKindHandlerFactor!: EventKindHandlerFactory
 
   constructor({
     authenticator,
@@ -26,10 +29,32 @@ export class Coinstr {
     this.authenticator = authenticator
     this.bitcoinUtil = bitcoinUtil
     this.nostrClient = nostrClient
+    this.initStores()
+    this.initEventKindHandlerFactory()
+  }
+
+  initStores() {
+    this.stores = new Map()
+    this.stores.set(CoinstrKind.Policy, new Store("id"))
+  }
+  initEventKindHandlerFactory() {
+    this.eventKindHandlerFactor = new EventKindHandlerFactory(this)
   }
 
   setAuthenticator(authenticator: Authenticator): void {
-    this.authenticator = authenticator
+    if (authenticator !== this.authenticator) {
+      this.initStores()
+      this.initEventKindHandlerFactory()
+      this.authenticator = authenticator
+    }
+
+  }
+
+  getStore(eventKind: number): Store {
+    if (!this.stores.has(eventKind)) {
+      throw new Error(`No store for event kind: ${eventKind}`)
+    }
+    return this.stores.get(eventKind)!
   }
 
   async upsertContacts(newContacts: Contact | Contact[]): Promise<Event<Kind.Contacts>> {
@@ -164,75 +189,56 @@ export class Coinstr {
 
     const pub = this.nostrClient.publish(policyEvent)
     await pub.onFirstOkOrCompleteFailure()
-    return PublishedPolicy.fromPolicyAndEvent({
+    const publishedPolicy = PublishedPolicy.fromPolicyAndEvent({
       policyContent,
       policyEvent,
       bitcoinUtil: this.bitcoinUtil,
       nostrPublicKeys,
       sharedKeyAuth: sharedKeyAuthenticator
     })
+    this.getStore(CoinstrKind.Policy).store(publishedPolicy)
+    return publishedPolicy
   }
 
   /**
-   * Get all policies with shared keys
-   * @returns {Promise<Policy[]>}
+   * Get policies in the pagination scope
+   * @returns {Promise<PublishedPolicy[]>} 
+   *          
    */
-  async getPolicies({
-    ids,
-    paginationOpts = {}
-  }: {
-    ids?: string[],
-    paginationOpts?: PaginationOpts
-  }): Promise<PublishedPolicy[]> {
+  async getPolicies(paginationOpts: PaginationOpts = {}): Promise<PublishedPolicy[]> {
 
     const policiesFilter = filterBuilder()
       .kinds(CoinstrKind.Policy)
       .pubkeys(this.authenticator.getPublicKey())
       .pagination(paginationOpts)
-    if (ids) {
-      policiesFilter.ids(ids)
-    }
-    const policyEvents = await this.nostrClient.list(policiesFilter.toFilters())
-    const policyIds = policyEvents.map(policy => policy.id)
-
-    const sharedKeysFilter = filterBuilder()
-      .kinds(CoinstrKind.SharedKey)
-      .events(policyIds)
-      .pubkeys(this.authenticator.getPublicKey())
       .toFilters()
-
-    const sharedKeyEvents = await this.nostrClient.list<CoinstrKind.Policy>(sharedKeysFilter)
-    const policyIdSharedKeyMap = {}
-    for (const sharedKeyEvent of sharedKeyEvents) {
-      const eventIds = getTagValues(sharedKeyEvent, TagType.Event)
-      eventIds.forEach(id => policyIdSharedKeyMap[id] = sharedKeyEvent)
-    }
-
-    const policies: PublishedPolicy[] = []
-    for (const policyEvent of policyEvents) {
-      const {
-        id: policyId
-      } = policyEvent
-      const sharedKeyEvent = policyIdSharedKeyMap[policyId]
-      if (!sharedKeyEvent) {
-        console.error(`Shared Key for policy id: ${policyId} not found`)
-        continue
-      }
-      const sharedKey = await this.authenticator.decrypt(
-        sharedKeyEvent.content,
-        sharedKeyEvent.pubkey
-      )
-      const sharedKeyAuthenticator = new DirectPrivateKeyAuthenticator(sharedKey)
-      const policyContent = await sharedKeyAuthenticator.decryptObj(policyEvent.content)
-      policies.push(PublishedPolicy.fromPolicyAndEvent({
-        policyContent,
-        policyEvent,
-        bitcoinUtil: this.bitcoinUtil,
-        nostrPublicKeys: getTagValues(policyEvent, TagType.PubKey),
-        sharedKeyAuth: sharedKeyAuthenticator
-      }))
-    }
+    let policies = await this._getPolicies(policiesFilter)
     return policies
+  }
+
+  /**
+   * Gets policies by id
+   * @returns {Promise<Map<string, PublishedPolicy>>}
+   *          
+   */
+  async getPoliciesById(ids: string[]): Promise<Map<string, PublishedPolicy>> {
+    const store = this.getStore(CoinstrKind.Policy)
+    const missingIds = store.missing(ids)
+    if (missingIds.length) {
+      const policiesFilter = filterBuilder()
+        .kinds(CoinstrKind.Policy)
+        .pubkeys(this.authenticator.getPublicKey())
+        .ids(missingIds)
+        .toFilters()
+      await this._getPolicies(policiesFilter)
+    }
+    return store.getMany(ids!)
+  }
+
+  private async _getPolicies(filter: Filter<CoinstrKind.Policy>[]): Promise<PublishedPolicy[]> {
+    const policyEvents = await this.nostrClient.list(filter)
+    const policyHandler = this.eventKindHandlerFactor.getHandler(CoinstrKind.Policy)
+    return policyHandler.handle(policyEvents)
   }
 
   async getPolicyEvent(policy_id: string): Promise<any> {
@@ -320,6 +326,33 @@ export class Coinstr {
       status: "unsigned"
     }
 
+  }
+
+  subscribe(callback: (eventKind: number, payload: any) => void): Sub<number> {
+    let filters = this.subscriptionFilters()
+    return this.nostrClient.sub(filters, async (event: Event<number>) => {
+      const {
+        kind
+      } = event
+      const handler = this.eventKindHandlerFactor.getHandler(kind)
+      try {
+        const payload = (await handler.handle(event))[0]
+        callback(kind, payload)
+      } catch (error) {
+        console.error(`failed processing subscription event: ${event}, error: ${error}`)
+      }
+    })
+  }
+
+  private subscriptionFilters(): Filter<number>[] {
+    let paginationOpts = {
+      since: nostrDate()
+    }
+    return filterBuilder()
+      .kinds(CoinstrKind.Policy)
+      .pubkeys(this.authenticator.getPublicKey())
+      .pagination(paginationOpts)
+      .toFilters()
   }
 
   disconnect(): void {
