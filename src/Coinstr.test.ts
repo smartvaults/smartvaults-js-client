@@ -1,3 +1,4 @@
+import sleep from 'await-sleep'
 import { MockProxy, mock } from 'jest-mock-extended'
 import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { Coinstr } from './Coinstr'
@@ -5,8 +6,8 @@ import { NostrClient, Keys } from './service'
 import { TimeUtil } from './util'
 import { Contact, PublishedPolicy, BitcoinUtil, Wallet } from './models'
 import { Metadata, Profile, SavePolicyPayload, OwnedSigner, SharedSigner, SpendProposalPayload, PublishedDirectMessage, PublishedSpendingProposal } from './types'
-
-jest.setTimeout(100000);
+import { CoinstrKind } from './enum'
+jest.setTimeout(1000000);
 
 describe('Coinstr', () => {
   let coinstr: Coinstr
@@ -108,9 +109,9 @@ describe('Coinstr', () => {
     let policy3: PublishedPolicy
 
     beforeAll(async () => {
-      let savePayload = getSavePolicyPayload(1, keySet1.getPublicKeys(), 20)
+      let savePayload = getSavePolicyPayload(1, keySet1.getPublicKeys(), -20)
       policy1 = await coinstr.savePolicy(savePayload)
-      savePayload = getSavePolicyPayload(2, keySet1.getPublicKeys(), 10)
+      savePayload = getSavePolicyPayload(2, keySet1.getPublicKeys(), -10)
       policy2 = await coinstr.savePolicy(savePayload)
       savePayload = getSavePolicyPayload(3, keySet2.getPublicKeys())
       policy3 = await coinstr.savePolicy(savePayload)
@@ -127,7 +128,7 @@ describe('Coinstr', () => {
     // })
 
     it('all policies works', async () => {
-      const policies = await coinstr.getPolicies({})
+      const policies = await coinstr.getPolicies()
       expect(policies.length).toBe(3)
       assertPublishedPolicy(policies[0], policy3)
       assertPublishedPolicy(policies[1], policy2)
@@ -135,43 +136,81 @@ describe('Coinstr', () => {
     })
 
     it('since works', async () => {
-      let policies = await coinstr.getPolicies({ paginationOpts: { since: policy2.createdAt } })
+      let policies = await coinstr.getPolicies({ since: policy2.createdAt })
       expect(policies.length).toBe(2)
       assertPublishedPolicy(policies[0], policy3)
       assertPublishedPolicy(policies[1], policy2)
 
-      policies = await coinstr.getPolicies({ paginationOpts: { since: policy3.createdAt } })
+      policies = await coinstr.getPolicies({ since: policy3.createdAt })
       expect(policies.length).toBe(1)
       assertPublishedPolicy(policies[0], policy3)
     })
 
     it('until works', async () => {
-      let policies = await coinstr.getPolicies({ paginationOpts: { until: policy2.createdAt } })
+      let policies = await coinstr.getPolicies({ until: policy2.createdAt })
       expect(policies.length).toBe(1)
       assertPublishedPolicy(policies[0], policy1)
 
-      policies = await coinstr.getPolicies({ paginationOpts: { until: policy1.createdAt } })
+      policies = await coinstr.getPolicies({ until: policy1.createdAt })
       expect(policies.length).toBe(0)
     })
 
     it('limit works', async () => {
-      let policies = await coinstr.getPolicies({ paginationOpts: { limit: 2 } })
+      let policies = await coinstr.getPolicies({ limit: 2 })
       expect(policies.length).toBe(2)
       assertPublishedPolicy(policies[0], policy3)
       assertPublishedPolicy(policies[1], policy2)
 
-      policies = await coinstr.getPolicies({ paginationOpts: { since: policy2.createdAt, limit: 1 } })
+      policies = await coinstr.getPolicies({ since: policy2.createdAt, limit: 1 })
       expect(policies.length).toBe(1)
       assertPublishedPolicy(policies[0], policy3)
     })
 
     it('ids filter works', async () => {
-      let policies = await coinstr.getPolicies({ ids: [policy1.id, policy3.id] })
-      expect(policies.length).toBe(2)
-      assertPublishedPolicy(policies[0], policy3)
-      assertPublishedPolicy(policies[1], policy1)
+      let policies = await coinstr.getPoliciesById([policy1.id, policy3.id])
+      expect(policies.size).toBe(2)
+      assertPublishedPolicy(policies.get(policy3.id)!, policy3)
+      assertPublishedPolicy(policies.get(policy1.id)!, policy1)
 
     })
+  })
+
+  describe('subscribe', () => {
+    let coinstr: Coinstr
+    let keySet: KeySet
+    beforeEach(() => {
+      keySet = new KeySet(2)
+      coinstr = new Coinstr({
+        authenticator: new DirectPrivateKeyAuthenticator(keySet.mainKey().privateKey),
+        bitcoinUtil,
+        nostrClient
+      })
+    })
+
+    it('should receive new events', async () => {
+      expect.assertions(14)
+      let counter: number = 0
+      let savePolicyPayload1 = getSavePolicyPayload(1, keySet.getPublicKeys(), 2)
+      let savePolicyPayload2 = getSavePolicyPayload(2, keySet.getPublicKeys(), 3)
+      const sub = coinstr.subscribe((kind: number, payload: any) => {
+        switch (counter) {
+          case 0:
+            assertSubscriptionPolicyPayload(kind, payload, savePolicyPayload1)
+            break
+          case 1:
+            assertSubscriptionPolicyPayload(kind, payload, savePolicyPayload2)
+            break
+        }
+        counter++
+      })
+
+      await coinstr.savePolicy(savePolicyPayload1)
+      await coinstr.savePolicy(savePolicyPayload2)
+      await sleep(100)
+      sub.unsub()
+
+    })
+
   })
 
   describe('getOwnedSigners', () => {
@@ -313,11 +352,11 @@ describe('Coinstr', () => {
         .mockResolvedValueOnce({ amount: 4000, psbt: "encoded psbt4" })
       bitcoinUtil.createWallet.mockReturnValue(wallet)
 
-      let savePolicyPayload1 = getSavePolicyPayload(11, keySet1.getPublicKeys(), 10)
+      let savePolicyPayload1 = getSavePolicyPayload(11, keySet1.getPublicKeys(), -10)
       let policy1 = await coinstr.savePolicy(savePolicyPayload1) // Policy 1 is created by authenticator 1
-      let savePolicyPayload2 = getSavePolicyPayload(12, altKeySet.getPublicKeys(), 12)
+      let savePolicyPayload2 = getSavePolicyPayload(12, altKeySet.getPublicKeys(), -12)
       let policy2 = await coinstr2.savePolicy(savePolicyPayload2) // Policy 2 is created by authenticator 2
-      let payloadWithBothKeys = getSavePolicyPayload(13, [...keySet1.getPublicKeys(), ...altKeySet.getPublicKeys()], 13)
+      let payloadWithBothKeys = getSavePolicyPayload(13, [...keySet1.getPublicKeys(), ...altKeySet.getPublicKeys()], -13)
       let policy3 = await coinstr.savePolicy(payloadWithBothKeys) // Policy 3 is created by authenticator 1 but has both keys
 
 
@@ -341,6 +380,7 @@ describe('Coinstr', () => {
       proposalApproved1 = proofOfReserveProposal3.proposal_id
       proposalApproved2 = spendProposal3.proposal_id
 
+
     }
     )
     it('returns proposals', async () => {
@@ -353,15 +393,15 @@ describe('Coinstr', () => {
       const proposalsAuth2 = await coinstr2.getProposals();
       expect(proposalsAuth1.length).toBe(4); // 2 created by auth 1, 2 created by auth 1 but with both keys
       expect(proposalsAuth2.length).toBe(4); // 2 created by auth 2, 2 created by auth 1 but with both keys
-      expect (new Set(proposalsAuth1)).toEqual(new Set([spendProposal1, proofOfReserveProposal1, proofOfReserveProposal3, spendProposal3]))
-      expect (new Set(proposalsAuth2)).toEqual(new Set([spendProposal2, proofOfReserveProposal2, proofOfReserveProposal3, spendProposal3]))
+      expect(new Set(proposalsAuth1)).toEqual(new Set([spendProposal1, proofOfReserveProposal1, proofOfReserveProposal3, spendProposal3]))
+      expect(new Set(proposalsAuth2)).toEqual(new Set([spendProposal2, proofOfReserveProposal2, proofOfReserveProposal3, spendProposal3]))
     });
 
     it('returns proposals with limit works', async () => {
-        const proposalsAuth1 = await coinstr.getProposals( { limit: 2 } );
-        const proposalsAuth2 = await coinstr2.getProposals({ limit: 3 } );
-        expect(proposalsAuth1.length).toBe(2);
-        expect(proposalsAuth2.length).toBe(3); 
+      const proposalsAuth1 = await coinstr.getProposals({ limit: 2 });
+      const proposalsAuth2 = await coinstr2.getProposals({ limit: 3 });
+      expect(proposalsAuth1.length).toBe(2);
+      expect(proposalsAuth2.length).toBe(3);
     });
 
     it('sent proposal direct messages', async () => {
@@ -400,7 +440,7 @@ describe('Coinstr', () => {
           expect(proposal).toHaveProperty('status');
         });
       }
-  })
+    })
 
     it('getCompletedProposals works', async () => {
       completedProposal2 = await coinstr._saveCompletedProposal(proposalApproved1, saveProofOfReserveProposalPayload(12))
@@ -413,9 +453,9 @@ describe('Coinstr', () => {
       let activeProposalsAuth2 = await coinstr2.getProposals();
       expect(activeProposalsAuth2.length).toBe(2);
 
-  });
+    });
 
-});
+  });
 
   function newCoinstr(keys: Keys): Coinstr {
     return new Coinstr({
@@ -437,6 +477,16 @@ function assertPublishedPolicy(actual: PublishedPolicy, expected: PublishedPolic
   expect(actual.nostrPublicKeys).toEqual(expected.nostrPublicKeys)
   expect(actual.sharedKeyAuth).toBeDefined()
   expect(expected.sharedKeyAuth).toBeDefined()
+}
+
+function assertSubscriptionPolicyPayload(kind: number, actual: any, savePayload: SavePolicyPayload) {
+  expect(kind).toBe(CoinstrKind.Policy)
+  expect(actual).toBeInstanceOf(PublishedPolicy)
+  expect(actual.name).toBe(savePayload.name)
+  expect(actual.description).toBe(savePayload.description)
+  expect(actual.uiMetadata).toEqual(savePayload.uiMetadata)
+  expect(actual.nostrPublicKeys).toEqual(savePayload.nostrPublicKeys)
+  expect(actual.sharedKeyAuth).toBeDefined()
 
 }
 
@@ -447,7 +497,7 @@ function assertProposalDirectMessage(directMessage: PublishedDirectMessage, prop
 }
 
 function getSavePolicyPayload(id: number, nostrPublicKeys: string[], secondsShift: number = 0): SavePolicyPayload {
-  let createdAt = TimeUtil.addSeconds(-1 * secondsShift)
+  let createdAt = TimeUtil.addSeconds(secondsShift)
   return {
     name: `policy${id}`,
     description: `policy desc ${id}`,

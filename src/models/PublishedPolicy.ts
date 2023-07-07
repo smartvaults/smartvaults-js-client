@@ -73,7 +73,7 @@ export class PublishedPolicy {
     this.wallet = bitcoinUtil.createWallet(descriptor)
   }
 
-  async sync(): Promise<void> {
+  sync(): Promise<void> {
     if (!this.syncPromise) {
       this.syncPromise = this.wallet.sync()
       this.syncPromise
