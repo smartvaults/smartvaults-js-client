@@ -80,7 +80,7 @@ describe('PublishedPolicy', () => {
     })
   })
 
-  describe('get balance', () => {
+  describe('getBalance', () => {
 
     it('should return correct balance', async () => {
       wallet.sync.mockResolvedValue()
@@ -93,6 +93,34 @@ describe('PublishedPolicy', () => {
       let totalBalance = (await policy.getBalance()).totalBalance()
       expect(totalBalance).toBe(7340)
       expect(wallet.sync).toBeCalledTimes(1)
+    })
+  })
+
+  describe('getNewAddress', () => {
+
+    it('should return correct address', async () => {
+      wallet.sync.mockResolvedValue()
+      wallet.get_new_address.mockReturnValue("newaddress")
+      let newAddres = await policy.getNewAddress()
+      expect(newAddres).toBe("newaddress")
+      expect(wallet.sync).toBeCalledTimes(1)
+    })
+  })
+
+  describe('buildTrx', () => {
+
+    it('should correctly call the build_trx method of the wallet instance', async () => {
+      wallet.sync.mockResolvedValue()
+      const expected = { amount: 1000, psbt: "psbt1" }
+      wallet.build_trx.mockResolvedValue({ amount: 1000, psbt: "psbt1" })
+      let actual = await policy.buildTrx({
+        address: "address",
+        amount: "1000",
+        feeRate: "low"
+      })
+      expect(expected).toEqual(actual)
+      expect(wallet.sync).toBeCalledTimes(1)
+      expect(wallet.build_trx).toHaveBeenNthCalledWith(1, "address", "1000", "low")
     })
   })
 })

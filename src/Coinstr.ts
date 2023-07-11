@@ -273,7 +273,7 @@ export class Coinstr {
     status
   }: CoinstrTypes.SpendProposalPayload): Promise<CoinstrTypes.PublishedSpendingProposal> {
 
-    let { amount, psbt } = await policy.build_trx({
+    let { amount, psbt } = await policy.buildTrx({
       address: to_address,
       amount: amountDescriptor,
       feeRate: feeRatePriority

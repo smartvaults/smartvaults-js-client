@@ -92,7 +92,7 @@ export class PublishedPolicy {
     return (await this.synced()).get_new_address()
   }
 
-  async build_trx({
+  async buildTrx({
     address,
     amount,
     feeRate
