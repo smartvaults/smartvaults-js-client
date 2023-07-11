@@ -14,10 +14,21 @@ export class Store {
     objs = Array.isArray(objs) ? objs : [objs]
     objs.forEach(obj => {
       this.indexKeys.forEach(key => {
-        if (!obj[key]) {
+        if (!obj.hasOwnProperty(key) ) {
           throw new Error("Index property has no value")
         }
-        this.indexes.get(key)!.set(obj[key], obj)
+        const indexForKey = this.indexes.get(key);
+        if(!indexForKey){
+          throw new Error("Invalid index key")
+        }
+        const currentValue = indexForKey.get(obj[key])
+        if (currentValue && Array.isArray(currentValue)  ){
+          if (!currentValue.includes(obj)) {
+            this.indexes.get(key)!.set(obj[key], [...currentValue, obj])
+          }
+          } else if (currentValue && currentValue !== obj) {
+            this.indexes.get(key)!.set(obj[key], [currentValue, obj])
+          } else this.indexes.get(key)!.set(obj[key], obj)
       })
     })
   }
@@ -26,17 +37,43 @@ export class Store {
     return this.getIndex(indexKey).get(indexValue)
   }
 
-  getMany(indexValues: string[], indexKey?: string): Map<string, any> {
-    const index = this.getIndex(indexKey)
-    const map: Map<string, any> = new Map()
+  getMany(indexValues?: string[], indexKey?: string): Map<string, any> {
+    const index = this.getIndex(indexKey);
+    if(!index){
+      throw new Error("Invalid index key")
+    }
+    if (!indexValues || indexValues.length === 0) {
+        return index;
+    }
+    const map: Map<string, any> = new Map();
     indexValues.forEach(indexValue => {
-      if (index.has(indexValue)) {
-        map.set(indexValue, index.get(indexValue))
-      }
-    })
-    return map
+        const value = index.get(indexValue);
+        if (value !== undefined) {
+            map.set(indexValue, value);
+        }
+    });
+
+    return map;
   }
 
+  getManyAsArray(indexValues?: string[], indexKey?: string): any[] {
+    const index = this.getIndex(indexKey);
+    if(!index){
+      throw new Error("Invalid index key")
+    }
+    if (!indexValues || indexValues.length === 0) {
+        return Array.from(index.values());
+    }
+    const array: any[] = [];
+    indexValues.forEach(indexValue => {
+        const value = index.get(indexValue);
+        if (value !== undefined) {
+            array.push(value);
+        }
+    });
+    return array;
+  }
+  
   has(indexValue: string, indexKey?: string): boolean {
     return !!this.get(indexValue, indexKey)
   }

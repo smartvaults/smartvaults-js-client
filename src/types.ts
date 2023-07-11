@@ -1,11 +1,12 @@
+import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual';
 import { BasePolicy, PublishedPolicy } from './models'
 
-type BaseSharedSigner = {
+export type BaseSharedSigner = {
   descriptor: string;
   fingerprint: string;
 };
 
-type BaseOwnedSigner = {
+export type BaseOwnedSigner = {
   description: any,
   descriptor: string,
   fingerprint: string,
@@ -113,6 +114,7 @@ export type BaseApprovedProposal = {
 export type PublishedApprovedProposal = BaseApprovedProposal & {
   proposal_id: string,
   policy_id: string,
+  approval_id: string,
   approved_by: string,
   approval_date : Date,
   expiration_date: Date,
@@ -140,3 +142,7 @@ export type PublishedCompletedSpendingProposal = CompletedSpendingProposal & Pub
 
 export type PublishedCompletedProofOfReserveProposal = CompletedProofOfReserveProposal & PublishedCompleted
 
+export type SharedKeyAuthenticator = {
+  policyId: string
+  sharedKeyAuthenticator: DirectPrivateKeyAuthenticator
+}

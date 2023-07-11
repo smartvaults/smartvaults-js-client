@@ -5,7 +5,7 @@ import { Coinstr } from './Coinstr'
 import { NostrClient, Keys } from './service'
 import { TimeUtil } from './util'
 import { Contact, PublishedPolicy, BitcoinUtil, Wallet } from './models'
-import { Metadata, Profile, SavePolicyPayload, OwnedSigner, SharedSigner, SpendProposalPayload, PublishedDirectMessage, PublishedSpendingProposal } from './types'
+import { Metadata, Profile, SavePolicyPayload, OwnedSigner, SharedSigner, SpendProposalPayload, PublishedDirectMessage, PublishedSpendingProposal, PublishedApprovedProposal, PublishedSharedSigner} from './types'
 import { CoinstrKind } from './enum'
 jest.setTimeout(1000000);
 
@@ -38,9 +38,9 @@ describe('Coinstr', () => {
 
   })
 
-  afterEach(() => {
-    coinstr.disconnect()
-  })
+  // afterEach(() => {
+  //   coinstr.disconnect()
+  // })
 
   describe('mock', () => {
     it('bit', async () => {
@@ -244,11 +244,11 @@ describe('Coinstr', () => {
   });
 
   describe('getSharedSigners', () => {
-    let sharedSigner1: SharedSigner
-    let sharedSigner2: SharedSigner
-    let sharedSigner3: SharedSigner
-    let sharedSigner4: SharedSigner
-    let sharedSigner5: SharedSigner
+    let sharedSigner1: PublishedSharedSigner;
+    let sharedSigner2: PublishedSharedSigner;
+    let sharedSigner3: PublishedSharedSigner;
+    let sharedSigner4: PublishedSharedSigner;
+    let sharedSigner5: PublishedSharedSigner;
     let coinstrWithAuthenticator2: Coinstr // New instance of Coinstr
 
     beforeAll(async () => {
@@ -262,11 +262,14 @@ describe('Coinstr', () => {
 
       let pubKey = keySet1.keys[1].publicKey
       let saveSharedSignerPayload1 = saveSharedSignerPayload(1)
-      sharedSigner1 = await coinstr.saveSharedSigner(saveSharedSignerPayload1, pubKey)
+      let sharedSignerResult = await coinstr.saveSharedSigner(saveSharedSignerPayload1, pubKey)
+      sharedSigner1 = sharedSignerResult[0] 
       let saveSharedSignerPayload2 = saveSharedSignerPayload(2)
-      sharedSigner2 = await coinstr.saveSharedSigner(saveSharedSignerPayload2, pubKey)
+      sharedSignerResult = await coinstr.saveSharedSigner(saveSharedSignerPayload2, pubKey)
+      sharedSigner2 = sharedSignerResult[0]
       let saveSharedSignerPayload3 = saveSharedSignerPayload(3)
-      sharedSigner3 = await coinstr.saveSharedSigner(saveSharedSignerPayload3, pubKey)
+      sharedSignerResult= await coinstr.saveSharedSigner(saveSharedSignerPayload3, pubKey)
+      sharedSigner3 = sharedSignerResult[0]
 
       let coinstrWithAuthenticator3 = new Coinstr({ // New instance of Coinstr with different authenticator
         authenticator: authenticator3,
@@ -275,9 +278,11 @@ describe('Coinstr', () => {
       });
 
       saveSharedSignerPayload1 = saveSharedSignerPayload(6)
-      sharedSigner4 = await coinstrWithAuthenticator3.saveSharedSigner(saveSharedSignerPayload1, pubKey)
+      sharedSignerResult = await coinstrWithAuthenticator3.saveSharedSigner(saveSharedSignerPayload1, pubKey)
+      sharedSigner4 = sharedSignerResult[0]
       saveSharedSignerPayload1 = saveSharedSignerPayload(7)
-      sharedSigner5 = await coinstrWithAuthenticator3.saveSharedSigner(saveSharedSignerPayload1, pubKey)
+      sharedSignerResult = await coinstrWithAuthenticator3.saveSharedSigner(saveSharedSignerPayload1, pubKey)
+      sharedSigner5 = sharedSignerResult[0]
 
 
     })
@@ -336,6 +341,8 @@ describe('Coinstr', () => {
     let proposalApproved2;
     let completedProposal2;
     let completedProposal3;
+    let firstCallTime1;
+    let firstCallTime2;
 
     let coinstr2: Coinstr
 
@@ -380,28 +387,46 @@ describe('Coinstr', () => {
       proposalApproved1 = proofOfReserveProposal3.proposal_id
       proposalApproved2 = spendProposal3.proposal_id
 
-
     }
     )
-    it('returns proposals', async () => {
+    it('save approvals', async () => {
       saveApprovedProposal1 = await coinstr._saveApprovedProposal(proposalApproved1)
       saveApprovedProposal2 = await coinstr._saveApprovedProposal(proposalApproved2)
-      saveApprovedProposal3 = await coinstr2._saveApprovedProposal(proposalApproved2)
-      saveApprovedProposal4 = await coinstr2._saveApprovedProposal(proposalApproved1)
+      saveApprovedProposal3 = await coinstr._saveApprovedProposal(proposalApproved2)
+      saveApprovedProposal4 = await coinstr._saveApprovedProposal(proposalApproved1)
+    });
 
-      const proposalsAuth1 = await coinstr.getProposals();
-      const proposalsAuth2 = await coinstr2.getProposals();
-      expect(proposalsAuth1.length).toBe(4); // 2 created by auth 1, 2 created by auth 1 but with both keys
-      expect(proposalsAuth2.length).toBe(4); // 2 created by auth 2, 2 created by auth 1 but with both keys
-      expect(new Set(proposalsAuth1)).toEqual(new Set([spendProposal1, proofOfReserveProposal1, proofOfReserveProposal3, spendProposal3]))
-      expect(new Set(proposalsAuth2)).toEqual(new Set([spendProposal2, proofOfReserveProposal2, proofOfReserveProposal3, spendProposal3]))
+    const checkProposals = async (coinstr: Coinstr, expectedLength: number, expectedProposals: any) => {
+      const proposals = await coinstr.getProposals();
+      expect(proposals.length).toBe(expectedLength);
+      expect(new Set(proposals)).toEqual(new Set(expectedProposals));
+   };
+
+    it('returns proposals', async () => {
+      const start = Date.now();
+      await checkProposals(coinstr, 4, [spendProposal1, proofOfReserveProposal1, proofOfReserveProposal3, spendProposal3]);
+      firstCallTime1 = Date.now() - start;
+      const start2 = Date.now();
+      await checkProposals(coinstr2, 4, [spendProposal2, proofOfReserveProposal2, proofOfReserveProposal3, spendProposal3]);
+      firstCallTime2 = Date.now() - start2;
+   });
+
+    it('return proposal should be faster because of cache', async () => {
+        const start = Date.now();
+        await checkProposals(coinstr, 4, [spendProposal1, proofOfReserveProposal1, proofOfReserveProposal3, spendProposal3]);
+        const secondCallTime1 = Date.now() - start;
+        const start2 = Date.now();
+        await checkProposals(coinstr2, 4, [spendProposal2, proofOfReserveProposal2, proofOfReserveProposal3, spendProposal3]);
+        const secondCallTime2 = Date.now() - start2;
+        expect(secondCallTime1).toBeLessThan(firstCallTime1);
+        expect(secondCallTime2).toBeLessThan(firstCallTime2);
     });
 
     it('returns proposals with limit works', async () => {
-      const proposalsAuth1 = await coinstr.getProposals({ limit: 2 });
-      const proposalsAuth2 = await coinstr2.getProposals({ limit: 3 });
-      expect(proposalsAuth1.length).toBe(2);
-      expect(proposalsAuth2.length).toBe(3);
+        const proposalsAuth1 = await coinstr.getProposals({ limit: 2 });
+        const proposalsAuth2 = await coinstr2.getProposals({ limit: 3 });
+        expect(proposalsAuth1.length).toBe(2);
+        expect(proposalsAuth2.length).toBe(3);
     });
 
     it('sent proposal direct messages', async () => {
@@ -426,25 +451,48 @@ describe('Coinstr', () => {
 
 
 
-    it('getApprovals works', async () => {
+    const checkApprovals = async (expectedSize: number, expectedProposals: Record<string, PublishedApprovedProposal[]>) => {
       const approvedProposals = await coinstr.getApprovals();
-      expect(Object.keys(approvedProposals).length).toBe(2);
-      expect(approvedProposals[proposalApproved1].length).toBe(2);
-      expect(approvedProposals[proposalApproved2].length).toBe(2);
-      expect(new Set(approvedProposals[proposalApproved1])).toEqual(new Set([saveApprovedProposal1, saveApprovedProposal4]));
-      expect(new Set(approvedProposals[proposalApproved2])).toEqual(new Set([saveApprovedProposal2, saveApprovedProposal3]));
-      for (let proposal_id in approvedProposals) {
-        approvedProposals[proposal_id].forEach((proposal) => {
-          expect(proposal).toHaveProperty('approved_by');
-          expect(proposal).toHaveProperty('approval_date');
-          expect(proposal).toHaveProperty('status');
-        });
+  
+      expect(approvedProposals.size).toBe(expectedSize);
+  
+      for (const [proposalId, expected] of Object.entries(expectedProposals)) {
+          const approvals = approvedProposals.get(proposalId);
+          expect(approvals).toBeDefined();
+          expect(approvals).toHaveLength(expected.length);
+          expect(new Set(approvals)).toEqual(new Set(expected));
       }
-    })
+  };
+  
+    it('getApprovals retrieves all proposals', async () => {
+        const expectedProposals = {
+            [proposalApproved1]: [saveApprovedProposal1, saveApprovedProposal4],
+            [proposalApproved2]: [saveApprovedProposal2, saveApprovedProposal3]
+        };
+    
+        await checkApprovals(Object.keys(expectedProposals).length, expectedProposals);
+    });
 
-    it('getCompletedProposals works', async () => {
+    it('getApprovals retrieves correct proposals when passing array of proposal_ids', async () => {
+      const proposalIds = [saveApprovedProposal1.proposal_id, saveApprovedProposal2.proposal_id];
+      const expectedProposals = {
+          [proposalApproved1]: [saveApprovedProposal1, saveApprovedProposal4],
+          [proposalApproved2]: [saveApprovedProposal2, saveApprovedProposal3]
+      };
+
+      await checkApprovals(proposalIds.length, expectedProposals);
+
+      for (const proposalId of proposalIds) {
+          const singleApprovedProposal = await coinstr.getApprovals([proposalId]);
+          expect(singleApprovedProposal.size).toBe(1);
+      }
+    });
+
+    it ('save completed proposals', async () => {
       completedProposal2 = await coinstr._saveCompletedProposal(proposalApproved1, saveProofOfReserveProposalPayload(12))
       completedProposal3 = await coinstr2._saveCompletedProposal(proposalApproved2, saveProofOfReserveProposalPayload(13))
+    });
+    it('returns completed proposals', async () => {
       const completedProposals = await coinstr.getCompletedProposals();
       expect(completedProposals.length).toBe(2);
       expect(new Set(completedProposals)).toEqual(new Set([completedProposal2, completedProposal3]));
@@ -452,10 +500,8 @@ describe('Coinstr', () => {
       expect(activeProposalsAuth1.length).toBe(2);
       let activeProposalsAuth2 = await coinstr2.getProposals();
       expect(activeProposalsAuth2.length).toBe(2);
-
     });
-
-  });
+    });
 
   function newCoinstr(keys: Keys): Coinstr {
     return new Coinstr({
