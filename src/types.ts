@@ -1,11 +1,4 @@
-import { StringUtil } from './util'
-import { TagType } from './enum'
-
-type BasePolicy = {
-  name: string;
-  description: string;
-  uiMetadata: any;
-};
+import { BasePolicy, PublishedPolicy } from './models'
 
 type BaseSharedSigner = {
   descriptor: string;
@@ -26,9 +19,12 @@ export type Published = {
   createdAt: Date
 };
 
-export type Policy = BasePolicy & {
-  descriptor: string
-};
+export type DirectMessage = {
+  message: string
+  publicKey: string
+}
+
+export type PublishedDirectMessage = DirectMessage & Published
 
 export type SharedSigner = BaseSharedSigner & {
   ownerPubKey?: string;
@@ -42,11 +38,19 @@ export type OwnedSigner = BaseOwnedSigner & {
 
 export type PublishedOwnedSigner = OwnedSigner & Published;
 
-export type PublishedPolicy = Policy & Published;
 
 export type SavePolicyPayload = BasePolicy & {
   miniscript: string,
   nostrPublicKeys: string[],
+  createdAt?: Date,
+}
+
+export type SpendProposalPayload = {
+  policy: PublishedPolicy,
+  to_address: string,
+  description: string,
+  amountDescriptor: string,
+  feeRatePriority: string,
   createdAt?: Date,
 }
 
@@ -82,55 +86,57 @@ export type ContactProfile = Profile & {
   relay?: string
   petname?: string
 }
-
-export class Contact {
-  publicKey: string
-  relay?: string
-  petname?: string
-
-  constructor({
-    publicKey,
-    relay,
-    petname
-  }:
-    {
-      publicKey: string
-      relay?: string
-      petname?: string
-    }) {
-    this.publicKey = publicKey
-    this.relay = StringUtil.emptyToUndefined(relay)
-    this.petname = StringUtil.emptyToUndefined(petname)
-  }
-
-  toTag(): string[] {
-    return [TagType.PubKey, this.publicKey, this.relay || "", this.petname || ""]
-  }
-
-  static fromParams([publicKey, relay, petname]: string[]) {
-    return new Contact({
-      publicKey,
-      relay,
-      petname
-    })
-  }
-
-  static toTags(contacts: Contact[]): string[][] {
-    return contacts.map(c => c.toTag())
-  }
-
-  static find(publicKey, contacts: Contact[]): number {
-    return contacts.findIndex(c => c.publicKey === publicKey)
-  }
-
-  static merge(contacts: Contact[], newContacts: Contact[]): Contact[] {
-    let contactsMap = Contact.toMap(contacts)
-    contactsMap = Contact.toMap(newContacts, contactsMap)
-    return [...contactsMap.values()]
-  }
-
-  static toMap(contacts: Contact[], contactsMap: Map<string, Contact> = new Map()): Map<string, Contact> {
-    contacts.forEach(c => contactsMap.set(c.publicKey, c))
-    return contactsMap
-  }
+type BaseProposal = {
+  descriptor: string
+  psbt: string // to be change to PSBT
 }
+
+export type SpendingProposal = BaseProposal & {
+  to_address: string
+  amount: number
+  description: string
+}
+
+export type ProofOfReserveProposal = BaseProposal & {
+  message: string
+}
+type PublishedProposal = {
+  policy_id: string
+  proposal_id: string
+  type: string
+}
+
+export type BaseApprovedProposal = {
+  psbt: string
+}
+
+export type PublishedApprovedProposal = BaseApprovedProposal & {
+  proposal_id: string,
+  policy_id: string,
+  approved_by: string,
+  approval_date : Date,
+  expiration_date: Date,
+  status: string,
+}
+
+export type PublishedSpendingProposal = SpendingProposal & PublishedProposal
+export type PublishedProofOfReserveProposal = ProofOfReserveProposal & PublishedProposal
+
+export type CompletedSpendingProposal = {
+  tx: string
+  description : string
+}
+
+
+export type CompletedProofOfReserveProposal = ProofOfReserveProposal
+
+type PublishedCompleted = {
+  proposal_id: string
+  policy_id: string
+  completed_by: string
+  completion_date: Date
+}
+export type PublishedCompletedSpendingProposal = CompletedSpendingProposal & PublishedCompleted
+
+export type PublishedCompletedProofOfReserveProposal = CompletedProofOfReserveProposal & PublishedCompleted
+

@@ -35,8 +35,8 @@ export function fromNostrDate(date: number): Date {
   return new Date(date * 1000)
 }
 
-export function getTagValues(
-  e: Event,
+export function getTagValues<K extends number>(
+  e: Event<K>,
   tagType: TagType,
   transformerFn: (params: string[]) => any = (params) => params[0]
 ): any[] {
