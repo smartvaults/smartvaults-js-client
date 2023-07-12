@@ -12,82 +12,93 @@ export class Store {
 
   store(objs: any | any[]) {
     objs = Array.isArray(objs) ? objs : [objs]
+    if(!objs.length){
+      return;
+    }
     objs.forEach(obj => {
       this.indexKeys.forEach(key => {
-        if (!obj.hasOwnProperty(key) ) {
+        if (!obj[key]) {
           throw new Error("Index property has no value")
         }
         const indexForKey = this.indexes.get(key);
         if(!indexForKey){
           throw new Error("Invalid index key")
         }
-        const currentValue = indexForKey.get(obj[key])
-        if (currentValue && Array.isArray(currentValue)  ){
-          if (!currentValue.includes(obj)) {
-            this.indexes.get(key)!.set(obj[key], [...currentValue, obj])
-          }
-          } else if (currentValue && currentValue !== obj) {
-            this.indexes.get(key)!.set(obj[key], [currentValue, obj])
-          } else this.indexes.get(key)!.set(obj[key], obj)
+        const currentInnerMap = indexForKey.get(obj[key]) || new Map<string, any>();
+        // Unique identifier from the object's indexKeys values e.g "proposalId-approvalId"
+        const id = this.indexKeys.map(indexKey => obj[indexKey]).join("-");
+        if (currentInnerMap.get(id)) {
+          return;
+        }
+        currentInnerMap.set(id, obj);
+        indexForKey.set(obj[key], currentInnerMap);
       })
     })
-  }
+}
 
-  get(indexValue: string, indexKey?: string): any | undefined {
-    return this.getIndex(indexKey).get(indexValue)
+get(indexValue: string, indexKey?: string): any | undefined {
+  const InnerMap = this.getIndex(indexKey).get(indexValue)
+  if (InnerMap) {
+    return InnerMap.size === 1 ? InnerMap.values().next().value  : Array.from(InnerMap.values());
   }
+}
 
-  getMany(indexValues?: string[], indexKey?: string): Map<string, any> {
-    const index = this.getIndex(indexKey);
-    if(!index){
-      throw new Error("Invalid index key")
-    }
-    if (!indexValues || indexValues.length === 0) {
-        return index;
-    }
-    const map: Map<string, any> = new Map();
-    indexValues.forEach(indexValue => {
-        const value = index.get(indexValue);
-        if (value !== undefined) {
-            map.set(indexValue, value);
-        }
+getMany(indexValues?: string[], indexKey?: string): Map<string, any | any[]> {
+  const index = this.getIndex(indexKey);
+  if(!index){
+    throw new Error("Invalid index key")
+  }
+  const map: Map<string, any | any[]> = new Map();
+  if (!indexValues?.length) {
+    index.forEach((InnerMap, key) => {
+      map.set(key, InnerMap.size === 1 ? InnerMap.values().next().value : Array.from(InnerMap.values()));
     });
-
     return map;
   }
+  indexValues.forEach(indexValue => {
+    const InnerMap = index.get(indexValue)
+    if (InnerMap) {
+      map.set(indexValue, InnerMap.size === 1 ? InnerMap.values().next().value : Array.from(InnerMap.values()));
+    }
+  });
+  return map;
+}
 
-  getManyAsArray(indexValues?: string[], indexKey?: string): any[] {
-    const index = this.getIndex(indexKey);
-    if(!index){
-      throw new Error("Invalid index key")
-    }
-    if (!indexValues || indexValues.length === 0) {
-        return Array.from(index.values());
-    }
-    const array: any[] = [];
-    indexValues.forEach(indexValue => {
-        const value = index.get(indexValue);
-        if (value !== undefined) {
-            array.push(value);
-        }
+getManyAsArray(indexValues?: string[], indexKey?: string): any[] {
+  const index = this.getIndex(indexKey);
+  if(!index){
+    throw new Error("Invalid index key")
+  }
+  const array: any[] = [];
+  if (!indexValues?.length) {
+    index.forEach(InnerMap => {
+      array.push(InnerMap.size === 1 ? InnerMap.values().next().value : Array.from(InnerMap.values()));
     });
     return array;
   }
-  
-  has(indexValue: string, indexKey?: string): boolean {
-    return !!this.get(indexValue, indexKey)
-  }
-
-  missing(indexValues: string[], indexKey?: string): string[] {
-    const index = this.getIndex(indexKey)
-    return indexValues.filter(v => !index.has(v))
-  }
-
-  private getIndex(indexKey?: string): Map<string, any> {
-    indexKey = indexKey || this.indexKeys[0]
-    if (!this.indexes.has(indexKey)) {
-      throw new Error("Invalid index key")
+  indexValues.forEach(indexValue => {
+    const InnerMap = index.get(indexValue)
+    if (InnerMap) {
+      array.push(InnerMap.size === 1 ? InnerMap.values().next().value  : Array.from(InnerMap.values()));
     }
-    return this.indexes.get(indexKey)!
+  });
+  return array;
+}
+
+has(indexValue: string, indexKey?: string): boolean {
+  return !!this.get(indexValue, indexKey)
+}
+
+missing(indexValues: string[], indexKey?: string): string[] {
+  const index = this.getIndex(indexKey)
+  return indexValues.filter(v => !index.has(v))
+}
+
+private getIndex(indexKey?: string): Map<string, any> {
+  indexKey = indexKey || this.indexKeys[0]
+  if (!this.indexes.has(indexKey)) {
+    throw new Error("Invalid index key")
   }
+  return this.indexes.get(indexKey)!
+}
 }

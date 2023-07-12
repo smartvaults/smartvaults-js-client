@@ -492,7 +492,7 @@ export class Coinstr {
   async saveSharedSigner({
     descriptor,
     fingerprint,
-  }: CoinstrTypes.SharedSigner, pubKeys: string | string[]): Promise<CoinstrTypes.PublishedSharedSigner> {
+  }: CoinstrTypes.SharedSigner, pubKeys: string | string[]): Promise<CoinstrTypes.PublishedSharedSigner[]> {
 
     if(!Array.isArray(pubKeys)){
       pubKeys = [pubKeys]
@@ -502,23 +502,23 @@ export class Coinstr {
       descriptor,
       fingerprint,
     }
-    const sharedSigners: any = []
+    const sharedSigners: CoinstrTypes.PublishedSharedSigner[] = []
     for (const pubKey of pubKeys) {
-    const content = await this.authenticator.encryptObj(signer, pubKey)
-    const signerEvent = await buildEvent({
-      kind: CoinstrKind.SharedSigners,
-      content,
-      tags: [[TagType.PubKey, pubKey]],
-    },
-      this.authenticator)
+      const content = await this.authenticator.encryptObj(signer, pubKey)
+      const signerEvent = await buildEvent({
+        kind: CoinstrKind.SharedSigners,
+        content,
+        tags: [[TagType.PubKey, pubKey]],
+      },
+        this.authenticator)
 
-    const pub = this.nostrClient.publish(signerEvent)
-    await pub.onFirstOkOrCompleteFailure()
+      const pub = this.nostrClient.publish(signerEvent)
+      await pub.onFirstOkOrCompleteFailure()
 
-    const id = signerEvent.id
-    const createdAt = fromNostrDate(signerEvent.created_at)
-    sharedSigners.push({ ...signer, id, ownerPubKey, createdAt })
-  }
+      const id = signerEvent.id
+      const createdAt = fromNostrDate(signerEvent.created_at)
+      sharedSigners.push({ ...signer, id, ownerPubKey, createdAt })
+    }
     return sharedSigners
   }
 

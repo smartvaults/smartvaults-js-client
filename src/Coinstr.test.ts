@@ -2,7 +2,7 @@ import sleep from 'await-sleep'
 import { MockProxy, mock } from 'jest-mock-extended'
 import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { Coinstr } from './Coinstr'
-import { NostrClient, Keys } from './service'
+import { NostrClient, Keys, Store } from './service'
 import { TimeUtil } from './util'
 import { Contact, PublishedPolicy, BitcoinUtil, Wallet } from './models'
 import { Metadata, Profile, SavePolicyPayload, OwnedSigner, SharedSigner, SpendProposalPayload, PublishedDirectMessage, PublishedSpendingProposal, PublishedApprovedProposal, PublishedSharedSigner} from './types'
@@ -212,6 +212,116 @@ describe('Coinstr', () => {
     })
 
   })
+
+  describe('Store methods work as expected', () => {
+    let store: Store;
+
+  beforeEach(() => {
+    store = new Store(['id','id2']);
+  });
+
+  it('should store and retrieve objects with multiple index keys correctly', () => {
+    const obj1 = { id: 'id1', id2: 'id2', name: 'name1' };
+    const obj2 = { id: 'id2', id2: 'otherID', name: 'name2' };
+    store.store([obj1, obj2]);
+
+    const retrievedObj1 = store.get('id1', 'id');
+    const retrievedObj2 = store.get('otherID', 'id2');
+
+    expect(retrievedObj1).toEqual(obj1);
+    expect(retrievedObj2).toEqual(obj2);
+  });
+
+  it('should return a map with an array of objects for getMany with multiple index keys', () => {
+    const obj1 = { id: 'id1', id2: 'id2', name: 'name1' };
+    const obj2 = { id: 'id1', id2: 'otherID', name: 'name1' };
+    store.store([obj1, obj2]);
+    // Try to store the same objects again to test that duplicates are not stored
+    store.store(obj1);
+    store.store(obj2);
+    store.store([obj1, obj2]);
+
+    const proposalIds = ['id1'];
+    const result = store.getMany(proposalIds, 'id');
+
+    const expectedMap = new Map();
+    expectedMap.set('id1', [obj1, obj2]);
+
+    expect(result).toEqual(expectedMap);
+  });
+
+  it('should return undefined when retrieving non-existent object', () => {
+    const obj = store.get('nonexistent');
+    expect(obj).toBeUndefined();
+  });
+
+  it('should return a map of objects for getMany', () => {
+    const obj1 = { id: 'id1', id2: 'id2', name: 'name1' };
+    const obj2 = { id: 'id2', id2: 'otherID', name: 'name2' };
+    store.store([obj1, obj2]);
+
+    const objMap = store.getMany(['id1', 'id2'], 'id');
+    expect(objMap.get('id1')).toEqual(obj1);
+    expect(objMap.get('id2')).toEqual(obj2);
+  });
+
+  it('should return an array of objects for getManyAsArray', () => {
+    const obj1 = { id: 'id1', id2: 'id2', name: 'name1' };
+    const obj2 = { id: 'id2', id2: 'otherID', name: 'name2' };
+    store.store([obj1, obj2]);
+
+    const objArray = store.getManyAsArray(['id1', 'id2'], 'id');
+    expect(objArray).toEqual([obj1, obj2]);
+  });
+
+  it('should return true when object exists', () => {
+    const obj = { id: 'id', id2: 'id2', name: 'name' };
+    store.store(obj);
+
+    const hasObject = store.has('id2', 'id2');
+    expect(hasObject).toBeTruthy();
+  });
+
+  it('should return false when object does not exist', () => {
+    const hasObject = store.has('nonexistent', 'id2');
+    expect(hasObject).toBeFalsy();
+  });
+
+  it('should return missing index values', () => {
+    const obj1 = { id: 'id1', id2: 'id2', name: 'name1' };
+    store.store(obj1);
+
+    const missingValues = store.missing(['id1', 'id2'], 'id');
+    expect(missingValues).toEqual(['id2']);
+  });
+  it('should throw an error when an invalid index key is provided', () => {
+    expect(() => store.get('id', 'invalidKey')).toThrow('Invalid index key');
+  });
+
+  it('should throw an error when storing an object with missing index keys', () => {
+    const obj = { id: 'id1', name: 'name1' }; // Missing 'id2'
+    expect(() => store.store(obj)).toThrow("Index property has no value");
+  });
+  
+  it('should return all objects for getMany when no indexValues are provided', () => {
+    const obj1 = { id: 'id1', id2: 'id2', name: 'name1' };
+    const obj2 = { id: 'id2', id2: 'otherID', name: 'name2' };
+    store.store([obj1, obj2]);
+  
+    const objMap = store.getMany(undefined, 'id');
+    expect(objMap.get('id1')).toEqual(obj1);
+    expect(objMap.get('id2')).toEqual(obj2);
+  });
+  
+  it('should return an empty array for missing when no indexValues are provided', () => {
+    const obj1 = { id: 'id1', id2: 'id2', name: 'name1' };
+    store.store(obj1);
+  
+    const missingValues = store.missing([], 'id');
+    expect(missingValues).toEqual([]);
+  });
+
+});
 
   describe('getOwnedSigners', () => {
     let ownedSigner1: OwnedSigner
