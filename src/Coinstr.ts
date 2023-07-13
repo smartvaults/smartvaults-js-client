@@ -33,7 +33,7 @@ export class Coinstr {
   initStores() {
     this.stores = new Map()
     this.stores.set(CoinstrKind.Policy, Store.createSingleIndexStore("id"))
-    this.stores.set(CoinstrKind.Proposal, Store.createSingleIndexStore("proposal_id"))
+    this.stores.set(CoinstrKind.Proposal, new Store({ "proposal_id": ["proposal_id"], "policy_id": ["proposal_id", "policy_id"] }))
     this.stores.set(CoinstrKind.ApprovedProposal, new Store({ "approval_id": ["approval_id"], "proposal_id": ["approval_id", "proposal_id"] }))
     this.stores.set(CoinstrKind.SharedKey, Store.createSingleIndexStore("policyId"))
     this.stores.set(CoinstrKind.CompletedProposal, Store.createSingleIndexStore("proposal_id"))
@@ -616,6 +616,17 @@ export class Coinstr {
     return completedProposalHandler.handle(completedProposalEvents, this.getSharedKeysById)
   }
 
+  async getCompletedProposalsById(paginationOpts: PaginationOpts = {}, proposal_ids: string[] | string): Promise<Map<string, CoinstrTypes.PublishedCompletedSpendingProposal | CoinstrTypes.PublishedCompletedProofOfReserveProposal>> {
+    const proposalIds = Array.isArray(proposal_ids) ? proposal_ids : [proposal_ids]
+    const store = this.getStore(CoinstrKind.CompletedProposal);
+    const missingIds = store.missing(proposalIds);
+    if (missingIds.length) {
+      const completedProposalsFilter = this.buildCompletedProposalsFilter().ids(missingIds).pagination(paginationOpts).toFilters();
+      await this._getCompletedProposals(completedProposalsFilter);
+    }
+    return store.getMany(proposalIds);
+  }
+
   /**
   * Fetches all completed proposals.
   *
@@ -665,6 +676,43 @@ export class Coinstr {
     const proposalHandler = this.eventKindHandlerFactor.getHandler(CoinstrKind.Proposal)
     return proposalHandler.handle(proposalEvents, this.getSharedKeysById)
   }
+
+  async getProposalsById(paginationOpts: PaginationOpts = {}, proposal_ids: string[] | string): Promise<Map<string, CoinstrTypes.PublishedSpendingProposal | CoinstrTypes.PublishedProofOfReserveProposal>> {
+    const proposalIds = Array.isArray(proposal_ids) ? proposal_ids : [proposal_ids]
+    const store = this.getStore(CoinstrKind.Proposal);
+    const missingIds = store.missing(proposalIds);
+    if (missingIds.length) {
+      const proposalsFilter = this.buildProposalsFilter().ids(missingIds).pagination(paginationOpts).toFilters();
+      await this._getProposals(proposalsFilter);
+    }
+    return store.getMany(proposalIds);
+  }
+
+  async getProposalsByPolicyId(paginationOpts: PaginationOpts = {}, policy_ids: string[] | string): Promise<Map<string, CoinstrTypes.PublishedSpendingProposal | CoinstrTypes.PublishedProofOfReserveProposal>> {
+    const policyIds = Array.isArray(policy_ids) ? policy_ids : [policy_ids]
+    const store = this.getStore(CoinstrKind.Proposal);
+    const missingIds = store.missing(policyIds, "policy_id");
+    if (missingIds.length) {
+      const proposalsFilter = this.buildProposalsFilter().events(policyIds).pagination(paginationOpts).toFilters();
+      await this._getProposals(proposalsFilter);
+    }
+    return store.getMany(policyIds, "policy_id");
+  }
+
+
+  // async getPoliciesById(ids: string[]): Promise<Map<string, PublishedPolicy>> {
+  //   const store = this.getStore(CoinstrKind.Policy)
+  //   const missingIds = store.missing(ids)
+  //   if (missingIds.length) {
+  //     const policiesFilter = filterBuilder()
+  //       .kinds(CoinstrKind.Policy)
+  //       .pubkeys(this.authenticator.getPublicKey())
+  //       .ids(missingIds)
+  //       .toFilters()
+  //     await this._getPolicies(policiesFilter)
+  //   }
+  //   return store.getMany(ids!)
+  // }
 
   /**
    * Method to retrieve and decrypt not completed proposals.

@@ -490,6 +490,24 @@ describe('Coinstr', () => {
       expect(secondCallTime2).toBeLessThan(firstCallTime2);
     });
 
+    it('getProposalsById', async () => {
+      const proposals = await coinstr.getProposalsById({}, [spendProposal1.proposal_id, spendProposal3.proposal_id]);
+      expect(proposals.size).toBe(2);
+      expect(new Set(Array.from(proposals.values()))).toEqual(new Set([spendProposal1, spendProposal3]));
+    });
+
+    it('getProposalsByPolicyId', async () => {
+      const policyId1 = spendProposal1.policy_id;
+      const policyId3 = spendProposal3.policy_id;
+      const expectedMap = new Map([
+        [policyId1, [proofOfReserveProposal1, spendProposal1]],
+        [policyId3, [proofOfReserveProposal3, spendProposal3]]
+      ]);
+      const proposals = await coinstr.getProposalsByPolicyId({}, [spendProposal1.policy_id, spendProposal3.policy_id]);
+      expect(proposals.size).toBe(2);
+      expect(new Set(proposals.values())).toEqual(new Set(expectedMap.values()));
+    });
+
     it('returns proposals with limit works', async () => {
       const proposalsAuth1 = await coinstr.getProposals({ limit: 2 });
       const proposalsAuth2 = await coinstr2.getProposals({ limit: 3 });
@@ -568,6 +586,13 @@ describe('Coinstr', () => {
       let activeProposalsAuth2 = await coinstr2.getProposals();
       expect(activeProposalsAuth2.length).toBe(2);
     });
+
+    it('getCompletedProposalsById', async () => {
+      const proposals = await coinstr.getCompletedProposalsById({}, [completedProposal2.proposal_id, completedProposal3.proposal_id]);
+      expect(proposals.size).toBe(2);
+      expect(new Set(Array.from(proposals.values()))).toEqual(new Set([completedProposal2, completedProposal3]));
+    }
+    );
   });
 
   function newCoinstr(keys: Keys): Coinstr {

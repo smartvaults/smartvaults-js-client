@@ -13,9 +13,10 @@ export class ProposalHandler extends EventKindHandler {
 
   protected async _handle<K extends number>(proposalEvents: Array<Event<K>>, getSharedKeysById: any): Promise<Array<PublishedSpendingProposal | PublishedProofOfReserveProposal>> {
     const proposalIds = proposalEvents.map(proposal => proposal.id)
-    const missingProposalsIds = this.store.missing(proposalIds)
+    const indexKey = 'proposal_id'
+    const missingProposalsIds = this.store.missing(proposalIds, indexKey)
     if (missingProposalsIds.length === 0) {
-      return this.store.getManyAsArray(proposalIds)
+      return this.store.getManyAsArray(proposalIds, indexKey)
     }
     const decryptedProposals: any[] = []
     const policiesIds = proposalEvents.map(proposal => getTagValues(proposal, TagType.Event)[0])
