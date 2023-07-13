@@ -5,7 +5,7 @@ import { Coinstr } from './Coinstr'
 import { NostrClient, Keys, Store } from './service'
 import { TimeUtil } from './util'
 import { Contact, PublishedPolicy, BitcoinUtil, Wallet } from './models'
-import { Metadata, Profile, SavePolicyPayload, OwnedSigner, SharedSigner, SpendProposalPayload, PublishedDirectMessage, PublishedSpendingProposal, PublishedApprovedProposal, PublishedSharedSigner} from './types'
+import { Metadata, Profile, SavePolicyPayload, OwnedSigner, SharedSigner, SpendProposalPayload, PublishedDirectMessage, PublishedSpendingProposal, PublishedApprovedProposal, PublishedSharedSigner } from './types'
 import { CoinstrKind } from './enum'
 jest.setTimeout(1000000);
 
@@ -24,7 +24,7 @@ describe('Coinstr', () => {
     altKeySet = new KeySet(2)
     nostrClient = new NostrClient([
       //'wss://relay.rip',
-      'wss://test.relay.report'
+      // 'wss://test.relay.report'
       //'ws://localhost:7777'
     ])
     bitcoinUtil = mock<BitcoinUtil>()
@@ -215,37 +215,37 @@ describe('Coinstr', () => {
 
   describe('Store methods work as expected', () => {
     let store: Store;
-  
+
     beforeEach(() => {
-      store = new Store({ 'id' : ['id', 'id2'], 'name': ['name', 'id2'] });
+      store = new Store({ 'id': ['id', 'id2'], 'name': ['name', 'id2'] });
     });
-  
+
     it('should store and retrieve objects with multiple index keys correctly', () => {
       const obj1 = { id: 'id1', id2: 'id2', name: 'name1' };
       const obj2 = { id: 'id2', id2: 'otherID', name: 'name2' };
       store.store([obj1, obj2]);
-  
+
       const retrievedObj1 = store.get('id1', 'id');
       const retrievedObj2 = store.get('id2', 'id');
       const retrievedObj3 = store.get('name1', 'name');
       const retrievedObj4 = store.get('name2', 'name');
-  
+
       expect(retrievedObj1).toEqual(obj1);
       expect(retrievedObj2).toEqual(obj2);
       expect(retrievedObj3).toEqual(obj1);
       expect(retrievedObj4).toEqual(obj2);
     });
-  
+
     it('getMany should return a map with key as indexValue and value as array of objects matching the indexKey', () => {
       const obj1 = { id: 'id1', id2: 'id2', name: 'name1' };
       const obj2 = { id: 'id1', id2: 'otherID', name: 'name2' };
       const obj3 = { id: 'id1', id2: 'id3', name: 'name3' };
       store.store([obj1, obj2, obj3]);
-    
+
       const map = store.getMany(['id1'], 'id');
       expect(map.get('id1')).toEqual([obj1, obj2, obj3]);
     });
-    
+
     it('getManyAsArray should return an array of objects matching the indexKey and indexValues', () => {
       const obj1 = { id: 'id1', id2: 'id2', name: 'name1' };
       const obj2 = { id: 'id1', id2: 'otherID', name: 'name2' };
@@ -254,29 +254,29 @@ describe('Coinstr', () => {
       const arr = store.getManyAsArray(['name1'], 'name');
       expect(arr).toEqual([obj1, obj3]);
     });
-    
+
     it('has should return true if object exists in index', () => {
       const obj1 = { id: 'id1', id2: 'id2', name: 'name1' };
       store.store(obj1);
-  
+
       const exists = store.has('id1', 'id');
       const existsByName = store.has('name1', 'name');
-  
+
       expect(exists).toBeTruthy();
       expect(existsByName).toBeTruthy();
     });
-  
+
     it('missing should return array of missing index values', () => {
       const obj1 = { id: 'id1', id2: 'id2', name: 'name1' };
       store.store(obj1);
-  
+
       const missing = store.missing(['id1', 'id2'], 'id');
       const missingNames = store.missing(['name1', 'name2'], 'name');
-  
+
       expect(missing).toEqual(['id2']);
       expect(missingNames).toEqual(['name2']);
     });
-    
+
   });
 
   describe('getOwnedSigners', () => {
@@ -329,12 +329,12 @@ describe('Coinstr', () => {
       let pubKey = keySet1.keys[1].publicKey
       let saveSharedSignerPayload1 = saveSharedSignerPayload(1)
       let sharedSignerResult = await coinstr.saveSharedSigner(saveSharedSignerPayload1, pubKey)
-      sharedSigner1 = sharedSignerResult[0] 
+      sharedSigner1 = sharedSignerResult[0]
       let saveSharedSignerPayload2 = saveSharedSignerPayload(2)
       sharedSignerResult = await coinstr.saveSharedSigner(saveSharedSignerPayload2, pubKey)
       sharedSigner2 = sharedSignerResult[0]
       let saveSharedSignerPayload3 = saveSharedSignerPayload(3)
-      sharedSignerResult= await coinstr.saveSharedSigner(saveSharedSignerPayload3, pubKey)
+      sharedSignerResult = await coinstr.saveSharedSigner(saveSharedSignerPayload3, pubKey)
       sharedSigner3 = sharedSignerResult[0]
 
       let coinstrWithAuthenticator3 = new Coinstr({ // New instance of Coinstr with different authenticator
@@ -468,7 +468,7 @@ describe('Coinstr', () => {
       const proposals = await coinstr.getProposals();
       expect(proposals.length).toBe(expectedLength);
       expect(new Set(proposals)).toEqual(new Set(expectedProposals));
-   };
+    };
 
     it('returns proposals', async () => {
       const start = Date.now();
@@ -477,24 +477,24 @@ describe('Coinstr', () => {
       const start2 = Date.now();
       await checkProposals(coinstr2, 4, [spendProposal2, proofOfReserveProposal2, proofOfReserveProposal3, spendProposal3]);
       firstCallTime2 = Date.now() - start2;
-   });
+    });
 
     it('return proposal should be faster because of cache', async () => {
-        const start = Date.now();
-        await checkProposals(coinstr, 4, [spendProposal1, proofOfReserveProposal1, proofOfReserveProposal3, spendProposal3]);
-        secondCallTime1 = Date.now() - start;
-        const start2 = Date.now();
-        await checkProposals(coinstr2, 4, [spendProposal2, proofOfReserveProposal2, proofOfReserveProposal3, spendProposal3]);
-        secondCallTime2 = Date.now() - start2;
-        expect(secondCallTime1).toBeLessThan(firstCallTime1);
-        expect(secondCallTime2).toBeLessThan(firstCallTime2);
+      const start = Date.now();
+      await checkProposals(coinstr, 4, [spendProposal1, proofOfReserveProposal1, proofOfReserveProposal3, spendProposal3]);
+      secondCallTime1 = Date.now() - start;
+      const start2 = Date.now();
+      await checkProposals(coinstr2, 4, [spendProposal2, proofOfReserveProposal2, proofOfReserveProposal3, spendProposal3]);
+      secondCallTime2 = Date.now() - start2;
+      expect(secondCallTime1).toBeLessThan(firstCallTime1);
+      expect(secondCallTime2).toBeLessThan(firstCallTime2);
     });
 
     it('returns proposals with limit works', async () => {
-        const proposalsAuth1 = await coinstr.getProposals({ limit: 2 });
-        const proposalsAuth2 = await coinstr2.getProposals({ limit: 3 });
-        expect(proposalsAuth1.length).toBe(2);
-        expect(proposalsAuth2.length).toBe(3);
+      const proposalsAuth1 = await coinstr.getProposals({ limit: 2 });
+      const proposalsAuth2 = await coinstr2.getProposals({ limit: 3 });
+      expect(proposalsAuth1.length).toBe(2);
+      expect(proposalsAuth2.length).toBe(3);
     });
 
     it('sent proposal direct messages', async () => {
@@ -521,42 +521,42 @@ describe('Coinstr', () => {
 
     const checkApprovals = async (expectedSize: number, expectedProposals: Record<string, PublishedApprovedProposal[]>) => {
       const approvedProposals = await coinstr.getApprovals();
-  
+
       expect(approvedProposals.size).toBe(expectedSize);
-  
+
       for (const [proposalId, expected] of Object.entries(expectedProposals)) {
-          const approvals = approvedProposals.get(proposalId);
-          expect(approvals).toBeDefined();
-          expect(approvals).toHaveLength(expected.length);
-          expect(new Set(approvals)).toEqual(new Set(expected));
+        const approvals = approvedProposals.get(proposalId);
+        expect(approvals).toBeDefined();
+        expect(approvals).toHaveLength(expected.length);
+        expect(new Set(approvals)).toEqual(new Set(expected));
       }
-  };
-  
+    };
+
     it('getApprovals retrieves all proposals', async () => {
-        const expectedProposals = {
-            [proposalApproved1]: [saveApprovedProposal1, saveApprovedProposal4],
-            [proposalApproved2]: [saveApprovedProposal2, saveApprovedProposal3]
-        };
-    
-        await checkApprovals(Object.keys(expectedProposals).length, expectedProposals);
+      const expectedProposals = {
+        [proposalApproved1]: [saveApprovedProposal1, saveApprovedProposal4],
+        [proposalApproved2]: [saveApprovedProposal2, saveApprovedProposal3]
+      };
+
+      await checkApprovals(Object.keys(expectedProposals).length, expectedProposals);
     });
 
     it('getApprovals retrieves correct proposals when passing array of proposal_ids', async () => {
       const proposalIds = [saveApprovedProposal1.proposal_id, saveApprovedProposal2.proposal_id];
       const expectedProposals = {
-          [proposalApproved1]: [saveApprovedProposal1, saveApprovedProposal4],
-          [proposalApproved2]: [saveApprovedProposal2, saveApprovedProposal3]
+        [proposalApproved1]: [saveApprovedProposal1, saveApprovedProposal4],
+        [proposalApproved2]: [saveApprovedProposal2, saveApprovedProposal3]
       };
 
       await checkApprovals(proposalIds.length, expectedProposals);
 
       for (const proposalId of proposalIds) {
-          const singleApprovedProposal = await coinstr.getApprovals([proposalId]);
-          expect(singleApprovedProposal.size).toBe(1);
+        const singleApprovedProposal = await coinstr.getApprovals([proposalId]);
+        expect(singleApprovedProposal.size).toBe(1);
       }
     });
 
-    it ('save completed proposals', async () => {
+    it('save completed proposals', async () => {
       completedProposal2 = await coinstr._saveCompletedProposal(proposalApproved1, saveProofOfReserveProposalPayload(12))
       completedProposal3 = await coinstr2._saveCompletedProposal(proposalApproved2, saveProofOfReserveProposalPayload(13))
     });
@@ -569,7 +569,7 @@ describe('Coinstr', () => {
       let activeProposalsAuth2 = await coinstr2.getProposals();
       expect(activeProposalsAuth2.length).toBe(2);
     });
-    });
+  });
 
   function newCoinstr(keys: Keys): Coinstr {
     return new Coinstr({

@@ -116,7 +116,7 @@ export type PublishedApprovedProposal = BaseApprovedProposal & {
   policy_id: string,
   approval_id: string,
   approved_by: string,
-  approval_date : Date,
+  approval_date: Date,
   expiration_date: Date,
   status: string,
 }
@@ -126,7 +126,7 @@ export type PublishedProofOfReserveProposal = ProofOfReserveProposal & Published
 
 export type CompletedSpendingProposal = {
   tx: string
-  description : string
+  description: string
 }
 
 

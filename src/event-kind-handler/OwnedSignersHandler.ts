@@ -9,7 +9,7 @@ import { type BitcoinUtil } from '../models'
 export class OwnedSignerHandler extends EventKindHandler {
   private readonly store: Store
   private readonly authenticator!: Authenticator
-  constructor (_: NostrClient, authenticator: Authenticator, store: Store, __: BitcoinUtil) {
+  constructor(_: NostrClient, authenticator: Authenticator, store: Store, __: BitcoinUtil) {
     super()
     this.store = store
     this.authenticator = authenticator

@@ -8,7 +8,7 @@ import { type Authenticator } from '@smontero/nostr-ual'
 export class SharedSignerHandler extends EventKindHandler {
   private readonly store: Store
   private readonly authenticator!: Authenticator
-  constructor (authenticator: Authenticator, store: Store) {
+  constructor(authenticator: Authenticator, store: Store) {
     super()
     this.store = store
     this.authenticator = authenticator

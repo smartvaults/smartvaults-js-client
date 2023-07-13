@@ -7,7 +7,7 @@ import { EventKindHandler } from './EventKindHandler'
 
 export class CompletedProposalHandler extends EventKindHandler {
   private readonly store: Store
-  constructor (store: Store) {
+  constructor(store: Store) {
     super()
     this.store = store
   }

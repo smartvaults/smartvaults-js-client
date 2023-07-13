@@ -6,7 +6,7 @@ import { getTagValues } from '../util'
 import { EventKindHandler } from './EventKindHandler'
 export class ProposalHandler extends EventKindHandler {
   private readonly store: Store
-  constructor (store: Store) {
+  constructor(store: Store) {
     super()
     this.store = store
   }

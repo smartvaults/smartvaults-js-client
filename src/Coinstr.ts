@@ -34,7 +34,7 @@ export class Coinstr {
     this.stores = new Map()
     this.stores.set(CoinstrKind.Policy, Store.createSingleIndexStore("id"))
     this.stores.set(CoinstrKind.Proposal, Store.createSingleIndexStore("proposal_id"))
-    this.stores.set(CoinstrKind.ApprovedProposal, new Store({"approval_id" : ["approval_id"], "proposal_id":["approval_id", "proposal_id"]}))
+    this.stores.set(CoinstrKind.ApprovedProposal, new Store({ "approval_id": ["approval_id"], "proposal_id": ["approval_id", "proposal_id"] }))
     this.stores.set(CoinstrKind.SharedKey, Store.createSingleIndexStore("policyId"))
     this.stores.set(CoinstrKind.CompletedProposal, Store.createSingleIndexStore("proposal_id"))
     this.stores.set(CoinstrKind.SharedSigners, Store.createSingleIndexStore("id"))
@@ -244,10 +244,10 @@ export class Coinstr {
     const missingIds = store.missing(ids)
     if (missingIds.length) {
       const sharedKeysFilter = filterBuilder()
-      .kinds(CoinstrKind.SharedKey)
-      .events(missingIds)
-      .pubkeys(this.authenticator.getPublicKey())
-      .toFilters()
+        .kinds(CoinstrKind.SharedKey)
+        .events(missingIds)
+        .pubkeys(this.authenticator.getPublicKey())
+        .toFilters()
       await this._getSharedKeys(sharedKeysFilter)
     }
     let storeResult = store.getMany(ids!)
@@ -359,7 +359,7 @@ export class Coinstr {
       } = event
       const handler = this.eventKindHandlerFactor.getHandler(kind)
       try {
-        const payload = (await handler.handle(event, this.getSharedKeysById ))[0]
+        const payload = (await handler.handle(event, this.getSharedKeysById))[0]
         callback(kind, payload)
       } catch (error) {
         console.error(`failed processing subscription event: ${event}, error: ${error}`)
@@ -494,7 +494,7 @@ export class Coinstr {
     fingerprint,
   }: CoinstrTypes.SharedSigner, pubKeys: string | string[]): Promise<CoinstrTypes.PublishedSharedSigner[]> {
 
-    if(!Array.isArray(pubKeys)){
+    if (!Array.isArray(pubKeys)) {
       pubKeys = [pubKeys]
     }
     const ownerPubKey = this.authenticator.getPublicKey()
@@ -608,21 +608,21 @@ export class Coinstr {
   }
 
 
- 
+
   private async _getCompletedProposals(filter: Filter<CoinstrKind.CompletedProposal>[]): Promise<(CoinstrTypes.PublishedCompletedSpendingProposal | CoinstrTypes.PublishedCompletedProofOfReserveProposal)[]> {
     const completedProposalEvents = await this.nostrClient.list(filter)
     const completedProposalHandler = this.eventKindHandlerFactor.getHandler(CoinstrKind.CompletedProposal)
     return completedProposalHandler.handle(completedProposalEvents, this.getSharedKeysById)
   }
 
-   /**
-   * Fetches all completed proposals.
-   *
-   * @returns A promise that resolves to an array of completed proposals, both spending and proof-of-reserve types.
-   * Each proposal is decrypted and augmented with additional data (e.g., policy_id, proposal_id, completed_by, completion_date).
-   *
-   * @async
-   */
+  /**
+  * Fetches all completed proposals.
+  *
+  * @returns A promise that resolves to an array of completed proposals, both spending and proof-of-reserve types.
+  * Each proposal is decrypted and augmented with additional data (e.g., policy_id, proposal_id, completed_by, completion_date).
+  *
+  * @async
+  */
   async getCompletedProposals(paginationOpts: PaginationOpts = {}): Promise<(CoinstrTypes.PublishedCompletedSpendingProposal | CoinstrTypes.PublishedCompletedProofOfReserveProposal)[]> {
     const completedProposalsFilter = this.buildCompletedProposalsFilter().pagination(paginationOpts).toFilters()
     const completedProposals = await this._getCompletedProposals(completedProposalsFilter)
@@ -635,34 +635,34 @@ export class Coinstr {
     return approvedProposalHandler.handle(approvedProposalEvents, this.getSharedKeysById)
   }
 
-    /**
-   * Fetches approved proposals by given proposal IDs.
-   * 
-   * @param proposalIds - Optional. An array of proposal IDs or a single proposal ID string.
-   * If no proposal IDs are provided, the function fetches all approved proposals.
-   * @returns A promise that resolves to a map where keys are proposal IDs and values are arrays of associated approved proposals.
-   * Each proposal is decrypted and augmented with additional data (e.g., policy_id, proposal_id, approved_by, approval_date, expiration_date, status).
-   * 
-   * @async
-   */
-    async getApprovals(proposal_ids?: string[]): Promise<Map<string, CoinstrTypes.PublishedApprovedProposal[]>> {
-      const proposalIds = Array.isArray(proposal_ids) ? proposal_ids : proposal_ids ? [proposal_ids] : undefined;
-      const approvedProposalsFilter = this.buildApprovedProposalsFilter();
-      if (proposalIds) {
-          approvedProposalsFilter.events(proposalIds);
-      }
-  
-      await this._getApprovals(approvedProposalsFilter.toFilters());
-  
-      const store = this.getStore(CoinstrKind.ApprovedProposal);
-      return store.getMany(proposalIds, "proposal_id");
+  /**
+ * Fetches approved proposals by given proposal IDs.
+ * 
+ * @param proposalIds - Optional. An array of proposal IDs or a single proposal ID string.
+ * If no proposal IDs are provided, the function fetches all approved proposals.
+ * @returns A promise that resolves to a map where keys are proposal IDs and values are arrays of associated approved proposals.
+ * Each proposal is decrypted and augmented with additional data (e.g., policy_id, proposal_id, approved_by, approval_date, expiration_date, status).
+ * 
+ * @async
+ */
+  async getApprovals(proposal_ids?: string[]): Promise<Map<string, CoinstrTypes.PublishedApprovedProposal[]>> {
+    const proposalIds = Array.isArray(proposal_ids) ? proposal_ids : proposal_ids ? [proposal_ids] : undefined;
+    const approvedProposalsFilter = this.buildApprovedProposalsFilter();
+    if (proposalIds) {
+      approvedProposalsFilter.events(proposalIds);
+    }
+
+    await this._getApprovals(approvedProposalsFilter.toFilters());
+
+    const store = this.getStore(CoinstrKind.ApprovedProposal);
+    return store.getMany(proposalIds, "proposal_id");
   }
 
 
   private async _getProposals(filter: Filter<CoinstrKind.Policy>[]): Promise<PublishedPolicy[]> {
     const proposalEvents = await this.nostrClient.list(filter)
     const proposalHandler = this.eventKindHandlerFactor.getHandler(CoinstrKind.Proposal)
-    return proposalHandler.handle(proposalEvents,this.getSharedKeysById)
+    return proposalHandler.handle(proposalEvents, this.getSharedKeysById)
   }
 
   /**
@@ -681,12 +681,12 @@ export class Coinstr {
 
 
   //Mock method to create a proposal, this will be replaced when the policy class is created
-  async _saveProofOfReserveProposal(policy_id: string, { message, psbt, descriptor}): Promise<CoinstrTypes.PublishedProofOfReserveProposal> {
+  async _saveProofOfReserveProposal(policy_id: string, { message, psbt, descriptor }): Promise<CoinstrTypes.PublishedProofOfReserveProposal> {
 
     const policyEvent = await this.getPolicyEvent(policy_id)
     const policyMembers = policyEvent.tags
-    
-    const sharedKeyAuthenticatorResult: Map<string,CoinstrTypes.SharedKeyAuthenticator> = await this.getSharedKeysById([policy_id])
+
+    const sharedKeyAuthenticatorResult: Map<string, CoinstrTypes.SharedKeyAuthenticator> = await this.getSharedKeysById([policy_id])
     const sharedKeyAuthenticator: any = sharedKeyAuthenticatorResult.get(policy_id)?.sharedKeyAuthenticator
     if (!sharedKeyAuthenticator) {
       throw new Error(`Shared key for policy with id ${policy_id} not found`)
@@ -786,11 +786,11 @@ export class Coinstr {
       content: "",
       tags: [...policyMembers, [TagType.Event, proposal_id]],
     }
-    , sharedKeyAuthenticator)
+      , sharedKeyAuthenticator)
 
     const pubDelete = this.nostrClient.publish(deletedProposalEvent)
     await pubDelete.onFirstOkOrCompleteFailure()
-    
+
     const publishedCompletedProposal: CoinstrTypes.PublishedCompletedProofOfReserveProposal = {
       ...payload,
       proposal_id,

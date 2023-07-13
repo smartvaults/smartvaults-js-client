@@ -11,7 +11,7 @@ import { type BitcoinUtil, PublishedPolicy } from '../models'
 export class PolicyHandler extends EventKindHandler {
   private readonly store: Store
   private readonly bitcoinUtil: BitcoinUtil
-  constructor (store: Store, bitcoinUtil: BitcoinUtil) {
+  constructor(store: Store, bitcoinUtil: BitcoinUtil) {
     super()
     this.store = store
     this.bitcoinUtil = bitcoinUtil

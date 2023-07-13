@@ -10,7 +10,7 @@ export class SharedKeyHandler extends EventKindHandler {
   private readonly authenticator: Authenticator
   private readonly store: Store
 
-  constructor (authenticator: Authenticator, store: Store) {
+  constructor(authenticator: Authenticator, store: Store) {
     super()
     this.authenticator = authenticator
     this.store = store

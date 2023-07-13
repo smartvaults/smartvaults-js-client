@@ -1,7 +1,7 @@
 export class Store {
   private readonly indexes: Map<string, Map<string, any>>
 
-  constructor (private readonly indexMap: Record<string, string[]>) {
+  constructor(private readonly indexMap: Record<string, string[]>) {
     this.indexes = new Map()
     for (const indexName in indexMap) {
       this.indexes.set(indexName, new Map())
@@ -32,14 +32,14 @@ export class Store {
     })
   }
 
-  get (indexValue: string, indexKey?: string): any | undefined {
+  get(indexValue: string, indexKey?: string): any | undefined {
     const InnerMap = this.getIndex(indexKey).get(indexValue)
     if (InnerMap) {
       return InnerMap.size === 1 ? InnerMap.values().next().value : Array.from(InnerMap.values())
     }
   }
 
-  getMany (indexValues?: string[], indexKey?: string): Map<string, any | any[]> {
+  getMany(indexValues?: string[], indexKey?: string): Map<string, any | any[]> {
     const index = this.getIndex(indexKey)
     if (!index) {
       throw new Error('Invalid index key')
@@ -60,7 +60,7 @@ export class Store {
     return map
   }
 
-  getManyAsArray (indexValues?: string[], indexKey?: string): any[] {
+  getManyAsArray(indexValues?: string[], indexKey?: string): any[] {
     const index = this.getIndex(indexKey)
     if (!index) {
       throw new Error('Invalid index key')
@@ -81,16 +81,16 @@ export class Store {
     return array
   }
 
-  has (indexValue: string, indexKey?: string): boolean {
+  has(indexValue: string, indexKey?: string): boolean {
     return !!this.get(indexValue, indexKey)
   }
 
-  missing (indexValues: string[], indexKey?: string): string[] {
+  missing(indexValues: string[], indexKey?: string): string[] {
     const index = this.getIndex(indexKey)
     return indexValues.filter(v => !index.has(v))
   }
 
-  private getIndex (indexKey?: string): Map<string, any> {
+  private getIndex(indexKey?: string): Map<string, any> {
     indexKey = indexKey ?? this.indexes.keys().next().value
     if (!indexKey) {
       throw new Error('Invalid index key')
@@ -101,7 +101,7 @@ export class Store {
     return this.indexes.get(indexKey)!
   }
 
-  static createSingleIndexStore (indexKey: string): Store {
+  static createSingleIndexStore(indexKey: string): Store {
     return new Store({ [indexKey]: [indexKey] })
   }
 }
