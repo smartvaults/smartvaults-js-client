@@ -5,7 +5,7 @@ import { Coinstr } from './Coinstr'
 import { NostrClient, Keys } from './service'
 import { TimeUtil } from './util'
 import { Contact, PublishedPolicy, BitcoinUtil, Wallet } from './models'
-import { Metadata, Profile, SavePolicyPayload, OwnedSigner, SharedSigner, SpendProposalPayload, PublishedDirectMessage, PublishedSpendingProposal } from './types'
+import { Metadata, Profile, SavePolicyPayload, OwnedSigner, SharedSigner, PublishedDirectMessage, PublishedSpendingProposal } from './types'
 import { CoinstrKind } from './enum'
 jest.setTimeout(1000000);
 
@@ -550,21 +550,25 @@ function saveOwnedSignerPayload(id: number): OwnedSigner {
   }
 }
 
-function spendProposalPayload(id: number, policy: PublishedPolicy): SpendProposalPayload {
+function spendProposalPayload(id: number, policy: PublishedPolicy): any {
   return {
+    "Spending" : {
     policy,
     to_address: `to_address${id}`,
     description: `description${id}`,
     amountDescriptor: "1000",
     feeRatePriority: "low",
+    }
   }
 }
 
 function saveProofOfReserveProposalPayload(id: number) {
-  return {
+  return{
+    "ProofOfReserve": {
     descriptor: `descriptor${id}`,
     message: `message${id}`,
     psbt: `psbt${id}`,
+     }
   }
 }
 
