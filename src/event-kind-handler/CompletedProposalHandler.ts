@@ -1,5 +1,5 @@
 import { type Event } from 'nostr-tools'
-import { TagType } from '../enum'
+import { ProposalType, TagType } from '../enum'
 import { type PublishedCompletedProofOfReserveProposal, type PublishedCompletedSpendingProposal, type CompletedProofOfReserveProposal, type CompletedSpendingProposal, type SharedKeyAuthenticator } from '../types'
 import { type Store } from '../service'
 import { getTagValues, fromNostrDate } from '../util'
@@ -31,9 +31,11 @@ export class CompletedProposalHandler extends EventKindHandler {
       const policyId = getTagValues(completedProposalEvent, TagType.Event)[1]
       const sharedKeyAuthenticator = sharedKeyAuthenticators.get(policyId)?.sharedKeyAuthenticator
       if (sharedKeyAuthenticator == null) continue
-      const decryptedProposal: (CompletedProofOfReserveProposal | CompletedSpendingProposal) = await sharedKeyAuthenticator.decryptObj(completedProposalEvent.content)
+      const decryptedProposalObj: (CompletedProofOfReserveProposal | CompletedSpendingProposal) = await sharedKeyAuthenticator.decryptObj(completedProposalEvent.content)
+      const type = decryptedProposalObj[ProposalType.Spending] ? ProposalType.Spending : ProposalType.ProofOfReserve
       const publishedCompleteProposal = {
-        ...decryptedProposal,
+        type,
+        ...decryptedProposalObj[type],
         policy_id: policyId,
         proposal_id: proposalId,
         completed_by: completedProposalEvent.pubkey,

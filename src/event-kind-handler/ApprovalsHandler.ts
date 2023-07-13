@@ -1,5 +1,5 @@
 import { type Event } from 'nostr-tools'
-import { TagType } from '../enum'
+import { ProposalType, TagType } from '../enum'
 import { type PublishedApprovedProposal, type BaseApprovedProposal, type SharedKeyAuthenticator } from '../types'
 import { type Store } from '../service'
 import { getTagValues, fromNostrDate } from '../util'
@@ -31,11 +31,13 @@ export class ApprovalsHandler extends EventKindHandler {
       if (sharedKeyAuthenticator == null) {
         continue
       }
-      const decryptedProposal: BaseApprovedProposal = await sharedKeyAuthenticator.decryptObj(approvedProposalEvent.content)
+      const decryptedProposalObj: BaseApprovedProposal = await sharedKeyAuthenticator.decryptObj(approvedProposalEvent.content)
+      const type = decryptedProposalObj[ProposalType.Spending] ? ProposalType.Spending : ProposalType.ProofOfReserve
       const expirationDate = fromNostrDate(getTagValues(approvedProposalEvent, TagType.Expiration)[0])
 
       const publishedApprovedProposal: PublishedApprovedProposal = {
-        ...decryptedProposal,
+        type,
+        ...decryptedProposalObj[type],
         policy_id: policyId,
         proposal_id: proposalId,
         approval_id: approvalId,

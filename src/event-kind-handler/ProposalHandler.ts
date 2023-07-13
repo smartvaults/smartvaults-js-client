@@ -2,7 +2,7 @@ import { type Event } from 'nostr-tools'
 import { TagType, ProposalType } from '../enum'
 import { type SpendingProposal, type ProofOfReserveProposal, type PublishedSpendingProposal, type PublishedProofOfReserveProposal } from '../types'
 import { type Store } from '../service'
-import { getTagValues } from '../util'
+import { getTagValues, fromNostrDate } from '../util'
 import { EventKindHandler } from './EventKindHandler'
 export class ProposalHandler extends EventKindHandler {
   private readonly store: Store
@@ -29,11 +29,13 @@ export class ProposalHandler extends EventKindHandler {
       const policyId = getTagValues(proposalEvent, TagType.Event)[0]
       const sharedKeyAuthenticator = sharedKeyAuthenticators.get(policyId).sharedKeyAuthenticator
       if (!sharedKeyAuthenticator) continue
-      const decryptedProposal: SpendingProposal | ProofOfReserveProposal = await sharedKeyAuthenticator.decryptObj(proposalEvent.content)
-      const type = 'to_address' in decryptedProposal ? ProposalType.Spending : ProposalType.ProofOfReserve
+      const decryptedProposalObj: SpendingProposal | ProofOfReserveProposal = await sharedKeyAuthenticator.decryptObj(proposalEvent.content)
+      const type = decryptedProposalObj[ProposalType.Spending] ? ProposalType.Spending : ProposalType.ProofOfReserve
+      const createdAt = fromNostrDate(proposalEvent.created_at)
       const publishedProposal: PublishedSpendingProposal | PublishedProofOfReserveProposal = {
-        ...decryptedProposal,
         type,
+        ...decryptedProposalObj[type],
+        createdAt,
         policy_id: policyId,
         proposal_id: proposalEvent.id
       }

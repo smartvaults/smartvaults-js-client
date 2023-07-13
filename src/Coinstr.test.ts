@@ -24,8 +24,8 @@ describe('Coinstr', () => {
     altKeySet = new KeySet(2)
     nostrClient = new NostrClient([
       //'wss://relay.rip',
-      // 'wss://test.relay.report'
-      //'ws://localhost:7777'
+      //'wss://test.relay.report'
+      'ws://localhost:7777'
     ])
     bitcoinUtil = mock<BitcoinUtil>()
     bitcoinUtil.toDescriptor.mockReturnValue("Descriptor")
@@ -521,7 +521,6 @@ describe('Coinstr', () => {
 
     const checkApprovals = async (expectedSize: number, expectedProposals: Record<string, PublishedApprovedProposal[]>) => {
       const approvedProposals = await coinstr.getApprovals();
-
       expect(approvedProposals.size).toBe(expectedSize);
 
       for (const [proposalId, expected] of Object.entries(expectedProposals)) {
@@ -676,9 +675,11 @@ function spendProposalPayload(id: number, policy: PublishedPolicy): SpendProposa
 
 function saveProofOfReserveProposalPayload(id: number) {
   return {
-    descriptor: `descriptor${id}`,
-    message: `message${id}`,
-    psbt: `psbt${id}`,
+    "ProofOfReserve": {
+      descriptor: `descriptor${id}`,
+      message: `message${id}`,
+      psbt: `psbt${id}`,
+    }
   }
 }
 

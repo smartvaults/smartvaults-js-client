@@ -297,7 +297,6 @@ export class Coinstr {
     description,
     amountDescriptor,
     feeRatePriority,
-    createdAt,
   }: CoinstrTypes.SpendProposalPayload): Promise<CoinstrTypes.PublishedSpendingProposal> {
 
     let { amount, psbt } = await policy.build_trx({
@@ -311,26 +310,27 @@ export class Coinstr {
       nostrPublicKeys,
       sharedKeyAuth
     } = policy
-
+    const type = ProposalType.Spending
     let proposalContent: CoinstrTypes.SpendingProposal = {
-      descriptor,
-      description,
-      to_address,
-      amount,
-      psbt
+      [type]: {
+        descriptor,
+        description,
+        to_address,
+        amount,
+        psbt
+      }
     }
     const tags = nostrPublicKeys.map(pubkey => [TagType.PubKey, pubkey])
     const proposalEvent = await buildEvent({
       kind: CoinstrKind.Proposal,
       content: await sharedKeyAuth.encryptObj(proposalContent),
       tags: [...tags, [TagType.Event, policy.id]],
-      createdAt
     },
       sharedKeyAuth)
 
     const pub = this.nostrClient.publish(proposalEvent)
     await pub.onFirstOkOrCompleteFailure()
-
+    const createdAt = fromNostrDate(proposalEvent.created_at)
     let msg = "New spending proposal:\n"
     msg += `- Amount: ${amount}\n`
     msg += `- Description: ${description}\n`
@@ -343,10 +343,11 @@ export class Coinstr {
     }
     Promise.all(promises)
     return {
-      ...proposalContent,
+      ...proposalContent[type],
       type: ProposalType.Spending,
       policy_id: policy.id,
       proposal_id: proposalEvent.id,
+      createdAt
     }
 
   }
@@ -681,7 +682,7 @@ export class Coinstr {
 
 
   //Mock method to create a proposal, this will be replaced when the policy class is created
-  async _saveProofOfReserveProposal(policy_id: string, { message, psbt, descriptor }): Promise<CoinstrTypes.PublishedProofOfReserveProposal> {
+  async _saveProofOfReserveProposal(policy_id: string, { "ProofOfReserve": { message, psbt, descriptor } }): Promise<CoinstrTypes.PublishedProofOfReserveProposal> {
 
     const policyEvent = await this.getPolicyEvent(policy_id)
     const policyMembers = policyEvent.tags
@@ -692,12 +693,14 @@ export class Coinstr {
       throw new Error(`Shared key for policy with id ${policy_id} not found`)
     }
     const policy = toPublished(await sharedKeyAuthenticator.decryptObj(policyEvent.content), policyEvent)
-
+    const type = ProposalType.ProofOfReserve
     //proposal = policy.proof_of_reserve(wallet,message)
     const proposal: CoinstrTypes.ProofOfReserveProposal = {
-      message,
-      descriptor,
-      psbt,
+      [type]: {
+        message,
+        descriptor,
+        psbt,
+      }
     }
 
     const content = await sharedKeyAuthenticator.encryptObj(proposal)
@@ -709,11 +712,11 @@ export class Coinstr {
       sharedKeyAuthenticator)
 
     const pub = this.nostrClient.publish(proposalEvent)
+    const createdAt = fromNostrDate(proposalEvent.created_at)
     await pub.onFirstOkOrCompleteFailure()
     const proposal_id = proposalEvent.id
-    const type = "proof_of_reserve"
 
-    return { ...proposal, proposal_id, type, policy_id }
+    return { ...proposal[type], proposal_id, type, policy_id, createdAt }
 
   }
 
@@ -725,10 +728,13 @@ export class Coinstr {
 
     const sharedKeyAuthenticator: any = (await this.getSharedKeysById([policyId])).get(policyId)?.sharedKeyAuthenticator
 
-    const decryptedProposal = await sharedKeyAuthenticator.decryptObj(proposalEvent.content)
+    const decryptedProposalObj = await sharedKeyAuthenticator.decryptObj(proposalEvent.content)
+    const type = decryptedProposalObj[ProposalType.Spending] ? ProposalType.Spending : ProposalType.ProofOfReserve
 
-    const approvedProposal = {
-      psbt: decryptedProposal.psbt,
+    const approvedProposal: CoinstrTypes.BaseApprovedProposal = {
+      [type]: {
+        ...decryptedProposalObj[type],
+      }
     }
 
     const expirationDate = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7 // 7 days
@@ -741,8 +747,9 @@ export class Coinstr {
       this.authenticator)
 
     const publishedApprovedProposal: CoinstrTypes.PublishedApprovedProposal = {
+      type,
+      ...decryptedProposalObj[type],
       proposal_id,
-      psbt: decryptedProposal.psbt,
       policy_id: policyId,
       approval_id: approvedProposalEvent.id,
       approved_by: approvedProposalEvent.pubkey,
@@ -768,7 +775,7 @@ export class Coinstr {
     const completedProposal: CoinstrTypes.CompletedProofOfReserveProposal | CoinstrTypes.CompletedSpendingProposal = {
       ...payload
     }
-
+    const type = payload[ProposalType.Spending] ? ProposalType.Spending : ProposalType.ProofOfReserve
     const content = await sharedKeyAuthenticator.encryptObj(completedProposal)
 
     const completedProposalEvent = await buildEvent({
@@ -792,7 +799,8 @@ export class Coinstr {
     await pubDelete.onFirstOkOrCompleteFailure()
 
     const publishedCompletedProposal: CoinstrTypes.PublishedCompletedProofOfReserveProposal = {
-      ...payload,
+      type,
+      ...payload[type],
       proposal_id,
       policy_id: policyId,
       completed_by: completedProposalEvent.pubkey,
