@@ -18,7 +18,7 @@ export class Store {
         const keyValues = this.indexMap[indexName].map(indexKey => obj[indexKey])
         const key = keyValues.join('-')
         const map = this.indexes.get(indexName)
-        if (map == null) throw new Error('Invalid index key')
+        if (!map) throw new Error('Invalid index key')
 
         let innerMap = map.get(obj[indexName])
         if (!innerMap) {
