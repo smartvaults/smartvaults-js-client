@@ -1,7 +1,7 @@
 import { Authenticator } from '@smontero/nostr-ual'
 import { Event } from 'nostr-tools'
 import { Balance } from './Balance'
-import { Trx, Policy } from './types'
+import { Trx, Policy, FinalizeTrxResponse } from './types'
 import { BitcoinUtil, Wallet } from './interfaces'
 import { TimeUtil, toPublished } from '../util'
 
@@ -102,6 +102,10 @@ export class PublishedPolicy {
     feeRate: string
   }): Promise<Trx> {
     return (await this.synced()).build_trx(address, amount, feeRate)
+  }
+
+  async finalizeTrx(psbts: string[], broadcast: boolean): Promise<FinalizeTrxResponse> {
+    return this.wallet.finalize_trx(psbts, broadcast)
   }
 
   private async synced(): Promise<Wallet> {

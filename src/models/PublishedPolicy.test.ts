@@ -112,7 +112,7 @@ describe('PublishedPolicy', () => {
     it('should correctly call the build_trx method of the wallet instance', async () => {
       wallet.sync.mockResolvedValue()
       const expected = { amount: 1000, psbt: "psbt1" }
-      wallet.build_trx.mockResolvedValue({ amount: 1000, psbt: "psbt1" })
+      wallet.build_trx.mockResolvedValue(expected)
       let actual = await policy.buildTrx({
         address: "address",
         amount: "1000",
@@ -121,6 +121,20 @@ describe('PublishedPolicy', () => {
       expect(expected).toEqual(actual)
       expect(wallet.sync).toBeCalledTimes(1)
       expect(wallet.build_trx).toHaveBeenNthCalledWith(1, "address", "1000", "low")
+    })
+  })
+
+  describe('finalizeTrx', () => {
+
+    it('should correctly call the finalize_trx method of the wallet instance', async () => {
+      wallet.sync.mockResolvedValue()
+      const expected = { trx_id: "", psbt: "psbt1", trx: { inputs: ["input1"] } }
+      wallet.finalize_trx.mockResolvedValue(expected)
+      const psbts = ["psbt1", "psbt2"]
+      let actual = await policy.finalizeTrx(psbts, true)
+      expect(expected).toEqual(actual)
+      expect(wallet.sync).toHaveBeenCalledTimes(0)
+      expect(wallet.finalize_trx).toHaveBeenNthCalledWith(1, psbts, true)
     })
   })
 })
