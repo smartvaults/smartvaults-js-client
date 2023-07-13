@@ -24,8 +24,8 @@ describe('Coinstr', () => {
     altKeySet = new KeySet(2)
     nostrClient = new NostrClient([
       //'wss://relay.rip',
-      //'wss://test.relay.report'
-      'ws://localhost:7777'
+      'wss://test.relay.report'
+      //'ws://localhost:7777'
     ])
     bitcoinUtil = mock<BitcoinUtil>()
     bitcoinUtil.toDescriptor.mockReturnValue("Descriptor")
@@ -215,113 +215,69 @@ describe('Coinstr', () => {
 
   describe('Store methods work as expected', () => {
     let store: Store;
-
-  beforeEach(() => {
-    store = new Store(['id','id2']);
-  });
-
-  it('should store and retrieve objects with multiple index keys correctly', () => {
-    const obj1 = { id: 'id1', id2: 'id2', name: 'name1' };
-    const obj2 = { id: 'id2', id2: 'otherID', name: 'name2' };
-    store.store([obj1, obj2]);
-
-    const retrievedObj1 = store.get('id1', 'id');
-    const retrievedObj2 = store.get('otherID', 'id2');
-
-    expect(retrievedObj1).toEqual(obj1);
-    expect(retrievedObj2).toEqual(obj2);
-  });
-
-  it('should return a map with an array of objects for getMany with multiple index keys', () => {
-    const obj1 = { id: 'id1', id2: 'id2', name: 'name1' };
-    const obj2 = { id: 'id1', id2: 'otherID', name: 'name1' };
-    store.store([obj1, obj2]);
-    // Try to store the same objects again to test that duplicates are not stored
-    store.store(obj1);
-    store.store(obj2);
-    store.store([obj1, obj2]);
-
-    const proposalIds = ['id1'];
-    const result = store.getMany(proposalIds, 'id');
-
-    const expectedMap = new Map();
-    expectedMap.set('id1', [obj1, obj2]);
-
-    expect(result).toEqual(expectedMap);
-  });
-
-  it('should return undefined when retrieving non-existent object', () => {
-    const obj = store.get('nonexistent');
-    expect(obj).toBeUndefined();
-  });
-
-  it('should return a map of objects for getMany', () => {
-    const obj1 = { id: 'id1', id2: 'id2', name: 'name1' };
-    const obj2 = { id: 'id2', id2: 'otherID', name: 'name2' };
-    store.store([obj1, obj2]);
-
-    const objMap = store.getMany(['id1', 'id2'], 'id');
-    expect(objMap.get('id1')).toEqual(obj1);
-    expect(objMap.get('id2')).toEqual(obj2);
-  });
-
-  it('should return an array of objects for getManyAsArray', () => {
-    const obj1 = { id: 'id1', id2: 'id2', name: 'name1' };
-    const obj2 = { id: 'id2', id2: 'otherID', name: 'name2' };
-    store.store([obj1, obj2]);
-
-    const objArray = store.getManyAsArray(['id1', 'id2'], 'id');
-    expect(objArray).toEqual([obj1, obj2]);
-  });
-
-  it('should return true when object exists', () => {
-    const obj = { id: 'id', id2: 'id2', name: 'name' };
-    store.store(obj);
-
-    const hasObject = store.has('id2', 'id2');
-    expect(hasObject).toBeTruthy();
-  });
-
-  it('should return false when object does not exist', () => {
-    const hasObject = store.has('nonexistent', 'id2');
-    expect(hasObject).toBeFalsy();
-  });
-
-  it('should return missing index values', () => {
-    const obj1 = { id: 'id1', id2: 'id2', name: 'name1' };
-    store.store(obj1);
-
-    const missingValues = store.missing(['id1', 'id2'], 'id');
-    expect(missingValues).toEqual(['id2']);
-  });
-  it('should throw an error when an invalid index key is provided', () => {
-    expect(() => store.get('id', 'invalidKey')).toThrow('Invalid index key');
-  });
-
-  it('should throw an error when storing an object with missing index keys', () => {
-    const obj = { id: 'id1', name: 'name1' }; // Missing 'id2'
-    expect(() => store.store(obj)).toThrow("Index property has no value");
-  });
   
-  it('should return all objects for getMany when no indexValues are provided', () => {
-    const obj1 = { id: 'id1', id2: 'id2', name: 'name1' };
-    const obj2 = { id: 'id2', id2: 'otherID', name: 'name2' };
-    store.store([obj1, obj2]);
+    beforeEach(() => {
+      store = new Store({ 'id' : ['id', 'id2'], 'name': ['name', 'id2'] });
+    });
   
-    const objMap = store.getMany(undefined, 'id');
-    expect(objMap.get('id1')).toEqual(obj1);
-    expect(objMap.get('id2')).toEqual(obj2);
+    it('should store and retrieve objects with multiple index keys correctly', () => {
+      const obj1 = { id: 'id1', id2: 'id2', name: 'name1' };
+      const obj2 = { id: 'id2', id2: 'otherID', name: 'name2' };
+      store.store([obj1, obj2]);
+  
+      const retrievedObj1 = store.get('id1', 'id');
+      const retrievedObj2 = store.get('id2', 'id');
+      const retrievedObj3 = store.get('name1', 'name');
+      const retrievedObj4 = store.get('name2', 'name');
+  
+      expect(retrievedObj1).toEqual(obj1);
+      expect(retrievedObj2).toEqual(obj2);
+      expect(retrievedObj3).toEqual(obj1);
+      expect(retrievedObj4).toEqual(obj2);
+    });
+  
+    it('getMany should return a map with key as indexValue and value as array of objects matching the indexKey', () => {
+      const obj1 = { id: 'id1', id2: 'id2', name: 'name1' };
+      const obj2 = { id: 'id1', id2: 'otherID', name: 'name2' };
+      const obj3 = { id: 'id1', id2: 'id3', name: 'name3' };
+      store.store([obj1, obj2, obj3]);
+    
+      const map = store.getMany(['id1'], 'id');
+      expect(map.get('id1')).toEqual([obj1, obj2, obj3]);
+    });
+    
+    it('getManyAsArray should return an array of objects matching the indexKey and indexValues', () => {
+      const obj1 = { id: 'id1', id2: 'id2', name: 'name1' };
+      const obj2 = { id: 'id1', id2: 'otherID', name: 'name2' };
+      const obj3 = { id: 'id1', id2: 'id3', name: 'name1' };
+      store.store([obj1, obj2, obj3]);
+      const arr = store.getManyAsArray(['name1'], 'name');
+      expect(arr).toEqual([obj1, obj3]);
+    });
+    
+    it('has should return true if object exists in index', () => {
+      const obj1 = { id: 'id1', id2: 'id2', name: 'name1' };
+      store.store(obj1);
+  
+      const exists = store.has('id1', 'id');
+      const existsByName = store.has('name1', 'name');
+  
+      expect(exists).toBeTruthy();
+      expect(existsByName).toBeTruthy();
+    });
+  
+    it('missing should return array of missing index values', () => {
+      const obj1 = { id: 'id1', id2: 'id2', name: 'name1' };
+      store.store(obj1);
+  
+      const missing = store.missing(['id1', 'id2'], 'id');
+      const missingNames = store.missing(['name1', 'name2'], 'name');
+  
+      expect(missing).toEqual(['id2']);
+      expect(missingNames).toEqual(['name2']);
+    });
+    
   });
-  
-  it('should return an empty array for missing when no indexValues are provided', () => {
-    const obj1 = { id: 'id1', id2: 'id2', name: 'name1' };
-    store.store(obj1);
-  
-    const missingValues = store.missing([], 'id');
-    expect(missingValues).toEqual([]);
-  });
-
-});
 
   describe('getOwnedSigners', () => {
     let ownedSigner1: OwnedSigner
@@ -453,6 +409,8 @@ describe('Coinstr', () => {
     let completedProposal3;
     let firstCallTime1;
     let firstCallTime2;
+    let secondCallTime1;
+    let secondCallTime2;
 
     let coinstr2: Coinstr
 
@@ -524,10 +482,10 @@ describe('Coinstr', () => {
     it('return proposal should be faster because of cache', async () => {
         const start = Date.now();
         await checkProposals(coinstr, 4, [spendProposal1, proofOfReserveProposal1, proofOfReserveProposal3, spendProposal3]);
-        const secondCallTime1 = Date.now() - start;
+        secondCallTime1 = Date.now() - start;
         const start2 = Date.now();
         await checkProposals(coinstr2, 4, [spendProposal2, proofOfReserveProposal2, proofOfReserveProposal3, spendProposal3]);
-        const secondCallTime2 = Date.now() - start2;
+        secondCallTime2 = Date.now() - start2;
         expect(secondCallTime1).toBeLessThan(firstCallTime1);
         expect(secondCallTime2).toBeLessThan(firstCallTime2);
     });

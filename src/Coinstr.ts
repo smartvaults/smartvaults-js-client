@@ -32,13 +32,13 @@ export class Coinstr {
 
   initStores() {
     this.stores = new Map()
-    this.stores.set(CoinstrKind.Policy, new Store("id"))
-    this.stores.set(CoinstrKind.Proposal, new Store("proposal_id"))
-    this.stores.set(CoinstrKind.ApprovedProposal, new Store(["approval_id", "proposal_id"]))
-    this.stores.set(CoinstrKind.SharedKey, new Store("policyId"))
-    this.stores.set(CoinstrKind.CompletedProposal, new Store("proposal_id"))
-    this.stores.set(CoinstrKind.SharedSigners, new Store("id"))
-    this.stores.set(CoinstrKind.Signers, new Store("id"))
+    this.stores.set(CoinstrKind.Policy, Store.createSingleIndexStore("id"))
+    this.stores.set(CoinstrKind.Proposal, Store.createSingleIndexStore("proposal_id"))
+    this.stores.set(CoinstrKind.ApprovedProposal, new Store({"approval_id" : ["approval_id"], "proposal_id":["approval_id", "proposal_id"]}))
+    this.stores.set(CoinstrKind.SharedKey, Store.createSingleIndexStore("policyId"))
+    this.stores.set(CoinstrKind.CompletedProposal, Store.createSingleIndexStore("proposal_id"))
+    this.stores.set(CoinstrKind.SharedSigners, Store.createSingleIndexStore("id"))
+    this.stores.set(CoinstrKind.Signers, Store.createSingleIndexStore("id"))
   }
   initEventKindHandlerFactory() {
     this.eventKindHandlerFactor = new EventKindHandlerFactory(this)

@@ -1,23 +1,23 @@
 import {
-  type Event,
+  type Event
 } from 'nostr-tools'
 
-import {  TagType } from '../enum'
+import { TagType } from '../enum'
 import { getTagValues } from '../util'
-import { Store } from "../service";
-import { EventKindHandler } from "./EventKindHandler"
-import { BitcoinUtil, PublishedPolicy } from '../models';
+import { type Store } from '../service'
+import { EventKindHandler } from './EventKindHandler'
+import { type BitcoinUtil, PublishedPolicy } from '../models'
 
 export class PolicyHandler extends EventKindHandler {
-  private store: Store
-  private bitcoinUtil: BitcoinUtil
-  constructor( store: Store, bitcoinUtil: BitcoinUtil) {
+  private readonly store: Store
+  private readonly bitcoinUtil: BitcoinUtil
+  constructor (store: Store, bitcoinUtil: BitcoinUtil) {
     super()
     this.store = store
     this.bitcoinUtil = bitcoinUtil
   }
 
-  protected async _handle<K extends number>(policyEvents: Event<K>[], getSharedKeysById: (ids: string[]) => Promise<Map<string, any>>): Promise<any[]> {
+  protected async _handle<K extends number>(policyEvents: Array<Event<K>>, getSharedKeysById: (ids: string[]) => Promise<Map<string, any>>): Promise<any[]> {
     let policyIds = policyEvents.map(policy => policy.id)
     policyIds = this.store.missing(policyIds)
     const policyIdSharedKeyAuthenticatorMap = await getSharedKeysById(policyIds)
