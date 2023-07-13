@@ -455,6 +455,19 @@ describe('Coinstr', () => {
 
     });
 
+    it('finalize test proposals ', async () => {
+      const coinstr = new Coinstr({
+        authenticator: new DirectPrivateKeyAuthenticator("39d2d26d17fadae15694dcca348ecfad9b268f10d15c9f6e20f4c5bdb74ae0a8"),
+        bitcoinUtil,
+        nostrClient: new NostrClient(["wss://test.relay.report"])
+      })
+      const completedProposals = await coinstr.getCompletedProposals();
+      console.log("completed Proposals", JSON.stringify(completedProposals, null, 4))
+      // const approvedProposals = await coinstr.getApprovals()
+      const approvedProposals = await coinstr.getApprovals(["bcca180cdc1607ff257a4784f85d5d52250dcb130bc8ab5669ad602d4e6605af"])
+      console.log("approved proposals: ", JSON.stringify(approvedProposals, null, 4))
+    });
+
   });
 
   function newCoinstr(keys: Keys): Coinstr {
@@ -552,23 +565,23 @@ function saveOwnedSignerPayload(id: number): OwnedSigner {
 
 function spendProposalPayload(id: number, policy: PublishedPolicy): any {
   return {
-    "Spending" : {
-    policy,
-    to_address: `to_address${id}`,
-    description: `description${id}`,
-    amountDescriptor: "1000",
-    feeRatePriority: "low",
+    "Spending": {
+      policy,
+      to_address: `to_address${id}`,
+      description: `description${id}`,
+      amountDescriptor: "1000",
+      feeRatePriority: "low",
     }
   }
 }
 
 function saveProofOfReserveProposalPayload(id: number) {
-  return{
+  return {
     "ProofOfReserve": {
-    descriptor: `descriptor${id}`,
-    message: `message${id}`,
-    psbt: `psbt${id}`,
-     }
+      descriptor: `descriptor${id}`,
+      message: `message${id}`,
+      psbt: `psbt${id}`,
+    }
   }
 }
 
