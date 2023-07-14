@@ -1,46 +1,26 @@
 import {
-  type Event,
+  type Event
 } from 'nostr-tools'
 
-import { CoinstrKind, TagType } from '../enum'
-import { NostrClient, Store } from "../service";
-import { filterBuilder, getTagValues } from '../util'
-
-import { EventKindHandler } from "./EventKindHandler"
-import { Authenticator, DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual';
-import { BitcoinUtil, PublishedPolicy } from '../models';
+import { TagType } from '../enum'
+import { getTagValues } from '../util'
+import { type Store } from '../service'
+import { EventKindHandler } from './EventKindHandler'
+import { type BitcoinUtil, PublishedPolicy } from '../models'
 
 export class PolicyHandler extends EventKindHandler {
-  private nostrClient: NostrClient
-  private authenticator: Authenticator
-  private store: Store
-  private bitcoinUtil: BitcoinUtil
-  constructor(nostrClient: NostrClient, authenticator: Authenticator, store: Store, bitcoinUtil: BitcoinUtil) {
+  private readonly store: Store
+  private readonly bitcoinUtil: BitcoinUtil
+  constructor(store: Store, bitcoinUtil: BitcoinUtil) {
     super()
-    this.nostrClient = nostrClient
-    this.authenticator = authenticator
     this.store = store
     this.bitcoinUtil = bitcoinUtil
   }
 
-  protected async _handle<K extends number>(policyEvents: Event<K>[]): Promise<any[]> {
+  protected async _handle<K extends number>(policyEvents: Array<Event<K>>, getSharedKeysById: (ids: string[]) => Promise<Map<string, any>>): Promise<any[]> {
     let policyIds = policyEvents.map(policy => policy.id)
     policyIds = this.store.missing(policyIds)
-    const policyIdSharedKeyMap = {}
-
-    if (policyIds.length) {
-      const sharedKeysFilter = filterBuilder()
-        .kinds(CoinstrKind.SharedKey)
-        .events(policyIds)
-        .pubkeys(this.authenticator.getPublicKey())
-        .toFilters()
-      const sharedKeyEvents = await this.nostrClient.list<CoinstrKind.Policy>(sharedKeysFilter)
-
-      for (const sharedKeyEvent of sharedKeyEvents) {
-        const eventIds = getTagValues(sharedKeyEvent, TagType.Event)
-        eventIds.forEach(id => policyIdSharedKeyMap[id] = sharedKeyEvent)
-      }
-    }
+    const policyIdSharedKeyAuthenticatorMap = await getSharedKeysById(policyIds)
 
     const policies: PublishedPolicy[] = []
     for (const policyEvent of policyEvents) {
@@ -51,16 +31,8 @@ export class PolicyHandler extends EventKindHandler {
         policies.push(this.store.get(policyId))
         continue
       }
-      const sharedKeyEvent = policyIdSharedKeyMap[policyId]
-      if (!sharedKeyEvent) {
-        console.error(`Shared Key for policy id: ${policyId} not found`)
-        continue
-      }
-      const sharedKey = await this.authenticator.decrypt(
-        sharedKeyEvent.content,
-        sharedKeyEvent.pubkey
-      )
-      const sharedKeyAuthenticator = new DirectPrivateKeyAuthenticator(sharedKey)
+      const sharedKeyAuthenticator = policyIdSharedKeyAuthenticatorMap.get(policyId).sharedKeyAuthenticator
+      if (!sharedKeyAuthenticator) continue
       const policyContent = await sharedKeyAuthenticator.decryptObj(policyEvent.content)
       policies.push(PublishedPolicy.fromPolicyAndEvent({
         policyContent,

@@ -1,18 +1,19 @@
+import { ProposalType } from './enum';
 import { BasePolicy, PublishedPolicy } from './models'
+import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 
-type BaseSharedSigner = {
+export type BaseSharedSigner = {
   descriptor: string;
   fingerprint: string;
 };
 
-type BaseOwnedSigner = {
+export type BaseOwnedSigner = {
   description: any,
   descriptor: string,
   fingerprint: string,
   name: string,
   t: string,
 }
-
 
 export type Published = {
   id: string
@@ -91,52 +92,83 @@ type BaseProposal = {
   psbt: string // to be change to PSBT
 }
 
-export type SpendingProposal = BaseProposal & {
-  to_address: string
-  amount: number
-  description: string
+export type SpendingProposal = {
+  [key: string]: BaseProposal & {
+    to_address: string
+    amount: number
+    description: string,
+  }
 }
 
-export type ProofOfReserveProposal = BaseProposal & {
-  message: string
+export type ProofOfReserveProposal = {
+  [key: string]: BaseProposal & {
+    message: string
+  }
 }
+
 type PublishedProposal = {
   policy_id: string
   proposal_id: string
   type: string
+  createdAt: Date
 }
 
 export type BaseApprovedProposal = {
-  psbt: string
+  [key: string]: {
+    psbt: string
+  }
 }
 
-export type PublishedApprovedProposal = BaseApprovedProposal & {
+export type PublishedApprovedProposal = {
+  type: ProposalType,
+  psbt: string,
   proposal_id: string,
   policy_id: string,
+  approval_id: string,
   approved_by: string,
-  approval_date : Date,
+  approval_date: Date,
   expiration_date: Date,
   status: string,
 }
 
-export type PublishedSpendingProposal = SpendingProposal & PublishedProposal
-export type PublishedProofOfReserveProposal = ProofOfReserveProposal & PublishedProposal
+export type PublishedSpendingProposal = PublishedProposal & {
+  to_address: string
+  amount: number
+  description: string,
+}
+export type PublishedProofOfReserveProposal = PublishedProposal & {
+  message: string
+}
 
 export type CompletedSpendingProposal = {
-  tx: string
-  description : string
+  [key: string]: {
+    tx: string
+    description: string
+  }
 }
 
 
 export type CompletedProofOfReserveProposal = ProofOfReserveProposal
 
 type PublishedCompleted = {
+  type: ProposalType
   proposal_id: string
   policy_id: string
   completed_by: string
   completion_date: Date
 }
-export type PublishedCompletedSpendingProposal = CompletedSpendingProposal & PublishedCompleted
 
-export type PublishedCompletedProofOfReserveProposal = CompletedProofOfReserveProposal & PublishedCompleted
+export type PublishedCompletedSpendingProposal = PublishedCompleted & {
+  tx: string
+  description: string
+}
 
+export type PublishedCompletedProofOfReserveProposal = PublishedCompleted & {
+  message: string
+}
+
+
+export type SharedKeyAuthenticator = {
+  policyId: string
+  sharedKeyAuthenticator: DirectPrivateKeyAuthenticator
+}
