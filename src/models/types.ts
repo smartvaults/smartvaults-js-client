@@ -12,3 +12,10 @@ export type Trx = {
   amount: number,
   psbt: string
 }
+
+
+export type FinalizeTrxResponse = {
+  trx_id: string
+  trx: any
+  psbt: string
+}
