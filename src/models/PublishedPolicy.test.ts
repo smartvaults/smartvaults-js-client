@@ -128,8 +128,53 @@ describe('PublishedPolicy', () => {
 
     it('should correctly call the finalize_trx method of the wallet instance', async () => {
       wallet.sync.mockResolvedValue()
-      const expected = { trx_id: "", psbt: "psbt1", trx: { inputs: ["input1"] } }
+      const expected = { txid: "", psbt: "psbt1", trx: { inputs: ["input1"] } }
       wallet.finalize_trx.mockResolvedValue(expected)
+      const psbts = ["psbt1", "psbt2"]
+      let actual = await policy.finalizeTrx(psbts, true)
+      expect(expected).toEqual(actual)
+      expect(wallet.sync).toHaveBeenCalledTimes(0)
+      expect(wallet.finalize_trx).toHaveBeenNthCalledWith(1, psbts, true)
+    })
+  })
+
+  describe('getTrxs', () => {
+
+    it('should correctly call the get_trxs method of the wallet instance and decorate the trx details', async () => {
+      wallet.sync.mockResolvedValue()
+      const expected = [{
+        txid: "05dce7f5440ded30bd55359d9e4f65de34fefaaef5fb16ac4cfaf72375fd204d",
+        received: 2695,
+        sent: 4000,
+        fee: 305,
+        confirmation_time: {
+          height: 2441712,
+          timestamp: 1689279109
+        }
+      },
+      {
+        txid: "c986542760cce19005b436fc45675a43819084bf37f683dae06e4816e77e8e9f",
+        received: 4000,
+        sent: 0,
+        fee: 153,
+      }]
+
+      wallet.get_trxs.mockReturnValue([{
+        txid: "05dce7f5440ded30bd55359d9e4f65de34fefaaef5fb16ac4cfaf72375fd204d",
+        received: 2695,
+        sent: 4000,
+        fee: 305,
+        confirmation_time: {
+          height: 2441712,
+          timestamp: 1689279109
+        }
+      },
+      {
+        txid: "c986542760cce19005b436fc45675a43819084bf37f683dae06e4816e77e8e9f",
+        received: 4000,
+        sent: 0,
+        fee: 153,
+      }])
       const psbts = ["psbt1", "psbt2"]
       let actual = await policy.finalizeTrx(psbts, true)
       expect(expected).toEqual(actual)

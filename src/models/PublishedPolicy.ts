@@ -1,9 +1,9 @@
 import { Authenticator } from '@smontero/nostr-ual'
 import { Event } from 'nostr-tools'
 import { Balance } from './Balance'
-import { Trx, Policy, FinalizeTrxResponse } from './types'
+import { Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails, UndecoratedBasicTrxDetails, UndecoratedTrxDetails } from './types'
 import { BitcoinUtil, Wallet } from './interfaces'
-import { TimeUtil, toPublished } from '../util'
+import { TimeUtil, fromNostrDate, toPublished } from '../util'
 
 
 export class PublishedPolicy {
@@ -106,6 +106,24 @@ export class PublishedPolicy {
 
   async finalizeTrx(psbts: string[], broadcast: boolean): Promise<FinalizeTrxResponse> {
     return this.wallet.finalize_trx(psbts, broadcast)
+  }
+
+  async getTrxs(): Promise<Array<BasicTrxDetails>> {
+    const trxs = (await this.synced()).get_trxs()
+    return trxs.map(this.decorateTrxDetails)
+  }
+
+  async getTrx(txid: string): Promise<TrxDetails> {
+    const trx = await (await this.synced()).get_trx(txid)
+    return this.decorateTrxDetails(trx)
+  }
+
+  private decorateTrxDetails(trxDetails: any): any {
+    trxDetails.net = trxDetails.received - trxDetails.sent
+    if (trxDetails.confirmation_time) {
+      trxDetails.confirmation_time.confirmedAt = fromNostrDate(trxDetails.confirmation_time.timestamp)
+    }
+    return trxDetails
   }
 
   private async synced(): Promise<Wallet> {

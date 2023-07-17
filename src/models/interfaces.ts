@@ -1,4 +1,4 @@
-import { Trx, FinalizeTrxResponse } from "./types"
+import { Trx, FinalizeTrxResponse, BasicTrxDetails, TrxDetails } from "./types"
 
 
 type BalancePayload = {
@@ -32,6 +32,10 @@ export interface Wallet {
   get_balance(): BalancePayload;
 
   finalize_trx(psbts: string[], broadcast: boolean): Promise<FinalizeTrxResponse>;
+
+  get_trxs(): Array<BasicTrxDetails>;
+
+  get_trx(txid: string): Promise<TrxDetails>;
 }
 
 
