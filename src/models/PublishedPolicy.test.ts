@@ -142,23 +142,6 @@ describe('PublishedPolicy', () => {
 
     it('should correctly call the get_trxs method of the wallet instance and decorate the trx details', async () => {
       wallet.sync.mockResolvedValue()
-      const expected = [{
-        txid: "05dce7f5440ded30bd55359d9e4f65de34fefaaef5fb16ac4cfaf72375fd204d",
-        received: 2695,
-        sent: 4000,
-        fee: 305,
-        confirmation_time: {
-          height: 2441712,
-          timestamp: 1689279109
-        }
-      },
-      {
-        txid: "c986542760cce19005b436fc45675a43819084bf37f683dae06e4816e77e8e9f",
-        received: 4000,
-        sent: 0,
-        fee: 153,
-      }]
-
       wallet.get_trxs.mockReturnValue([{
         txid: "05dce7f5440ded30bd55359d9e4f65de34fefaaef5fb16ac4cfaf72375fd204d",
         received: 2695,
@@ -175,11 +158,99 @@ describe('PublishedPolicy', () => {
         sent: 0,
         fee: 153,
       }])
-      const psbts = ["psbt1", "psbt2"]
-      let actual = await policy.finalizeTrx(psbts, true)
+      const expected = [{
+        txid: "05dce7f5440ded30bd55359d9e4f65de34fefaaef5fb16ac4cfaf72375fd204d",
+        received: 2695,
+        sent: 4000,
+        fee: 305,
+        net: -1305,
+        confirmation_time: {
+          height: 2441712,
+          timestamp: 1689279109,
+          confirmedAt: new Date(1689279109 * 1000)
+        }
+      },
+      {
+        txid: "c986542760cce19005b436fc45675a43819084bf37f683dae06e4816e77e8e9f",
+        received: 4000,
+        sent: 0,
+        fee: 153,
+        net: 4000
+      }]
+      let actual = await policy.getTrxs()
       expect(expected).toEqual(actual)
-      expect(wallet.sync).toHaveBeenCalledTimes(0)
-      expect(wallet.finalize_trx).toHaveBeenNthCalledWith(1, psbts, true)
+      expect(wallet.sync).toHaveBeenCalledTimes(1)
+      expect(wallet.get_trxs).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('getTrx', () => {
+
+    it('should correctly call the get_trx method of the wallet instance and decorate the trx details', async () => {
+      wallet.sync.mockResolvedValue()
+      wallet.get_trx.mockResolvedValue({
+        txid: "05dce7f5440ded30bd55359d9e4f65de34fefaaef5fb16ac4cfaf72375fd204d",
+        inputs: [
+          {
+            txid: "5b5a1db10af26adc77912e2db053489df2f82ec4a5836ee722b5f2feabbdccba",
+            amount: 0
+          }
+        ],
+        outputs: [
+          {
+            txid: "tb1pjs8ul94z5lwyfgtcd6xlvkjhrh4zu5ddj9ahn65ztsvvl3dxlh6qth0sua",
+            amount: 4000
+          },
+          {
+            txid: "tb1q0fcr4qa3p3l0hswk3mr4zkqmzs2x209kqpqvtx",
+            amount: 1876061
+          }
+        ],
+        lock_time: 2441704,
+        received: 2695,
+        sent: 4000,
+        fee: 305,
+        confirmation_time: {
+          height: 2441712,
+          timestamp: 1689279109,
+          confirmations: 110
+        }
+      })
+      const expected = {
+        txid: "05dce7f5440ded30bd55359d9e4f65de34fefaaef5fb16ac4cfaf72375fd204d",
+        received: 2695,
+        sent: 4000,
+        fee: 305,
+        net: -1305,
+        inputs: [
+          {
+            txid: "5b5a1db10af26adc77912e2db053489df2f82ec4a5836ee722b5f2feabbdccba",
+            amount: 0
+          }
+        ],
+        outputs: [
+          {
+            txid: "tb1pjs8ul94z5lwyfgtcd6xlvkjhrh4zu5ddj9ahn65ztsvvl3dxlh6qth0sua",
+            amount: 4000
+          },
+          {
+            txid: "tb1q0fcr4qa3p3l0hswk3mr4zkqmzs2x209kqpqvtx",
+            amount: 1876061
+          }
+        ],
+        lock_time: 2441704,
+        confirmation_time: {
+          height: 2441712,
+          timestamp: 1689279109,
+          confirmedAt: new Date(1689279109 * 1000),
+          confirmations: 110
+        }
+      }
+      const txid = "05dce7f5440ded30bd55359d9e4f65de34fefaaef5fb16ac4cfaf72375fd204d"
+      let actual = await policy.getTrx(txid)
+      expect(expected).toEqual(actual)
+      expect(wallet.sync).toHaveBeenCalledTimes(1)
+      expect(wallet.get_trx).toHaveBeenCalledWith(txid)
     })
   })
 })

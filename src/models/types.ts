@@ -13,14 +13,21 @@ export type Trx = {
   psbt: string
 }
 
-export type UndecoratedConfirmationTime = {
+export type UndecoratedBasicConfirmationTime = {
   height: number,
   timestamp: number,
 }
 
+export type UndecoratedConfirmationTime = UndecoratedBasicConfirmationTime & {
+  confirmations: number
+}
+
+export type BasicConfirmationTime = UndecoratedBasicConfirmationTime & {
+  confirmedAt: Date,
+}
+
 export type ConfirmationTime = UndecoratedConfirmationTime & {
   confirmedAt: Date,
-  confirmations: number
 }
 
 export type UndecoratedBasicTrxDetails = {
@@ -28,10 +35,11 @@ export type UndecoratedBasicTrxDetails = {
   received: number,
   sent: number,
   fee: number,
-  confirmation_time?: ConfirmationTime
+  confirmation_time?: UndecoratedBasicConfirmationTime
 }
 
 export type BasicTrxDetails = UndecoratedBasicTrxDetails & {
+  confirmation_time?: BasicConfirmationTime
   net: number
 }
 
@@ -51,9 +59,13 @@ type AdditionalTrxDetails = {
   lock_time: number
 }
 
-export type UndecoratedTrxDetails = UndecoratedBasicTrxDetails & AdditionalTrxDetails
+export type UndecoratedTrxDetails = UndecoratedBasicTrxDetails & AdditionalTrxDetails & {
+  confirmation_time?: UndecoratedConfirmationTime
+}
 
-export type TrxDetails = BasicTrxDetails & AdditionalTrxDetails
+export type TrxDetails = BasicTrxDetails & AdditionalTrxDetails & {
+  confirmation_time?: ConfirmationTime
+}
 
 
 export type FinalizeTrxResponse = {

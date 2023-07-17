@@ -1,7 +1,7 @@
 import { Authenticator } from '@smontero/nostr-ual'
 import { Event } from 'nostr-tools'
 import { Balance } from './Balance'
-import { Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails, UndecoratedBasicTrxDetails, UndecoratedTrxDetails } from './types'
+import { Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails } from './types'
 import { BitcoinUtil, Wallet } from './interfaces'
 import { TimeUtil, fromNostrDate, toPublished } from '../util'
 
