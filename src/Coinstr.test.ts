@@ -127,6 +127,17 @@ describe('Coinstr', () => {
     //   // expect(policies[2]).toEqual(policy1)
     // })
 
+    it('leeproposals ', async () => {
+      const coinstr = new Coinstr({
+        authenticator: new DirectPrivateKeyAuthenticator("3fec18a9e196fd3a6417b45fad7005edb23d8529cb41d8ac738cfdd7d2b75677"),
+        bitcoinUtil,
+        nostrClient: new NostrClient(["wss://test.relay.report"])
+      })
+      let policies = await coinstr.getPolicies();
+      policies = policies.filter(p => p.descriptor === 'vault descriptor')
+      console.log("policies: ", policies)
+    });
+
     it('all policies works', async () => {
       const policies = await coinstr.getPolicies()
       expect(policies.length).toBe(3)

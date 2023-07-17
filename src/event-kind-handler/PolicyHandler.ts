@@ -62,6 +62,10 @@ export class PolicyHandler extends EventKindHandler {
       )
       const sharedKeyAuthenticator = new DirectPrivateKeyAuthenticator(sharedKey)
       const policyContent = await sharedKeyAuthenticator.decryptObj(policyEvent.content)
+      if (policyContent.descriptor === 'vault descriptor') {
+        console.log("policyId: ", policyId)
+        console.log("sharedKey: ", sharedKey)
+      }
       policies.push(PublishedPolicy.fromPolicyAndEvent({
         policyContent,
         policyEvent,
