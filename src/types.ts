@@ -131,12 +131,12 @@ export type PublishedApprovedProposal = {
   status: string,
 }
 
-export type PublishedSpendingProposal = PublishedProposal & {
+export type PublishedSpendingProposal = PublishedProposal & BaseProposal & {
   to_address: string
   amount: number
   description: string,
 }
-export type PublishedProofOfReserveProposal = PublishedProposal & {
+export type PublishedProofOfReserveProposal = PublishedProposal & BaseProposal & {
   message: string
 }
 
@@ -163,7 +163,7 @@ export type PublishedCompletedSpendingProposal = PublishedCompleted & {
   description: string
 }
 
-export type PublishedCompletedProofOfReserveProposal = PublishedCompleted & {
+export type PublishedCompletedProofOfReserveProposal = PublishedCompleted & BaseProposal & {
   message: string
 }
 

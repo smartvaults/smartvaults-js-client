@@ -24,8 +24,8 @@ describe('Coinstr', () => {
     altKeySet = new KeySet(2)
     nostrClient = new NostrClient([
       //'wss://relay.rip',
-      //'wss://test.relay.report'
-      'ws://localhost:7777'
+      'wss://test.relay.report'
+      //'ws://localhost:7777'
     ])
     bitcoinUtil = mock<BitcoinUtil>()
     bitcoinUtil.toDescriptor.mockReturnValue("Descriptor")
@@ -38,9 +38,9 @@ describe('Coinstr', () => {
 
   })
 
-  // afterEach(() => {
-  //   coinstr.disconnect()
-  // })
+  afterEach(() => {
+    coinstr.disconnect()
+  })
 
   describe('mock', () => {
     it('bit', async () => {
@@ -185,6 +185,14 @@ describe('Coinstr', () => {
         bitcoinUtil,
         nostrClient
       })
+      const wallet = mock<Wallet>()
+      wallet.sync.mockResolvedValue()
+      wallet.build_trx
+        .mockResolvedValueOnce({ amount: 1000, psbt: "encoded psbt1" })
+        .mockResolvedValueOnce({ amount: 2000, psbt: "encoded psbt2" })
+        .mockResolvedValueOnce({ amount: 3000, psbt: "encoded psbt3" })
+        .mockResolvedValueOnce({ amount: 4000, psbt: "encoded psbt4" })
+      bitcoinUtil.createWallet.mockReturnValue(wallet)
     })
 
     it('should receive new events', async () => {
@@ -202,7 +210,9 @@ describe('Coinstr', () => {
             break
         }
         counter++
-      })
+      },
+        CoinstrKind.Policy
+      )
 
       await coinstr.savePolicy(savePolicyPayload1)
       await coinstr.savePolicy(savePolicyPayload2)
@@ -211,6 +221,207 @@ describe('Coinstr', () => {
 
     })
 
+
+    it('should receive OwnedSigner and SharedSigners events', async () => {
+      expect.assertions(22)
+      const pubKey = coinstr.authenticator.getPublicKey()
+      let counter: number = 0
+      let saveOwnedSignerPayload1 = saveOwnedSignerPayload(1, pubKey)
+      let saveOwnedSignerPayload2 = saveOwnedSignerPayload(2, pubKey)
+      let saveSharedSignerPayload1 = saveSharedSignerPayload(1, pubKey)
+      let saveSharedSignerPayload2 = saveSharedSignerPayload(2, pubKey)
+      const sub = coinstr.subscribe((kind: number, payload: any) => {
+        switch (counter) {
+          case 0:
+            assertSubscriptionOwnedSignerPayload(kind, payload, saveOwnedSignerPayload1)
+            break
+          case 1:
+            assertSubscriptionOwnedSignerPayload(kind, payload, saveOwnedSignerPayload2)
+            break
+          case 2:
+            assertSubscriptionSharedSignerPayload(kind, payload, saveSharedSignerPayload1)
+            break
+          case 3:
+            assertSubscriptionSharedSignerPayload(kind, payload, saveSharedSignerPayload2)
+            break
+        }
+        counter++
+      }, [CoinstrKind.Signers, CoinstrKind.SharedSigners])
+
+      await coinstr.saveOwnedSigner(saveOwnedSignerPayload1)
+      await coinstr.saveOwnedSigner(saveOwnedSignerPayload2)
+      await coinstr.saveSharedSigner(saveSharedSignerPayload1, pubKey)
+      await coinstr.saveSharedSigner(saveSharedSignerPayload2, pubKey)
+      await sleep(1000)
+      sub.unsub()
+    })
+
+    it('should receive Proposal events', async () => {
+
+      expect.assertions(8)
+      let counter: number = 0
+      let savePolicyPayload1 = getSavePolicyPayload(1, keySet.getPublicKeys(), 2)
+      let savePolicyPayload2 = getSavePolicyPayload(2, keySet.getPublicKeys(), 3)
+      let policy1 = await coinstr.savePolicy(savePolicyPayload1)
+      let policy2 = await coinstr.savePolicy(savePolicyPayload2)
+      let spendProposalPayload1 = spendProposalPayload(1, policy1)
+      let spendProposalPayload2 = spendProposalPayload(2, policy2)
+      let saveProofOfReserveProposalPayload1 = saveProofOfReserveProposalPayload(1)
+      let saveProofOfReserveProposalPayload2 = saveProofOfReserveProposalPayload(2)
+
+      const sub = coinstr.subscribe((kind: number, payload: any) => {
+        switch (counter) {
+          case 0:
+            assertSubscriptionSpendProposalPayload(kind, payload, spendProposal1)
+            break
+          case 1:
+            assertSubscriptionSpendProposalPayload(kind, payload, spendProposal2)
+            break
+          case 2:
+            assertSubscriptionProofOfReserveProposalPayload(kind, payload, proofOfReserveProposal1)
+            break
+          case 3:
+            assertSubscriptionProofOfReserveProposalPayload(kind, payload, proofOfReserveProposal2)
+            break
+        }
+        counter++
+      }, CoinstrKind.Proposal)
+
+      let spendProposal1 = await coinstr.spend(spendProposalPayload1)
+      let spendProposal2 = await coinstr.spend(spendProposalPayload2)
+      let proofOfReserveProposal1 = await coinstr._saveProofOfReserveProposal(policy1.id, saveProofOfReserveProposalPayload1)
+      let proofOfReserveProposal2 = await coinstr._saveProofOfReserveProposal(policy2.id, saveProofOfReserveProposalPayload2)
+
+      await sleep(100)
+      sub.unsub()
+    })
+
+
+    it('should receive ApprovedProposal events', async () => {
+      expect.assertions(8)
+      let counter: number = 0
+      let savePolicyPayload1 = getSavePolicyPayload(1, keySet.getPublicKeys(), 2)
+      let savePolicyPayload2 = getSavePolicyPayload(2, keySet.getPublicKeys(), 3)
+      let policy1 = await coinstr.savePolicy(savePolicyPayload1)
+      let policy2 = await coinstr.savePolicy(savePolicyPayload2)
+      let spendProposalPayload1 = spendProposalPayload(1, policy1)
+      let spendProposalPayload2 = spendProposalPayload(2, policy2)
+      let saveProofOfReserveProposalPayload1 = saveProofOfReserveProposalPayload(1)
+      let saveProofOfReserveProposalPayload2 = saveProofOfReserveProposalPayload(2)
+
+      const sub = coinstr.subscribe((kind: number, payload: any) => {
+        switch (counter) {
+          case 0:
+            assertSubscriptionApprovedProposalPayload(kind, payload, approvedProposal1)
+            break
+          case 1:
+            assertSubscriptionApprovedProposalPayload(kind, payload, approvedProposal2)
+            break
+          case 2:
+            assertSubscriptionApprovedProposalPayload(kind, payload, approvedProposal3)
+            break
+          case 3:
+            assertSubscriptionApprovedProposalPayload(kind, payload, approvedProposal4)
+            break
+        }
+        counter++
+      }, CoinstrKind.ApprovedProposal)
+
+      let spendProposal1 = await coinstr.spend(spendProposalPayload1)
+      let spendProposal2 = await coinstr.spend(spendProposalPayload2)
+      let proofOfReserveProposal1 = await coinstr._saveProofOfReserveProposal(policy1.id, saveProofOfReserveProposalPayload1)
+      let proofOfReserveProposal2 = await coinstr._saveProofOfReserveProposal(policy2.id, saveProofOfReserveProposalPayload2)
+      let approvedProposal1 = await coinstr._saveApprovedProposal(spendProposal1.proposal_id)
+      let approvedProposal2 = await coinstr._saveApprovedProposal(spendProposal2.proposal_id)
+      let approvedProposal3 = await coinstr._saveApprovedProposal(proofOfReserveProposal1.proposal_id)
+      let approvedProposal4 = await coinstr._saveApprovedProposal(proofOfReserveProposal2.proposal_id)
+
+      await sleep(100)
+      sub.unsub()
+    }
+    )
+
+
+    it('should receive CompletedProposal events', async () => {
+      expect.assertions(4)
+      let counter: number = 0
+      let savePolicyPayload1 = getSavePolicyPayload(1, keySet.getPublicKeys(), 2)
+      let savePolicyPayload2 = getSavePolicyPayload(2, keySet.getPublicKeys(), 3)
+      let policy1 = await coinstr.savePolicy(savePolicyPayload1)
+      let policy2 = await coinstr.savePolicy(savePolicyPayload2)
+      let saveProofOfReserveProposalPayload1 = saveProofOfReserveProposalPayload(1)
+      let saveProofOfReserveProposalPayload2 = saveProofOfReserveProposalPayload(2)
+      let proofOfReserveProposal1 = await coinstr._saveProofOfReserveProposal(policy1.id, saveProofOfReserveProposalPayload1)
+      let proofOfReserveProposal2 = await coinstr._saveProofOfReserveProposal(policy2.id, saveProofOfReserveProposalPayload2)
+      let completedProposal1;
+      let completedProposal2;
+      const sub = coinstr.subscribe((kind: number, payload: any) => {
+        sleep(2000)
+        switch (counter) {
+          case 0:
+            assertSubscriptionCompletedProposalPayload(kind, payload, completedProposal1)
+            break
+          case 1:
+            assertSubscriptionCompletedProposalPayload(kind, payload, completedProposal2)
+            break
+        }
+        counter++
+      }, CoinstrKind.CompletedProposal)
+
+
+      completedProposal1 = await coinstr._saveCompletedProposal(proofOfReserveProposal1.proposal_id, saveProofOfReserveProposalPayload1)
+      completedProposal2 = await coinstr._saveCompletedProposal(proofOfReserveProposal2.proposal_id, saveProofOfReserveProposalPayload2)
+
+      await sleep(100)
+      sub.unsub()
+    }
+    )
+
+    it('should receive many events', async () => {
+      let counter: number = 0
+      expect.assertions(24)
+      let savePolicyPayload1 = getSavePolicyPayload(1, keySet.getPublicKeys(), 2)
+      let pubkey = coinstr.authenticator.getPublicKey()
+      let saveOwnedSignerPayload1 = saveOwnedSignerPayload(1, pubkey)
+      let saveSharedSignerPayload1 = saveSharedSignerPayload(1, pubkey)
+
+      const sub = coinstr.subscribe((kind: number, payload: any) => {
+        sleep(2000)
+        switch (counter) {
+          case 0:
+            assertSubscriptionPolicyPayload(kind, payload, savePolicyPayload1)
+            break
+          case 1:
+            assertSubscriptionOwnedSignerPayload(kind, payload, saveOwnedSignerPayload1)
+            break
+          case 2:
+            assertSubscriptionSharedSignerPayload(kind, payload, saveSharedSignerPayload1)
+            break
+          case 3:
+            assertSubscriptionProofOfReserveProposalPayload(kind, payload, proofOfReserveProposal1)
+            break
+          case 4:
+            assertSubscriptionApprovedProposalPayload(kind, payload, approvedProposal1)
+            break
+          case 5:
+            assertSubscriptionCompletedProposalPayload(kind, payload, completedProposal1)
+            break
+        }
+        counter++
+      }, [CoinstrKind.Policy, CoinstrKind.Signers, CoinstrKind.SharedSigners, CoinstrKind.Proposal, CoinstrKind.ApprovedProposal, CoinstrKind.CompletedProposal])
+
+      let policy1 = await coinstr.savePolicy(savePolicyPayload1)
+      await coinstr.saveOwnedSigner(saveOwnedSignerPayload1)
+      await coinstr.saveSharedSigner(saveSharedSignerPayload1, pubkey)
+      let saveProofOfReserveProposalPayload1 = saveProofOfReserveProposalPayload(1)
+      let proofOfReserveProposal1 = await coinstr._saveProofOfReserveProposal(policy1.id, saveProofOfReserveProposalPayload1)
+      let approvedProposal1 = await coinstr._saveApprovedProposal(proofOfReserveProposal1.proposal_id)
+      let completedProposal1 = await coinstr._saveCompletedProposal(proofOfReserveProposal1.proposal_id, saveProofOfReserveProposalPayload1)
+
+      await sleep(100)
+      sub.unsub()
+    }
+    )
   })
 
   describe('Store methods work as expected', () => {
@@ -284,11 +495,12 @@ describe('Coinstr', () => {
     let ownedSigner2: OwnedSigner
     let ownedSigner3: OwnedSigner
     beforeAll(async () => {
-      let saveOwnedSignerPayload1 = saveOwnedSignerPayload(1)
+      const pubKey = coinstr.authenticator.getPublicKey()
+      let saveOwnedSignerPayload1 = saveOwnedSignerPayload(1, pubKey)
       ownedSigner1 = await coinstr.saveOwnedSigner(saveOwnedSignerPayload1)
-      let saveOwnedSignerPayload2 = saveOwnedSignerPayload(2)
+      let saveOwnedSignerPayload2 = saveOwnedSignerPayload(2, pubKey)
       ownedSigner2 = await coinstr.saveOwnedSigner(saveOwnedSignerPayload2)
-      let saveOwnedSignerPayload3 = saveOwnedSignerPayload(3)
+      let saveOwnedSignerPayload3 = saveOwnedSignerPayload(3, pubKey)
       ownedSigner3 = await coinstr.saveOwnedSigner(saveOwnedSignerPayload3)
     })
     it('returns owned signers', async () => {
@@ -327,13 +539,13 @@ describe('Coinstr', () => {
       });
 
       let pubKey = keySet1.keys[1].publicKey
-      let saveSharedSignerPayload1 = saveSharedSignerPayload(1)
+      let saveSharedSignerPayload1 = saveSharedSignerPayload(1, pubKey)
       let sharedSignerResult = await coinstr.saveSharedSigner(saveSharedSignerPayload1, pubKey)
       sharedSigner1 = sharedSignerResult[0]
-      let saveSharedSignerPayload2 = saveSharedSignerPayload(2)
+      let saveSharedSignerPayload2 = saveSharedSignerPayload(2, pubKey)
       sharedSignerResult = await coinstr.saveSharedSigner(saveSharedSignerPayload2, pubKey)
       sharedSigner2 = sharedSignerResult[0]
-      let saveSharedSignerPayload3 = saveSharedSignerPayload(3)
+      let saveSharedSignerPayload3 = saveSharedSignerPayload(3, pubKey)
       sharedSignerResult = await coinstr.saveSharedSigner(saveSharedSignerPayload3, pubKey)
       sharedSigner3 = sharedSignerResult[0]
 
@@ -343,10 +555,10 @@ describe('Coinstr', () => {
         nostrClient
       });
 
-      saveSharedSignerPayload1 = saveSharedSignerPayload(6)
+      saveSharedSignerPayload1 = saveSharedSignerPayload(6, pubKey)
       sharedSignerResult = await coinstrWithAuthenticator3.saveSharedSigner(saveSharedSignerPayload1, pubKey)
       sharedSigner4 = sharedSignerResult[0]
-      saveSharedSignerPayload1 = saveSharedSignerPayload(7)
+      saveSharedSignerPayload1 = saveSharedSignerPayload(7, pubKey)
       sharedSignerResult = await coinstrWithAuthenticator3.saveSharedSigner(saveSharedSignerPayload1, pubKey)
       sharedSigner5 = sharedSignerResult[0]
 
@@ -628,6 +840,45 @@ function assertSubscriptionPolicyPayload(kind: number, actual: any, savePayload:
 
 }
 
+function assertSubscriptionSharedSignerPayload(kind: number, payload: any, expectedPayload: SharedSigner) {
+  expect(kind).toBe(CoinstrKind.SharedSigners)
+  expect(payload.descriptor).toEqual(expectedPayload.descriptor)
+  expect(payload.fingerprint).toEqual(expectedPayload.fingerprint)
+  expect(payload.ownerPubKey).toEqual(expectedPayload.ownerPubKey)
+}
+
+function assertSubscriptionOwnedSignerPayload(kind: number, payload: any, expectedPayload: OwnedSigner) {
+  expect(kind).toBe(CoinstrKind.Signers)
+  expect(payload.descriptor).toEqual(expectedPayload.descriptor)
+  expect(payload.fingerprint).toEqual(expectedPayload.fingerprint)
+  expect(payload.ownerPubKey).toEqual(expectedPayload.ownerPubKey)
+  expect(payload.name).toEqual(expectedPayload.name)
+  expect(payload.t).toEqual(expectedPayload.t)
+  expect(payload.description).toEqual(expectedPayload.description)
+}
+
+
+
+function assertSubscriptionSpendProposalPayload(kind: number, payload: any, expectedPayload: any) {
+  expect(kind).toBe(CoinstrKind.Proposal)
+  expect(payload).toEqual(expectedPayload)
+}
+
+function assertSubscriptionProofOfReserveProposalPayload(kind: number, payload: any, expectedPayload: any) {
+  expect(kind).toBe(CoinstrKind.Proposal)
+  expect(payload).toEqual(expectedPayload)
+}
+
+function assertSubscriptionApprovedProposalPayload(kind: number, payload: any, expectedPayload: any) {
+  expect(kind).toBe(CoinstrKind.ApprovedProposal)
+  expect(payload).toEqual(expectedPayload)
+}
+
+function assertSubscriptionCompletedProposalPayload(kind: number, payload: any, expectedPayload: any) {
+  expect(kind).toBe(CoinstrKind.CompletedProposal)
+  expect(payload).toEqual(expectedPayload)
+}
+
 function assertProposalDirectMessage(directMessage: PublishedDirectMessage, proposal: PublishedSpendingProposal, pubkey: string) {
   expect(directMessage.publicKey).toBe(pubkey)
   expect(directMessage.message).toContain(`Amount: ${proposal.amount}`)
@@ -670,18 +921,18 @@ async function setProfile(id: number, coinstr: Coinstr): Promise<Profile> {
   return coinstr.setProfile(metadata)
 }
 
-function saveSharedSignerPayload(id: number): SharedSigner {
+function saveSharedSignerPayload(id: number, ownerPubKey: string): SharedSigner {
   return {
     descriptor: `descriptor${id}`,
     fingerprint: `fingerprint${id}`,
-    ownerPubKey: `ownerPubKey${id}`,
+    ownerPubKey,
   }
 }
-function saveOwnedSignerPayload(id: number): OwnedSigner {
+function saveOwnedSignerPayload(id: number, ownerPubKey: string): OwnedSigner {
   return {
     descriptor: `descriptor${id}`,
     fingerprint: `fingerprint${id}`,
-    ownerPubKey: `ownerPubKey${id}`,
+    ownerPubKey,
     name: `name${id}`,
     t: `t${id}`,
     description: `description${id}`,

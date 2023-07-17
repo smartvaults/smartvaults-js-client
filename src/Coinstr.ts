@@ -352,8 +352,11 @@ export class Coinstr {
 
   }
 
-  subscribe(callback: (eventKind: number, payload: any) => void): Sub<number> {
-    let filters = this.subscriptionFilters()
+  subscribe(callback: (eventKind: number, payload: any) => void, kinds: (CoinstrKind | Kind)[] | (CoinstrKind | Kind)): Sub<number> {
+    if (!Array.isArray(kinds)) {
+      kinds = [kinds]
+    }
+    let filters = this.subscriptionFilters(kinds)
     return this.nostrClient.sub(filters, async (event: Event<number>) => {
       const {
         kind
@@ -368,21 +371,41 @@ export class Coinstr {
     })
   }
 
-  private subscriptionFilters(): Filter<number>[] {
-    let paginationOpts = {
+  private buildFilter(kind: CoinstrKind | Kind, useAuthors = false) {
+    const paginationOpts = {
       since: nostrDate()
     }
-    return filterBuilder()
-      .kinds(CoinstrKind.Policy)
-      .pubkeys(this.authenticator.getPublicKey())
-      .pagination(paginationOpts)
-      .toFilters()
+
+    let builder = filterBuilder().kinds(kind).pagination(paginationOpts)
+
+    if (useAuthors) {
+      builder = builder.authors(this.authenticator.getPublicKey())
+    } else {
+      builder = builder.pubkeys(this.authenticator.getPublicKey())
+    }
+
+    return builder.toFilter()
+  }
+
+  private subscriptionFilters(kinds: (CoinstrKind | Kind)[]): Filter<number>[] {
+    let filters: Filter<number>[] = [];
+    const coinstrKinds = new Set(Object.values(CoinstrKind));
+
+    for (const kind of kinds) {
+      if (coinstrKinds.has(kind as CoinstrKind)) {
+        const useAuthors = kind === CoinstrKind.Signers;
+        filters.push(this.buildFilter(kind as CoinstrKind, useAuthors));
+      } else if (!(kind in Kind)) {
+        throw new Error(`Unknown kind: ${kind}`);
+      }
+    }
+
+    return filters;
   }
 
   disconnect(): void {
     this.nostrClient.disconnect
   }
-
 
 
   private async _getOwnedSigners(filter: Filter<CoinstrKind.Signers>[]): Promise<CoinstrTypes.PublishedOwnedSigner[]> {
@@ -700,20 +723,6 @@ export class Coinstr {
   }
 
 
-  // async getPoliciesById(ids: string[]): Promise<Map<string, PublishedPolicy>> {
-  //   const store = this.getStore(CoinstrKind.Policy)
-  //   const missingIds = store.missing(ids)
-  //   if (missingIds.length) {
-  //     const policiesFilter = filterBuilder()
-  //       .kinds(CoinstrKind.Policy)
-  //       .pubkeys(this.authenticator.getPublicKey())
-  //       .ids(missingIds)
-  //       .toFilters()
-  //     await this._getPolicies(policiesFilter)
-  //   }
-  //   return store.getMany(ids!)
-  // }
-
   /**
    * Method to retrieve and decrypt not completed proposals.
    * 
@@ -812,7 +821,7 @@ export class Coinstr {
     return publishedApprovedProposal
   }
 
-  async _saveCompletedProposal(proposal_id: string, payload: CoinstrTypes.CompletedProofOfReserveProposal): Promise<any> {
+  async _saveCompletedProposal(proposal_id: string, payload: CoinstrTypes.CompletedProofOfReserveProposal | CoinstrTypes.CompletedSpendingProposal): Promise<any> {
     const proposalEvent = await this.getProposalEvent(proposal_id)
     const policyId = getTagValues(proposalEvent, TagType.Event)[0]
     const policyEvent = await this.getPolicyEvent(policyId)
@@ -844,9 +853,9 @@ export class Coinstr {
       , sharedKeyAuthenticator)
 
     const pubDelete = this.nostrClient.publish(deletedProposalEvent)
-    await pubDelete.onFirstOkOrCompleteFailure()
+    pubDelete.onFirstOkOrCompleteFailure()
 
-    const publishedCompletedProposal: CoinstrTypes.PublishedCompletedProofOfReserveProposal = {
+    const publishedCompletedProposal: CoinstrTypes.PublishedCompletedProofOfReserveProposal | CoinstrTypes.PublishedCompletedSpendingProposal = {
       type,
       ...payload[type],
       proposal_id,
