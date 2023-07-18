@@ -175,6 +175,14 @@ export class Coinstr {
     },
       sharedKeyAuthenticator)
 
+    const publishedPolicy = PublishedPolicy.fromPolicyAndEvent({
+      policyContent,
+      policyEvent,
+      bitcoinUtil: this.bitcoinUtil,
+      nostrPublicKeys,
+      sharedKeyAuth: sharedKeyAuthenticator
+    })
+
     const promises: Promise<void>[] = []
 
     for (const pubkey of nostrPublicKeys) {
@@ -192,13 +200,6 @@ export class Coinstr {
 
     const pub = this.nostrClient.publish(policyEvent)
     await pub.onFirstOkOrCompleteFailure()
-    const publishedPolicy = PublishedPolicy.fromPolicyAndEvent({
-      policyContent,
-      policyEvent,
-      bitcoinUtil: this.bitcoinUtil,
-      nostrPublicKeys,
-      sharedKeyAuth: sharedKeyAuthenticator
-    })
     this.getStore(CoinstrKind.Policy).store(publishedPolicy)
     return publishedPolicy
   }
