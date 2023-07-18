@@ -742,9 +742,12 @@ export class Coinstr {
   checkPsbts = async (proposalId: string): Promise<boolean> => {
     const psbts: string[] = []
     const approvalsMap = await this.getApprovals(proposalId)
-    const approvals = approvalsMap.get(proposalId)
+    let approvals = approvalsMap.get(proposalId)
     if (!approvals) {
       return false
+    }
+    if (!Array.isArray(approvals)) {
+      approvals = [approvals]
     }
     for (const approval of approvals) {
       const psbt = approval.psbt
@@ -772,12 +775,15 @@ export class Coinstr {
       throw new Error(`Policy with for proposal ${proposalId} not found`)
     }
     const approvalsMap = await this.getApprovals(proposalId)
-    const approvals = approvalsMap.get(proposalId)
+    let approvals = approvalsMap.get(proposalId)
     if (!approvals) {
       throw new Error(`No approvals for ${proposalId} were found`)
     }
-
+    if (!Array.isArray(approvals)) {
+      approvals = [approvals]
+    }
     const psbts: string[] = []
+
     for (const approval of approvals) {
       const psbt = approval.psbt
       psbts.push(psbt)

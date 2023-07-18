@@ -813,7 +813,6 @@ describe('Coinstr', () => {
     it('finalizeSpendingProposal works', async () => {
       bitcoinUtil.canFinalizePsbt.mockReturnValue(true)
       await coinstr._saveApprovedProposal(spendProposal1.proposal_id)
-      await coinstr._saveApprovedProposal(spendProposal1.proposal_id)
       const finalizedProposal = await coinstr.finalizeSpendingProposal(spendProposal1.proposal_id)
       expect(finalizedProposal.tx).toEqual(expectedTrx.trx)
       expect(finalizedProposal.description).toEqual(spendProposal1.description)
