@@ -195,7 +195,7 @@ describe('Coinstr', () => {
       bitcoinUtil.createWallet.mockReturnValue(wallet)
     })
 
-    it('should receive new events', async () => {
+    it('should receive policy events', async () => {
       expect.assertions(14)
       let counter: number = 0
       let savePolicyPayload1 = getSavePolicyPayload(1, keySet.getPublicKeys(), 2)
@@ -216,7 +216,7 @@ describe('Coinstr', () => {
 
       await coinstr.savePolicy(savePolicyPayload1)
       await coinstr.savePolicy(savePolicyPayload2)
-      await sleep(100)
+      await sleep(500)
       sub.unsub()
 
     })
@@ -292,7 +292,7 @@ describe('Coinstr', () => {
       let proofOfReserveProposal1 = await coinstr._saveProofOfReserveProposal(policy1.id, saveProofOfReserveProposalPayload1)
       let proofOfReserveProposal2 = await coinstr._saveProofOfReserveProposal(policy2.id, saveProofOfReserveProposalPayload2)
 
-      await sleep(100)
+      await sleep(2000)
       sub.unsub()
     })
 
@@ -623,7 +623,7 @@ describe('Coinstr', () => {
     let firstCallTime2;
     let secondCallTime1;
     let secondCallTime2;
-
+    let expectedTrx;
     let coinstr2: Coinstr
 
     beforeAll(async () => {
@@ -638,6 +638,9 @@ describe('Coinstr', () => {
         .mockResolvedValueOnce({ amount: 3000, psbt: "encoded psbt3" })
         .mockResolvedValueOnce({ amount: 4000, psbt: "encoded psbt4" })
       bitcoinUtil.createWallet.mockReturnValue(wallet)
+      expectedTrx = { trx_id: "id1", psbt: "psbt1", trx: { inputs: ["input1"] } }
+      wallet.finalize_trx.mockResolvedValue(expectedTrx)
+
 
       let savePolicyPayload1 = getSavePolicyPayload(11, keySet1.getPublicKeys(), -10)
       let policy1 = await coinstr.savePolicy(savePolicyPayload1) // Policy 1 is created by authenticator 1
@@ -703,7 +706,7 @@ describe('Coinstr', () => {
     });
 
     it('getProposalsById', async () => {
-      const proposals = await coinstr.getProposalsById({}, [spendProposal1.proposal_id, spendProposal3.proposal_id]);
+      const proposals = await coinstr.getProposalsById([spendProposal1.proposal_id, spendProposal3.proposal_id]);
       expect(proposals.size).toBe(2);
       expect(new Set(Array.from(proposals.values()))).toEqual(new Set([spendProposal1, spendProposal3]));
     });
@@ -715,7 +718,7 @@ describe('Coinstr', () => {
         [policyId1, [proofOfReserveProposal1, spendProposal1]],
         [policyId3, [proofOfReserveProposal3, spendProposal3]]
       ]);
-      const proposals = await coinstr.getProposalsByPolicyId({}, [spendProposal1.policy_id, spendProposal3.policy_id]);
+      const proposals = await coinstr.getProposalsByPolicyId([spendProposal1.policy_id, spendProposal3.policy_id]);
       expect(proposals.size).toBe(2);
       expect(new Set(proposals.values())).toEqual(new Set(expectedMap.values()));
     });
@@ -800,11 +803,27 @@ describe('Coinstr', () => {
     });
 
     it('getCompletedProposalsById', async () => {
-      const proposals = await coinstr.getCompletedProposalsById({}, [completedProposal2.proposal_id, completedProposal3.proposal_id]);
+      const proposals = await coinstr.getCompletedProposalsById([completedProposal2.id, completedProposal3.id]);
       expect(proposals.size).toBe(2);
-      expect(new Set(Array.from(proposals.values()))).toEqual(new Set([completedProposal2, completedProposal3]));
+      expect(proposals.get(completedProposal2.id)).toEqual(completedProposal2);
+      expect(proposals.get(completedProposal3.id)).toEqual(completedProposal3);
     }
     );
+
+    it('finalizeSpendingProposal works', async () => {
+      bitcoinUtil.canFinalizePsbt.mockReturnValue(true)
+      await coinstr._saveApprovedProposal(spendProposal1.proposal_id)
+      await coinstr._saveApprovedProposal(spendProposal1.proposal_id)
+      const finalizedProposal = await coinstr.finalizeSpendingProposal(spendProposal1.proposal_id)
+      expect(finalizedProposal.tx).toEqual(expectedTrx.trx)
+      expect(finalizedProposal.description).toEqual(spendProposal1.description)
+      await sleep(1000)
+      const completedProposalsMap = await coinstr.getCompletedProposalsById(finalizedProposal.id);
+      expect(completedProposalsMap.size).toBe(1);
+      expect(completedProposalsMap.get(finalizedProposal.id)).toEqual(finalizedProposal);
+    }
+    );
+
   });
 
   function newCoinstr(keys: Keys): Coinstr {

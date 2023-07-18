@@ -1,6 +1,6 @@
 import { type Event } from 'nostr-tools'
-import { TagType, ProposalType } from '../enum'
-import { type SpendingProposal, type ProofOfReserveProposal, type PublishedSpendingProposal, type PublishedProofOfReserveProposal } from '../types'
+import { TagType, ProposalType, ProposalStatus } from '../enum'
+import { type SpendingProposal, type ProofOfReserveProposal, type PublishedSpendingProposal, type PublishedProofOfReserveProposal, type SharedKeyAuthenticator } from '../types'
 import { type Store } from '../service'
 import { getTagValues, fromNostrDate } from '../util'
 import { EventKindHandler } from './EventKindHandler'
@@ -11,7 +11,7 @@ export class ProposalHandler extends EventKindHandler {
     this.store = store
   }
 
-  protected async _handle<K extends number>(proposalEvents: Array<Event<K>>, getSharedKeysById: any): Promise<Array<PublishedSpendingProposal | PublishedProofOfReserveProposal>> {
+  protected async _handle<K extends number>(proposalEvents: Array<Event<K>>, getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>, checkPsbts: (proposalId: string) => Promise<boolean>): Promise<Array<PublishedSpendingProposal | PublishedProofOfReserveProposal>> {
     const proposalIds = proposalEvents.map(proposal => proposal.id)
     const indexKey = 'proposal_id'
     const missingProposalsIds = this.store.missing(proposalIds, indexKey)
@@ -28,13 +28,16 @@ export class ProposalHandler extends EventKindHandler {
         continue
       }
       const policyId = getTagValues(proposalEvent, TagType.Event)[0]
-      const sharedKeyAuthenticator = sharedKeyAuthenticators.get(policyId).sharedKeyAuthenticator
+      const sharedKeyAuthenticator = sharedKeyAuthenticators.get(policyId)?.sharedKeyAuthenticator
       if (!sharedKeyAuthenticator) continue
       const decryptedProposalObj: SpendingProposal | ProofOfReserveProposal = await sharedKeyAuthenticator.decryptObj(proposalEvent.content)
       const type = decryptedProposalObj[ProposalType.Spending] ? ProposalType.Spending : ProposalType.ProofOfReserve
       const createdAt = fromNostrDate(proposalEvent.created_at)
+      const status = await checkPsbts(proposalEvent.id) ? ProposalStatus.Signed : ProposalStatus.Unsigned
+
       const publishedProposal: PublishedSpendingProposal | PublishedProofOfReserveProposal = {
         type,
+        status,
         ...decryptedProposalObj[type],
         createdAt,
         policy_id: policyId,

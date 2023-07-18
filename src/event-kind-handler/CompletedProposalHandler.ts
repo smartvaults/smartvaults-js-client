@@ -23,7 +23,8 @@ export class CompletedProposalHandler extends EventKindHandler {
     const completedProposals: Array<PublishedCompletedProofOfReserveProposal | PublishedCompletedSpendingProposal> = []
     for (const completedProposalEvent of completedProposalEvents) {
       const proposalId = getTagValues(completedProposalEvent, TagType.Event)[0]
-      const storeValue = this.store.get(proposalId)
+      const completedProposalId = completedProposalEvent.id
+      const storeValue = this.store.get(completedProposalId)
       if (storeValue) {
         completedProposals.push(storeValue)
         continue
@@ -39,7 +40,8 @@ export class CompletedProposalHandler extends EventKindHandler {
         policy_id: policyId,
         proposal_id: proposalId,
         completed_by: completedProposalEvent.pubkey,
-        completion_date: fromNostrDate(completedProposalEvent.created_at)
+        completion_date: fromNostrDate(completedProposalEvent.created_at),
+        id: completedProposalEvent.id
       }
       completedProposals.push(publishedCompleteProposal)
     }

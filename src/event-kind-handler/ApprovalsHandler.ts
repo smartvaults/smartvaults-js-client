@@ -15,13 +15,17 @@ export class ApprovalsHandler extends EventKindHandler {
   protected async _handle<K extends number>(approvalEvents: Array<Event<K>>, getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>): Promise<PublishedApprovedProposal[]> {
     const policiesIds = approvalEvents.map(proposal => getTagValues(proposal, TagType.Event)[1])
     const sharedKeys = await getSharedKeysById(policiesIds)
+    const indexKey = 'approval_id'
     const approvedPublishedProposals: PublishedApprovedProposal[] = []
-
+    const approvalIds = approvalEvents.map(approval => approval.id)
+    const missingApprovalIds = this.store.missing(approvalIds, indexKey)
+    if (missingApprovalIds.length === 0) {
+      return this.store.getManyAsArray(approvalIds, indexKey)
+    }
     for (const approvedProposalEvent of approvalEvents) {
       const policyId = getTagValues(approvedProposalEvent, TagType.Event)[1]
       const proposalId = getTagValues(approvedProposalEvent, TagType.Event)[0]
       const approvalId = approvedProposalEvent.id
-      const indexKey = 'approval_id'
 
       if (this.store.has(approvalId, indexKey)) {
         approvedPublishedProposals.push(this.store.get(approvalId, indexKey))

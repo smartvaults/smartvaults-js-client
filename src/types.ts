@@ -111,6 +111,7 @@ type PublishedProposal = {
   proposal_id: string
   type: string
   createdAt: Date
+  status: string
 }
 
 export type BaseApprovedProposal = {
@@ -156,6 +157,7 @@ type PublishedCompleted = {
   policy_id: string
   completed_by: string
   completion_date: Date
+  id: string
 }
 
 export type PublishedCompletedSpendingProposal = PublishedCompleted & {
