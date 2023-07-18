@@ -44,5 +44,6 @@ export interface BitcoinUtil {
   toDescriptor(miniscript: string): string
   createWallet(descriptor): Wallet
   canFinalizePsbt(psbts: string[]): boolean
+  getTrxId(trx: any): string
 }
 
