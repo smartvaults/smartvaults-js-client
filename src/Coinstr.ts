@@ -1,6 +1,6 @@
 import { Authenticator, DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { generatePrivateKey, Kind, Event, Filter, Sub } from 'nostr-tools'
-import { CoinstrKind, TagType, ProposalType, ProposalStatus } from './enum'
+import { CoinstrKind, TagType, ProposalType, ProposalStatus, ApprovalStatus } from './enum'
 import { NostrClient, PubPool, Store } from './service'
 import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished, nostrDate } from './util'
 import { BitcoinUtil, Contact, Policy, PublishedPolicy } from './models'
@@ -738,25 +738,56 @@ export class Coinstr {
   }
 
 
-
+  /**
+   * Method to check if a proposal's PSBTs can be finalized.
+   *
+   * This method retrieves all approvals for a given proposal ID, filters out the approvals that are expired,
+   * and checks if the PSBTs for the active approvals can be finalized.
+   *
+   * @param proposalId - The ID of the proposal to check.
+   *
+   * @returns A Promise that resolves to a boolean indicating whether the PSBTs for the given proposal can be finalized.
+   */
   checkPsbts = async (proposalId: string): Promise<boolean> => {
-    const psbts: string[] = []
-    const approvalsMap = await this.getApprovals(proposalId)
-    let approvals = approvalsMap.get(proposalId)
-    if (!approvals) {
-      return false
-    }
-    if (!Array.isArray(approvals)) {
-      approvals = [approvals]
-    }
-    for (const approval of approvals) {
-      const psbt = approval.psbt
-      psbts.push(psbt)
-    }
+    try {
+      const approvalsMap = await this.getApprovals(proposalId);
+      const approvalData = approvalsMap.get(proposalId);
 
-    return this.bitcoinUtil.canFinalizePsbt(psbts)
+      if (!approvalData) {
+        return false;
+      }
+
+      const approvals = Array.isArray(approvalData) ? approvalData : [approvalData];
+
+      const psbts: string[] = approvals
+        .filter(approval => approval.status === ApprovalStatus.Active)
+        .map(activeApproval => activeApproval.psbt);
+
+      return this.bitcoinUtil.canFinalizePsbt(psbts);
+    } catch (error) {
+      console.error(error);
+      throw error;
+    }
   }
 
+  /**
+   * Method to finalize a spending proposal.
+   *
+   * This method finalizes a spending proposal by doing the following:
+   * 1. It retrieves the proposal by ID and ensures it's a spending proposal.
+   * 2. It fetches the associated policy.
+   * 3. It retrieves all active approvals for the given proposal ID and checks if their PSBTs can be finalized.
+   * 4. If the PSBTs can be finalized, it proceeds to finalize the transaction and broadcast the proposal.
+   * 5. It then encrypts the completed proposal and builds two events: a completed proposal event and a proposal deletion event.
+   * 6. Both events are published 
+   * 7. Finally, it constructs and returns the published completed proposal.
+   *
+   * @param proposalId - The ID of the spending proposal to finalize.
+   *
+   * @returns A Promise that resolves to a `PublishedCompletedSpendingProposal` object representing the finalized proposal.
+   *
+   * @throws An error if the proposal or policy cannot be found, if there are no approvals for the proposal, if the PSBTs cannot be finalized, or if the proposal cannot be broadcast.
+   */
   async finalizeSpendingProposal(proposalId: string): Promise<CoinstrTypes.PublishedCompletedSpendingProposal> {
     const proposalMap = await this.getProposalsById(proposalId)
 
@@ -782,12 +813,10 @@ export class Coinstr {
     if (!Array.isArray(approvals)) {
       approvals = [approvals]
     }
-    const psbts: string[] = []
 
-    for (const approval of approvals) {
-      const psbt = approval.psbt
-      psbts.push(psbt)
-    }
+    const psbts: string[] = approvals
+      .filter(approval => approval.status === ApprovalStatus.Active)
+      .map(activeApproval => activeApproval.psbt);
 
     if (!this.bitcoinUtil.canFinalizePsbt(psbts)) {
       throw new Error(`Cannot finalize psbt for proposal ${proposalId}`)
@@ -841,7 +870,7 @@ export class Coinstr {
       completion_date: fromNostrDate(completedProposalEvent.created_at),
       id: completedProposalEvent.id,
     }
-    Promise.all([pubCompletedProposalPromise, pubDeleteEventPromise])
+    await Promise.all([pubCompletedProposalPromise, pubDeleteEventPromise])
     return publishedCompletedProposal
   }
 
@@ -920,7 +949,7 @@ export class Coinstr {
       approved_by: approvedProposalEvent.pubkey,
       approval_date: fromNostrDate(approvedProposalEvent.created_at),
       expiration_date: fromNostrDate(expirationDate),
-      status: "active"
+      status: ApprovalStatus.Active,
     }
 
     const pub = this.nostrClient.publish(approvedProposalEvent)

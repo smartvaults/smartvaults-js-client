@@ -1,5 +1,5 @@
 import { type Event } from 'nostr-tools'
-import { ProposalType, TagType } from '../enum'
+import { ProposalType, TagType, ApprovalStatus } from '../enum'
 import { type PublishedApprovedProposal, type BaseApprovedProposal, type SharedKeyAuthenticator } from '../types'
 import { type Store } from '../service'
 import { getTagValues, fromNostrDate } from '../util'
@@ -48,7 +48,7 @@ export class ApprovalsHandler extends EventKindHandler {
         approved_by: approvedProposalEvent.pubkey,
         approval_date: fromNostrDate(approvedProposalEvent.created_at),
         expiration_date: expirationDate,
-        status: expirationDate < new Date() ? 'expired' : 'active'
+        status: expirationDate < new Date() ? ApprovalStatus.Expired : ApprovalStatus.Active
       }
       approvedPublishedProposals.push(publishedApprovedProposal)
     }
