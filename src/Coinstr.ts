@@ -392,12 +392,13 @@ export class Coinstr {
   private subscriptionFilters(kinds: (CoinstrKind | Kind)[]): Filter<number>[] {
     let filters: Filter<number>[] = [];
     const coinstrKinds = new Set(Object.values(CoinstrKind));
+    const kindsSet = new Set(Object.values(Kind));
 
     for (const kind of kinds) {
       if (coinstrKinds.has(kind as CoinstrKind)) {
         const useAuthors = kind === CoinstrKind.Signers;
         filters.push(this.buildFilter(kind as CoinstrKind, useAuthors));
-      } else if (!(kind in Kind)) {
+      } else if (!kindsSet.has(kind as Kind)) {
         throw new Error(`Unknown kind: ${kind}`);
       }
     }
