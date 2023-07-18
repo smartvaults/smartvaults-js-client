@@ -1,19 +1,19 @@
 import { ProposalType } from './enum';
 import { BasePolicy, PublishedPolicy } from './models'
+import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 
-type BaseSharedSigner = {
+export type BaseSharedSigner = {
   descriptor: string;
   fingerprint: string;
 };
 
-type BaseOwnedSigner = {
+export type BaseOwnedSigner = {
   description: any,
   descriptor: string,
   fingerprint: string,
   name: string,
   t: string,
 }
-
 
 export type Published = {
   id: string
@@ -92,17 +92,17 @@ type BaseProposal = {
   psbt: string // to be change to PSBT
 }
 
-export type SpendingProposal =  {
+export type SpendingProposal = {
   [key: string]: BaseProposal & {
-  to_address: string
-  amount: number
-  description: string,
+    to_address: string
+    amount: number
+    description: string,
   }
 }
 
 export type ProofOfReserveProposal = {
   [key: string]: BaseProposal & {
-  message: string
+    message: string
   }
 }
 
@@ -124,8 +124,9 @@ export type PublishedApprovedProposal = {
   psbt: string,
   proposal_id: string,
   policy_id: string,
+  approval_id: string,
   approved_by: string,
-  approval_date : Date,
+  approval_date: Date,
   expiration_date: Date,
   status: string,
 }
@@ -141,8 +142,8 @@ export type PublishedProofOfReserveProposal = PublishedProposal & {
 
 export type CompletedSpendingProposal = {
   [key: string]: {
-  tx: string
-  description : string
+    tx: string
+    description: string
   }
 }
 
@@ -157,12 +158,17 @@ type PublishedCompleted = {
   completion_date: Date
 }
 
-export type PublishedCompletedSpendingProposal =  PublishedCompleted & {
+export type PublishedCompletedSpendingProposal = PublishedCompleted & {
   tx: string
-  description : string
+  description: string
 }
 
 export type PublishedCompletedProofOfReserveProposal = PublishedCompleted & {
   message: string
 }
 
+
+export type SharedKeyAuthenticator = {
+  policyId: string
+  sharedKeyAuthenticator: DirectPrivateKeyAuthenticator
+}
