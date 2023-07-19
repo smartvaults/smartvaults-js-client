@@ -7,14 +7,17 @@ import { EventKindHandler } from './EventKindHandler'
 
 export class ApprovalsHandler extends EventKindHandler {
   private readonly store: Store
-  constructor(store: Store) {
+  private readonly getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>
+  constructor(store: Store, getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>) {
     super()
     this.store = store
+    this.getSharedKeysById = getSharedKeysById
+
   }
 
-  protected async _handle<K extends number>(approvalEvents: Array<Event<K>>, getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>): Promise<PublishedApprovedProposal[]> {
+  protected async _handle<K extends number>(approvalEvents: Array<Event<K>>): Promise<PublishedApprovedProposal[]> {
     const policiesIds = approvalEvents.map(proposal => getTagValues(proposal, TagType.Event)[1])
-    const sharedKeys = await getSharedKeysById(policiesIds)
+    const sharedKeys = await this.getSharedKeysById(policiesIds)
     const indexKey = 'approval_id'
     const approvedPublishedProposals: PublishedApprovedProposal[] = []
     const approvalIds = approvalEvents.map(approval => approval.id)

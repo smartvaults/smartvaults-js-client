@@ -6,12 +6,16 @@ import { getTagValues, fromNostrDate } from '../util'
 import { EventKindHandler } from './EventKindHandler'
 export class ProposalHandler extends EventKindHandler {
   private readonly store: Store
-  constructor(store: Store) {
+  private readonly getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>
+  private readonly checkPsbts: (proposalId: string) => Promise<boolean>
+  constructor(store: Store, getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>, checkPsbts: (proposalId: string) => Promise<boolean>) {
     super()
     this.store = store
+    this.getSharedKeysById = getSharedKeysById
+    this.checkPsbts = checkPsbts
   }
 
-  protected async _handle<K extends number>(proposalEvents: Array<Event<K>>, getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>, checkPsbts: (proposalId: string) => Promise<boolean>): Promise<Array<PublishedSpendingProposal | PublishedProofOfReserveProposal>> {
+  protected async _handle<K extends number>(proposalEvents: Array<Event<K>>): Promise<Array<PublishedSpendingProposal | PublishedProofOfReserveProposal>> {
     const proposalIds = proposalEvents.map(proposal => proposal.id)
     const indexKey = 'proposal_id'
     const missingProposalsIds = this.store.missing(proposalIds, indexKey)
@@ -20,7 +24,7 @@ export class ProposalHandler extends EventKindHandler {
     }
     const decryptedProposals: any[] = []
     const policiesIds = proposalEvents.map(proposal => getTagValues(proposal, TagType.Event)[0])
-    const sharedKeyAuthenticators = await getSharedKeysById(policiesIds)
+    const sharedKeyAuthenticators = await this.getSharedKeysById(policiesIds)
     for (const proposalEvent of proposalEvents) {
       const storeValue = this.store.get(proposalEvent.id)
       if (storeValue) {
@@ -33,7 +37,7 @@ export class ProposalHandler extends EventKindHandler {
       const decryptedProposalObj: SpendingProposal | ProofOfReserveProposal = await sharedKeyAuthenticator.decryptObj(proposalEvent.content)
       const type = decryptedProposalObj[ProposalType.Spending] ? ProposalType.Spending : ProposalType.ProofOfReserve
       const createdAt = fromNostrDate(proposalEvent.created_at)
-      const status = await checkPsbts(proposalEvent.id) ? ProposalStatus.Signed : ProposalStatus.Unsigned
+      const status = await this.checkPsbts(proposalEvent.id) ? ProposalStatus.Signed : ProposalStatus.Unsigned
 
       const publishedProposal: PublishedSpendingProposal | PublishedProofOfReserveProposal = {
         type,
@@ -48,4 +52,5 @@ export class ProposalHandler extends EventKindHandler {
     this.store.store(decryptedProposals)
     return decryptedProposals
   }
+
 }

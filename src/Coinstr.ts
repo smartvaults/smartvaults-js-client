@@ -39,6 +39,7 @@ export class Coinstr {
     this.stores.set(CoinstrKind.CompletedProposal, Store.createSingleIndexStore("id"))
     this.stores.set(CoinstrKind.SharedSigners, Store.createSingleIndexStore("id"))
     this.stores.set(CoinstrKind.Signers, Store.createSingleIndexStore("id"))
+    this.stores.set(Kind.Metadata, Store.createSingleIndexStore("publicKey"))
   }
   initEventKindHandlerFactory() {
     this.eventKindHandlerFactor = new EventKindHandlerFactory(this)
@@ -97,26 +98,17 @@ export class Coinstr {
   }
 
   async getProfiles(publicKeys: string[]): Promise<CoinstrTypes.Profile[]> {
+    const store = this.getStore(Kind.Metadata)
+    const missingPublicKeys = store.missing(publicKeys)
+    if (missingPublicKeys.length === 0) {
+      return store.getManyAsArray(publicKeys)
+    }
     const metadataFilter = filterBuilder()
       .kinds(Kind.Metadata)
       .authors(publicKeys)
       .toFilters()
-
     const metadataEvents = await this.nostrClient.list(metadataFilter)
-    const eventsMap: Map<string, Event<Kind>> = new Map()
-    metadataEvents.forEach(e => eventsMap.set(e.pubkey, e))
-    return publicKeys.map(publicKey => {
-      if (eventsMap.has(publicKey)) {
-        return {
-          publicKey,
-          ...JSON.parse(eventsMap.get(publicKey)!.content)
-        }
-      } else {
-        return {
-          publicKey
-        }
-      }
-    })
+    return this.eventKindHandlerFactor.getHandler(Kind.Metadata).handle(metadataEvents)
   }
 
   async getContactProfiles(contacts?: Contact[]): Promise<CoinstrTypes.ContactProfile[]> {
@@ -135,7 +127,7 @@ export class Coinstr {
     if (!contactsEvent) {
       return []
     }
-    return getTagValues(contactsEvent, TagType.PubKey, (params) => Contact.fromParams(params))
+    return this.eventKindHandlerFactor.getHandler(Kind.Contacts).handle([contactsEvent])
   }
 
   /**
@@ -258,7 +250,7 @@ export class Coinstr {
   private async _getPolicies(filter: Filter<CoinstrKind.Policy>[]): Promise<PublishedPolicy[]> {
     const policyEvents = await this.nostrClient.list(filter)
     const policyHandler = this.eventKindHandlerFactor.getHandler(CoinstrKind.Policy)
-    return policyHandler.handle(policyEvents, this.getSharedKeysById)
+    return policyHandler.handle(policyEvents)
   }
 
   private async _getSharedKeys(filter: Filter<CoinstrKind.SharedKey>[]): Promise<Map<string, CoinstrTypes.SharedKeyAuthenticator>> {
@@ -354,19 +346,25 @@ export class Coinstr {
 
   }
 
-  subscribe(callback: (eventKind: number, payload: any) => void, kinds: (CoinstrKind | Kind)[] | (CoinstrKind | Kind)): Sub<number> {
+  subscribe(kinds: (CoinstrKind | Kind)[] | (CoinstrKind | Kind), callback: (eventKind: number, payload: any) => void): Sub<number> {
     if (!Array.isArray(kinds)) {
       kinds = [kinds]
     }
+    const kindsHaveHandler = new Set([...Object.values(CoinstrKind), Kind.Metadata, Kind.Contacts]);
     let filters = this.subscriptionFilters(kinds)
     return this.nostrClient.sub(filters, async (event: Event<number>) => {
       const {
         kind
       } = event
-      const handler = this.eventKindHandlerFactor.getHandler(kind)
+
       try {
-        const payload = (await handler.handle(event, this.getSharedKeysById, this.checkPsbts))[0]
-        callback(kind, payload)
+        if (kindsHaveHandler.has(kind)) {
+          const handler = this.eventKindHandlerFactor.getHandler(kind)
+          const payload = (await handler.handle(event))[0]
+          callback(kind, payload)
+        } else {
+          callback(kind, event)
+        }
       } catch (error) {
         console.error(`failed processing subscription event: ${event}, error: ${error}`)
       }
@@ -398,8 +396,11 @@ export class Coinstr {
       if (coinstrKinds.has(kind as CoinstrKind)) {
         const useAuthors = kind === CoinstrKind.Signers;
         filters.push(this.buildFilter(kind as CoinstrKind, useAuthors));
-      } else if (!kindsSet.has(kind as Kind)) {
-        throw new Error(`Unknown kind: ${kind}`);
+      } else if (kindsSet.has(kind as Kind)) {
+        const useAuthors = kind === Kind.Metadata || kind === Kind.Contacts;
+        filters.push(this.buildFilter(kind as Kind, useAuthors));
+      } else {
+        throw new Error(`Invalid kind: ${kind}`);
       }
     }
 
@@ -639,7 +640,7 @@ export class Coinstr {
   private async _getCompletedProposals(filter: Filter<CoinstrKind.CompletedProposal>[]): Promise<(CoinstrTypes.PublishedCompletedSpendingProposal | CoinstrTypes.PublishedCompletedProofOfReserveProposal)[]> {
     const completedProposalEvents = await this.nostrClient.list(filter)
     const completedProposalHandler = this.eventKindHandlerFactor.getHandler(CoinstrKind.CompletedProposal)
-    return completedProposalHandler.handle(completedProposalEvents, this.getSharedKeysById)
+    return completedProposalHandler.handle(completedProposalEvents)
   }
 
   async getCompletedProposalsById(ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, CoinstrTypes.PublishedCompletedSpendingProposal | CoinstrTypes.PublishedCompletedProofOfReserveProposal>> {
@@ -670,7 +671,7 @@ export class Coinstr {
   private async _getApprovals(filter: Filter<CoinstrKind.ApprovedProposal>[]): Promise<CoinstrTypes.PublishedApprovedProposal[]> {
     const approvedProposalEvents = await this.nostrClient.list(filter)
     const approvedProposalHandler = this.eventKindHandlerFactor.getHandler(CoinstrKind.ApprovedProposal)
-    return approvedProposalHandler.handle(approvedProposalEvents, this.getSharedKeysById)
+    return approvedProposalHandler.handle(approvedProposalEvents)
   }
 
   /**
@@ -699,7 +700,7 @@ export class Coinstr {
   private async _getProposals(filter: Filter<CoinstrKind.Policy>[]): Promise<PublishedPolicy[]> {
     const proposalEvents = await this.nostrClient.list(filter)
     const proposalHandler = this.eventKindHandlerFactor.getHandler(CoinstrKind.Proposal)
-    return proposalHandler.handle(proposalEvents, this.getSharedKeysById, this.checkPsbts)
+    return proposalHandler.handle(proposalEvents)
   }
 
   async getProposalsById(proposal_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, CoinstrTypes.PublishedSpendingProposal | CoinstrTypes.PublishedProofOfReserveProposal>> {

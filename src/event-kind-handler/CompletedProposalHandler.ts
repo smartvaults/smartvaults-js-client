@@ -7,14 +7,16 @@ import { EventKindHandler } from './EventKindHandler'
 
 export class CompletedProposalHandler extends EventKindHandler {
   private readonly store: Store
-  constructor(store: Store) {
+  private readonly getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>
+  constructor(store: Store, getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>) {
     super()
     this.store = store
+    this.getSharedKeysById = getSharedKeysById
   }
 
-  protected async _handle<K extends number>(completedProposalEvents: Array<Event<K>>, getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>): Promise<Array<PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal>> {
+  protected async _handle<K extends number>(completedProposalEvents: Array<Event<K>>): Promise<Array<PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal>> {
     const policiesIds = completedProposalEvents.map(proposal => getTagValues(proposal, TagType.Event)[1])
-    const sharedKeyAuthenticators = await getSharedKeysById(policiesIds)
+    const sharedKeyAuthenticators = await this.getSharedKeysById(policiesIds)
     const completedProposalsIds = completedProposalEvents.map(proposal => proposal.id)
     const missingCompletedProposalsIds = this.store.missing(completedProposalsIds)
     if (missingCompletedProposalsIds.length === 0) {

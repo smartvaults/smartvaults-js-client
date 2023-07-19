@@ -11,16 +11,18 @@ import { type BitcoinUtil, PublishedPolicy } from '../models'
 export class PolicyHandler extends EventKindHandler {
   private readonly store: Store
   private readonly bitcoinUtil: BitcoinUtil
-  constructor(store: Store, bitcoinUtil: BitcoinUtil) {
+  private readonly getSharedKeysById: (ids: string[]) => Promise<Map<string, any>>
+  constructor(store: Store, bitcoinUtil: BitcoinUtil, getSharedKeysById: (ids: string[]) => Promise<Map<string, any>>) {
     super()
     this.store = store
     this.bitcoinUtil = bitcoinUtil
+    this.getSharedKeysById = getSharedKeysById
   }
 
-  protected async _handle<K extends number>(policyEvents: Array<Event<K>>, getSharedKeysById: (ids: string[]) => Promise<Map<string, any>>): Promise<any[]> {
+  protected async _handle<K extends number>(policyEvents: Array<Event<K>>): Promise<any[]> {
     let policyIds = policyEvents.map(policy => policy.id)
     policyIds = this.store.missing(policyIds)
-    const policyIdSharedKeyAuthenticatorMap = await getSharedKeysById(policyIds)
+    const policyIdSharedKeyAuthenticatorMap = await this.getSharedKeysById(policyIds)
 
     const policies: PublishedPolicy[] = []
     for (const policyEvent of policyEvents) {
