@@ -99,16 +99,18 @@ export class Coinstr {
 
   async getProfiles(publicKeys: string[]): Promise<CoinstrTypes.Profile[]> {
     const store = this.getStore(Kind.Metadata)
-    const missingPublicKeys = store.missing(publicKeys)
-    if (missingPublicKeys.length === 0) {
+    const missingPublicKeysSet = new Set(store.missing(publicKeys))
+    const storedPubkeys = publicKeys.filter(pubkey => !missingPublicKeysSet.has(pubkey))
+    if (missingPublicKeysSet.size === 0) {
       return store.getManyAsArray(publicKeys)
     }
     const metadataFilter = filterBuilder()
       .kinds(Kind.Metadata)
-      .authors(publicKeys)
+      .authors(Array.from(missingPublicKeysSet))
       .toFilters()
     const metadataEvents = await this.nostrClient.list(metadataFilter)
-    return this.eventKindHandlerFactor.getHandler(Kind.Metadata).handle(metadataEvents)
+    const newProfiles = await this.eventKindHandlerFactor.getHandler(Kind.Metadata).handle(metadataEvents)
+    return [...newProfiles, ...store.getManyAsArray(storedPubkeys)]
   }
 
   async getContactProfiles(contacts?: Contact[]): Promise<CoinstrTypes.ContactProfile[]> {
@@ -371,10 +373,8 @@ export class Coinstr {
     })
   }
 
-  private buildFilter(kind: CoinstrKind | Kind, useAuthors = false) {
-    const paginationOpts = {
-      since: nostrDate()
-    }
+  private buildFilter(kind: CoinstrKind | Kind, useAuthors = false, paginationOpts: PaginationOpts = {}): Filter<number> {
+
 
     let builder = filterBuilder().kinds(kind).pagination(paginationOpts)
 
@@ -391,14 +391,16 @@ export class Coinstr {
     let filters: Filter<number>[] = [];
     const coinstrKinds = new Set(Object.values(CoinstrKind));
     const kindsSet = new Set(Object.values(Kind));
-
+    const paginationOpts = {
+      since: nostrDate()
+    }
     for (const kind of kinds) {
       if (coinstrKinds.has(kind as CoinstrKind)) {
         const useAuthors = kind === CoinstrKind.Signers;
-        filters.push(this.buildFilter(kind as CoinstrKind, useAuthors));
+        filters.push(this.buildFilter(kind as CoinstrKind, useAuthors, paginationOpts));
       } else if (kindsSet.has(kind as Kind)) {
         const useAuthors = kind === Kind.Metadata || kind === Kind.Contacts;
-        filters.push(this.buildFilter(kind as Kind, useAuthors));
+        filters.push(this.buildFilter(kind as Kind, useAuthors, paginationOpts));
       } else {
         throw new Error(`Invalid kind: ${kind}`);
       }
