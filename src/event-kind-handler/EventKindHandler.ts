@@ -4,10 +4,10 @@ import {
 
 export abstract class EventKindHandler {
 
-  async handle<K extends number>(events: Event<K> | Event<K>[], callback?: any): Promise<any> {
+  async handle<K extends number>(events: Event<K> | Event<K>[]): Promise<any> {
     events = Array.isArray(events) ? events : [events]
-    return this._handle(events, callback)
+    return this._handle(events)
   }
 
-  protected abstract _handle<K extends number>(events: Event<K>[], callback?: any): Promise<any>
+  protected abstract _handle<K extends number>(events: Event<K>[]): Promise<any>
 }

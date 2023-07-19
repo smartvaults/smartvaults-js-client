@@ -111,6 +111,7 @@ type PublishedProposal = {
   proposal_id: string
   type: string
   createdAt: Date
+  status: string
 }
 
 export type BaseApprovedProposal = {
@@ -131,12 +132,12 @@ export type PublishedApprovedProposal = {
   status: string,
 }
 
-export type PublishedSpendingProposal = PublishedProposal & {
+export type PublishedSpendingProposal = PublishedProposal & BaseProposal & {
   to_address: string
   amount: number
   description: string,
 }
-export type PublishedProofOfReserveProposal = PublishedProposal & {
+export type PublishedProofOfReserveProposal = PublishedProposal & BaseProposal & {
   message: string
 }
 
@@ -156,6 +157,7 @@ type PublishedCompleted = {
   policy_id: string
   completed_by: string
   completion_date: Date
+  id: string
 }
 
 export type PublishedCompletedSpendingProposal = PublishedCompleted & {
@@ -163,7 +165,7 @@ export type PublishedCompletedSpendingProposal = PublishedCompleted & {
   description: string
 }
 
-export type PublishedCompletedProofOfReserveProposal = PublishedCompleted & {
+export type PublishedCompletedProofOfReserveProposal = PublishedCompleted & BaseProposal & {
   message: string
 }
 
