@@ -162,6 +162,7 @@ type PublishedCompleted = {
 
 export type PublishedCompletedSpendingProposal = PublishedCompleted & {
   tx: string
+  txId: string
   description: string
 }
 

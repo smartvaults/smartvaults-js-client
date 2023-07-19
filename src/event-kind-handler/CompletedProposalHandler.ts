@@ -4,13 +4,16 @@ import { type PublishedCompletedProofOfReserveProposal, type PublishedCompletedS
 import { type Store } from '../service'
 import { getTagValues, fromNostrDate } from '../util'
 import { EventKindHandler } from './EventKindHandler'
+import { type BitcoinUtil } from '../models'
 
 export class CompletedProposalHandler extends EventKindHandler {
   private readonly store: Store
   private readonly getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>
-  constructor(store: Store, getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>) {
+  private readonly bitcoinUtil: BitcoinUtil
+  constructor(store: Store, bitcoinUtil: BitcoinUtil, getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>) {
     super()
     this.store = store
+    this.bitcoinUtil = bitcoinUtil
     this.getSharedKeysById = getSharedKeysById
   }
 
@@ -36,8 +39,14 @@ export class CompletedProposalHandler extends EventKindHandler {
       if (sharedKeyAuthenticator == null) continue
       const decryptedProposalObj: (CompletedProofOfReserveProposal | CompletedSpendingProposal) = await sharedKeyAuthenticator.decryptObj(completedProposalEvent.content)
       const type = decryptedProposalObj[ProposalType.Spending] ? ProposalType.Spending : ProposalType.ProofOfReserve
-      const publishedCompleteProposal = {
+      let txId;
+      if (type === ProposalType.Spending) {
+        const spendingProposal: CompletedSpendingProposal = decryptedProposalObj as CompletedSpendingProposal;
+        txId = this.bitcoinUtil.getTrxId(spendingProposal[type].tx)
+      }
+      const publishedCompleteProposal: PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal = {
         type,
+        txId,
         ...decryptedProposalObj[type],
         policy_id: policyId,
         proposal_id: proposalId,

@@ -4,7 +4,7 @@ import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { Coinstr } from './Coinstr'
 import { NostrClient, Keys, Store } from './service'
 import { TimeUtil } from './util'
-import { Contact, PublishedPolicy, BitcoinUtil, Wallet } from './models'
+import { Contact, PublishedPolicy, BitcoinUtil, Wallet, type FinalizeTrxResponse } from './models'
 import { Metadata, Profile, SavePolicyPayload, OwnedSigner, SharedSigner, SpendProposalPayload, PublishedDirectMessage, PublishedSpendingProposal, PublishedApprovedProposal, PublishedSharedSigner } from './types'
 import { CoinstrKind } from './enum'
 import { Kind } from 'nostr-tools'
@@ -664,7 +664,7 @@ describe('Coinstr', () => {
     let firstCallTime2;
     let secondCallTime1;
     let secondCallTime2;
-    let expectedTrx;
+    let expectedTrx: FinalizeTrxResponse;
     let coinstr2: Coinstr
 
     beforeAll(async () => {
@@ -679,8 +679,10 @@ describe('Coinstr', () => {
         .mockResolvedValueOnce({ amount: 3000, psbt: "encoded psbt3" })
         .mockResolvedValueOnce({ amount: 4000, psbt: "encoded psbt4" })
       bitcoinUtil.createWallet.mockReturnValue(wallet)
-      expectedTrx = { trx_id: "id1", psbt: "psbt1", trx: { inputs: ["input1"] } }
+      let mockTxid = Math.random().toString(36).substring(7)
+      expectedTrx = { txid: mockTxid, psbt: "psbt1", trx: { inputs: ["input1"] } }
       wallet.finalize_trx.mockResolvedValue(expectedTrx)
+      bitcoinUtil.getTrxId.mockReturnValue(mockTxid)
 
 
       let savePolicyPayload1 = getSavePolicyPayload(11, keySet1.getPublicKeys(), -10)

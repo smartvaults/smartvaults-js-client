@@ -832,7 +832,7 @@ export class Coinstr {
     if (!txResponse) {
       throw new Error(`Cannot broadcast proposal ${proposalId}`)
     }
-
+    const txId = txResponse.txid
     const policyMembers = policy.nostrPublicKeys.map(pubkey => [TagType.PubKey, pubkey])
 
     const sharedKeyAuthenticator = policy.sharedKeyAuth
@@ -868,6 +868,7 @@ export class Coinstr {
 
     const publishedCompletedProposal: CoinstrTypes.PublishedCompletedSpendingProposal = {
       type,
+      txId,
       ...completedProposal[type],
       proposal_id: proposalId,
       policy_id: policy.id,
@@ -976,7 +977,11 @@ export class Coinstr {
     }
     const type = payload[ProposalType.Spending] ? ProposalType.Spending : ProposalType.ProofOfReserve
     const content = await sharedKeyAuthenticator.encryptObj(completedProposal)
-
+    let txId;
+    if (type === ProposalType.Spending) {
+      const spendingProposal: CoinstrTypes.CompletedSpendingProposal = payload as CoinstrTypes.CompletedSpendingProposal;
+      txId = this.bitcoinUtil.getTrxId(spendingProposal[type].tx)
+    }
     const completedProposalEvent = await buildEvent({
       kind: CoinstrKind.CompletedProposal,
       content,
@@ -999,6 +1004,7 @@ export class Coinstr {
 
     const publishedCompletedProposal: CoinstrTypes.PublishedCompletedProofOfReserveProposal | CoinstrTypes.PublishedCompletedSpendingProposal = {
       type,
+      txId,
       ...payload[type],
       proposal_id,
       policy_id: policyId,

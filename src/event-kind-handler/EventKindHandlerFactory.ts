@@ -42,7 +42,7 @@ export class EventKindHandlerFactory {
           this.handlers.set(eventKind, new SharedKeyHandler(authenticator, stores.get(eventKind)!))
           break
         case CoinstrKind.CompletedProposal:
-          this.handlers.set(eventKind, new CompletedProposalHandler(stores.get(eventKind)!, getSharedKeysById))
+          this.handlers.set(eventKind, new CompletedProposalHandler(stores.get(eventKind)!, bitcoinUtil, getSharedKeysById))
           break
         case CoinstrKind.SharedSigners:
           this.handlers.set(eventKind, new SharedSignerHandler(authenticator, stores.get(eventKind)!))
