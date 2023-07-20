@@ -11,11 +11,18 @@ export class MetadataHandler extends EventKindHandler {
   }
 
   protected async _handle<K extends number>(metadataEvents: Array<Event<K>>): Promise<Profile[]> {
+    const metadataIds = metadataEvents.map(metadata => metadata.id)
+    const missingMetadataIds = this.store.missing(metadataIds)
+    if (missingMetadataIds.length === 0) {
+      return this.store.getManyAsArray(metadataIds).map(metadata => metadata.content)
+    }
+    const missingMetadataEvents = metadataEvents.filter(metadata => missingMetadataIds.includes(metadata.id))
     const eventsMap: Map<string, Event<Kind>> = new Map()
-    metadataEvents.forEach(e => eventsMap.set(e.pubkey, e))
-    return Array.from(eventsMap.keys()).map(publicKey => {
-      this.store.store({ publicKey, ...JSON.parse(eventsMap.get(publicKey)!.content) })
-      return this.store.get(publicKey)
+    missingMetadataEvents.forEach(e => eventsMap.set(e.pubkey, e))
+    Array.from(eventsMap.keys()).map(publicKey => {
+      this.store.store({ content: { publicKey, ...JSON.parse(eventsMap.get(publicKey)!.content) }, id: eventsMap.get(publicKey)?.id })
+      return this.store.get(eventsMap.get(publicKey)?.id!).content
     })
+    return this.store.getManyAsArray(metadataIds).map(metadata => metadata.content)
   }
 }

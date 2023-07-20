@@ -39,7 +39,7 @@ export class Coinstr {
     this.stores.set(CoinstrKind.CompletedProposal, Store.createSingleIndexStore("id"))
     this.stores.set(CoinstrKind.SharedSigners, Store.createSingleIndexStore("id"))
     this.stores.set(CoinstrKind.Signers, Store.createSingleIndexStore("id"))
-    this.stores.set(Kind.Metadata, Store.createSingleIndexStore("publicKey"))
+    this.stores.set(Kind.Metadata, Store.createSingleIndexStore("id"))
   }
   initEventKindHandlerFactory() {
     this.eventKindHandlerFactor = new EventKindHandlerFactory(this)
@@ -98,19 +98,13 @@ export class Coinstr {
   }
 
   async getProfiles(publicKeys: string[]): Promise<CoinstrTypes.Profile[]> {
-    const store = this.getStore(Kind.Metadata)
-    const missingPublicKeysSet = new Set(store.missing(publicKeys))
-    const storedPubkeys = publicKeys.filter(pubkey => !missingPublicKeysSet.has(pubkey))
-    if (missingPublicKeysSet.size === 0) {
-      return store.getManyAsArray(publicKeys)
-    }
     const metadataFilter = filterBuilder()
       .kinds(Kind.Metadata)
-      .authors(Array.from(missingPublicKeysSet))
+      .authors(publicKeys)
       .toFilters()
     const metadataEvents = await this.nostrClient.list(metadataFilter)
-    const newProfiles = await this.eventKindHandlerFactor.getHandler(Kind.Metadata).handle(metadataEvents)
-    return [...newProfiles, ...store.getManyAsArray(storedPubkeys)]
+    const profiles: CoinstrTypes.Profile[] = await this.eventKindHandlerFactor.getHandler(Kind.Metadata).handle(metadataEvents)
+    return profiles
   }
 
   async getContactProfiles(contacts?: Contact[]): Promise<CoinstrTypes.ContactProfile[]> {

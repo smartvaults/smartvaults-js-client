@@ -59,6 +59,8 @@ describe('Coinstr', () => {
     let profile1: Profile
     let profile2: Profile
     let profile3: Profile
+    let profile4: Profile
+    let profile5: Profile
     let contact1: Contact
     let contact2: Contact
     let contact3: Contact
@@ -67,6 +69,8 @@ describe('Coinstr', () => {
       profile2 = await setProfile(2, coinstr)
       profile3 = await setProfile(3, coinstr)
       coinstr.setAuthenticator(authenticator)
+      profile4 = await coinstr.setProfile(getMetadata(420))
+
       contact1 = getContact(1, profile1.publicKey)
       contact2 = getContact(2, profile2.publicKey)
       contact3 = getContact(3, profile3.publicKey)
@@ -76,6 +80,11 @@ describe('Coinstr', () => {
     it('getProfile', async () => {
       const profile = await coinstr.getProfile(profile1.publicKey)
       expect(profile).toEqual(profile1)
+      const own_profile = await coinstr.getProfile(profile4.publicKey)
+      expect(own_profile).toEqual(profile4)
+      profile5 = await coinstr.setProfile(getMetadata(69))
+      const own_profile2 = await coinstr.getProfile(profile5.publicKey)
+      expect(own_profile2).toEqual(profile5)
     })
 
     it('getContacts', async () => {
