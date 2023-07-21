@@ -3,7 +3,7 @@ import { generatePrivateKey, Kind, Event, Filter, Sub } from 'nostr-tools'
 import { CoinstrKind, TagType, ProposalType, ProposalStatus, ApprovalStatus } from './enum'
 import { NostrClient, PubPool, Store } from './service'
 import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished, nostrDate } from './util'
-import { BitcoinUtil, Contact, Policy, PublishedPolicy } from './models'
+import { BasicTrxDetails, BitcoinUtil, Contact, Policy, PublishedPolicy, TrxDetails } from './models'
 import * as CoinstrTypes from './types'
 import { EventKindHandlerFactory } from './event-kind-handler'
 
@@ -36,10 +36,10 @@ export class Coinstr {
     this.stores.set(CoinstrKind.Proposal, new Store({ "proposal_id": ["proposal_id"], "policy_id": ["proposal_id", "policy_id"] }))
     this.stores.set(CoinstrKind.ApprovedProposal, new Store({ "approval_id": ["approval_id"], "proposal_id": ["approval_id", "proposal_id"] }))
     this.stores.set(CoinstrKind.SharedKey, Store.createSingleIndexStore("policyId"))
-    this.stores.set(CoinstrKind.CompletedProposal, Store.createSingleIndexStore("id"))
+    this.stores.set(CoinstrKind.CompletedProposal, new Store({ "id": ["id"], "txId": ["txId"] }))
     this.stores.set(CoinstrKind.SharedSigners, Store.createSingleIndexStore("id"))
     this.stores.set(CoinstrKind.Signers, Store.createSingleIndexStore("id"))
-    this.stores.set(Kind.Metadata, Store.createSingleIndexStore("publicKey"))
+    this.stores.set(Kind.Metadata, Store.createSingleIndexStore("id"))
   }
   initEventKindHandlerFactory() {
     this.eventKindHandlerFactor = new EventKindHandlerFactory(this)
@@ -98,19 +98,13 @@ export class Coinstr {
   }
 
   async getProfiles(publicKeys: string[]): Promise<CoinstrTypes.Profile[]> {
-    const store = this.getStore(Kind.Metadata)
-    const missingPublicKeysSet = new Set(store.missing(publicKeys))
-    const storedPubkeys = publicKeys.filter(pubkey => !missingPublicKeysSet.has(pubkey))
-    if (missingPublicKeysSet.size === 0) {
-      return store.getManyAsArray(publicKeys)
-    }
     const metadataFilter = filterBuilder()
       .kinds(Kind.Metadata)
-      .authors(Array.from(missingPublicKeysSet))
+      .authors(publicKeys)
       .toFilters()
     const metadataEvents = await this.nostrClient.list(metadataFilter)
-    const newProfiles = await this.eventKindHandlerFactor.getHandler(Kind.Metadata).handle(metadataEvents)
-    return [...newProfiles, ...store.getManyAsArray(storedPubkeys)]
+    const profiles: CoinstrTypes.Profile[] = await this.eventKindHandlerFactor.getHandler(Kind.Metadata).handle(metadataEvents)
+    return profiles
   }
 
   async getContactProfiles(contacts?: Contact[]): Promise<CoinstrTypes.ContactProfile[]> {
@@ -336,9 +330,11 @@ export class Coinstr {
         promises.push(pub.onFirstOkOrCompleteFailure())
       }
     }
+    const signer = 'Unknown'
     Promise.all(promises)
     return {
       ...proposalContent[type],
+      signer,
       type: ProposalType.Spending,
       status: ProposalStatus.Unsigned,
       policy_id: policy.id,
@@ -431,7 +427,7 @@ export class Coinstr {
    * 
    * @async
    */
-  async getOwnedSigners(): Promise<CoinstrTypes.PublishedOwnedSigner[]> {
+  getOwnedSigners = async (): Promise<CoinstrTypes.PublishedOwnedSigner[]> => {
     const signersFilter = this.buildOwnedSignersFilter()
     return this._getOwnedSigners(signersFilter)
   }
@@ -832,7 +828,7 @@ export class Coinstr {
     if (!txResponse) {
       throw new Error(`Cannot broadcast proposal ${proposalId}`)
     }
-
+    const txId = txResponse.txid
     const policyMembers = policy.nostrPublicKeys.map(pubkey => [TagType.PubKey, pubkey])
 
     const sharedKeyAuthenticator = policy.sharedKeyAuth
@@ -868,6 +864,7 @@ export class Coinstr {
 
     const publishedCompletedProposal: CoinstrTypes.PublishedCompletedSpendingProposal = {
       type,
+      txId,
       ...completedProposal[type],
       proposal_id: proposalId,
       policy_id: policy.id,
@@ -877,6 +874,49 @@ export class Coinstr {
     }
     await Promise.all([pubCompletedProposalPromise, pubDeleteEventPromise])
     return publishedCompletedProposal
+  }
+
+
+  /**
+   * Retrieves a completed proposal based on the provided transaction details.
+   *
+   * @async
+   * @function getCompletedProposalByTx
+   * @param {TrxDetails | BasicTrxDetails} tx - Object containing the transaction details.
+   * @returns {Promise<CoinstrTypes.PublishedCompletedSpendingProposal | null>} A Promise that resolves with the completed proposal, if found, or null.
+   * 
+   * @example
+   * getCompletedProposalByTx({txid: '1234', confirmation_time: {confirmedAt: new Date()}, net: -1})
+   * 
+   */
+  async getCompletedProposalByTx(tx: TrxDetails | BasicTrxDetails): Promise<CoinstrTypes.PublishedCompletedSpendingProposal | null> {
+    const { txid: txId, confirmation_time: confirmationTime, net: net } = tx;
+
+    if (!txId || !confirmationTime || net > 0) {
+      return null
+    }
+
+    const completedProposalStore = this.getStore(CoinstrKind.CompletedProposal);
+    const maybeStoredCompletedProposal = await completedProposalStore.get(txId, 'txId');
+
+    if (maybeStoredCompletedProposal) {
+      return maybeStoredCompletedProposal;
+    }
+
+    const confirmedAt = confirmationTime.confirmedAt;
+
+    const since = new Date(confirmedAt.getTime() - 3 * 60 * 60 * 1000);
+    const until = new Date(confirmedAt.getTime());
+
+    const paginationOpts = { since, until };
+    const completedProposals = await this.getCompletedProposals(paginationOpts) as CoinstrTypes.PublishedCompletedSpendingProposal[];
+    const completedProposal = completedProposals.find(({ txId: id }) => id === txId);
+
+    if (!completedProposal) {
+      return null
+    }
+
+    return completedProposal;
   }
 
 
@@ -915,7 +955,8 @@ export class Coinstr {
     await pub.onFirstOkOrCompleteFailure()
     const proposal_id = proposalEvent.id
     const status = ProposalStatus.Unsigned
-    return { ...proposal[type], proposal_id, type, status, policy_id, createdAt }
+    const signer = 'Unknown'
+    return { ...proposal[type], proposal_id, type, status, signer, policy_id, createdAt }
 
   }
 
@@ -976,7 +1017,11 @@ export class Coinstr {
     }
     const type = payload[ProposalType.Spending] ? ProposalType.Spending : ProposalType.ProofOfReserve
     const content = await sharedKeyAuthenticator.encryptObj(completedProposal)
-
+    let txId;
+    if (type === ProposalType.Spending) {
+      const spendingProposal: CoinstrTypes.CompletedSpendingProposal = payload as CoinstrTypes.CompletedSpendingProposal;
+      txId = this.bitcoinUtil.getTrxId(spendingProposal[type].tx)
+    }
     const completedProposalEvent = await buildEvent({
       kind: CoinstrKind.CompletedProposal,
       content,
@@ -999,6 +1044,7 @@ export class Coinstr {
 
     const publishedCompletedProposal: CoinstrTypes.PublishedCompletedProofOfReserveProposal | CoinstrTypes.PublishedCompletedSpendingProposal = {
       type,
+      txId,
       ...payload[type],
       proposal_id,
       policy_id: policyId,

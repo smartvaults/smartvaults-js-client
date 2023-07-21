@@ -112,6 +112,7 @@ type PublishedProposal = {
   type: string
   createdAt: Date
   status: string
+  signer: string
 }
 
 export type BaseApprovedProposal = {
@@ -162,6 +163,7 @@ type PublishedCompleted = {
 
 export type PublishedCompletedSpendingProposal = PublishedCompleted & {
   tx: string
+  txId: string
   description: string
 }
 

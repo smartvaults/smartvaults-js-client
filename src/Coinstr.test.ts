@@ -4,7 +4,7 @@ import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { Coinstr } from './Coinstr'
 import { NostrClient, Keys, Store } from './service'
 import { TimeUtil } from './util'
-import { Contact, PublishedPolicy, BitcoinUtil, Wallet } from './models'
+import { Contact, PublishedPolicy, BitcoinUtil, Wallet, type FinalizeTrxResponse } from './models'
 import { Metadata, Profile, SavePolicyPayload, OwnedSigner, SharedSigner, SpendProposalPayload, PublishedDirectMessage, PublishedSpendingProposal, PublishedApprovedProposal, PublishedSharedSigner } from './types'
 import { CoinstrKind } from './enum'
 import { Kind } from 'nostr-tools'
@@ -59,6 +59,8 @@ describe('Coinstr', () => {
     let profile1: Profile
     let profile2: Profile
     let profile3: Profile
+    let profile4: Profile
+    let profile5: Profile
     let contact1: Contact
     let contact2: Contact
     let contact3: Contact
@@ -67,6 +69,8 @@ describe('Coinstr', () => {
       profile2 = await setProfile(2, coinstr)
       profile3 = await setProfile(3, coinstr)
       coinstr.setAuthenticator(authenticator)
+      profile4 = await coinstr.setProfile(getMetadata(420))
+
       contact1 = getContact(1, profile1.publicKey)
       contact2 = getContact(2, profile2.publicKey)
       contact3 = getContact(3, profile3.publicKey)
@@ -76,6 +80,11 @@ describe('Coinstr', () => {
     it('getProfile', async () => {
       const profile = await coinstr.getProfile(profile1.publicKey)
       expect(profile).toEqual(profile1)
+      const own_profile = await coinstr.getProfile(profile4.publicKey)
+      expect(own_profile).toEqual(profile4)
+      profile5 = await coinstr.setProfile(getMetadata(69))
+      const own_profile2 = await coinstr.getProfile(profile5.publicKey)
+      expect(own_profile2).toEqual(profile5)
     })
 
     it('getContacts', async () => {
@@ -664,7 +673,7 @@ describe('Coinstr', () => {
     let firstCallTime2;
     let secondCallTime1;
     let secondCallTime2;
-    let expectedTrx;
+    let expectedTrx: FinalizeTrxResponse;
     let coinstr2: Coinstr
 
     beforeAll(async () => {
@@ -679,8 +688,10 @@ describe('Coinstr', () => {
         .mockResolvedValueOnce({ amount: 3000, psbt: "encoded psbt3" })
         .mockResolvedValueOnce({ amount: 4000, psbt: "encoded psbt4" })
       bitcoinUtil.createWallet.mockReturnValue(wallet)
-      expectedTrx = { trx_id: "id1", psbt: "psbt1", trx: { inputs: ["input1"] } }
+      let mockTxid = Math.random().toString(36).substring(7)
+      expectedTrx = { txid: mockTxid, psbt: "psbt1", trx: { inputs: ["input1"] } }
       wallet.finalize_trx.mockResolvedValue(expectedTrx)
+      bitcoinUtil.getTrxId.mockReturnValue(mockTxid)
 
 
       let savePolicyPayload1 = getSavePolicyPayload(11, keySet1.getPublicKeys(), -10)

@@ -28,12 +28,13 @@ export class EventKindHandlerFactory {
       } = this.coinstr
       const getSharedKeysById = this.coinstr.getSharedKeysById
       const checkPsbts = this.coinstr.checkPsbts
+      const getOwnedSigners = this.coinstr.getOwnedSigners
       switch (eventKind) {
         case CoinstrKind.Policy:
           this.handlers.set(eventKind, new PolicyHandler(stores.get(eventKind)!, bitcoinUtil, getSharedKeysById))
           break
         case CoinstrKind.Proposal:
-          this.handlers.set(eventKind, new ProposalHandler(stores.get(eventKind)!, getSharedKeysById, checkPsbts))
+          this.handlers.set(eventKind, new ProposalHandler(stores.get(eventKind)!, getSharedKeysById, checkPsbts, getOwnedSigners))
           break
         case CoinstrKind.ApprovedProposal:
           this.handlers.set(eventKind, new ApprovalsHandler(stores.get(eventKind)!, getSharedKeysById))
@@ -42,7 +43,7 @@ export class EventKindHandlerFactory {
           this.handlers.set(eventKind, new SharedKeyHandler(authenticator, stores.get(eventKind)!))
           break
         case CoinstrKind.CompletedProposal:
-          this.handlers.set(eventKind, new CompletedProposalHandler(stores.get(eventKind)!, getSharedKeysById))
+          this.handlers.set(eventKind, new CompletedProposalHandler(stores.get(eventKind)!, bitcoinUtil, getSharedKeysById))
           break
         case CoinstrKind.SharedSigners:
           this.handlers.set(eventKind, new SharedSignerHandler(authenticator, stores.get(eventKind)!))
