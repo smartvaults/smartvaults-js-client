@@ -332,9 +332,11 @@ export class Coinstr {
         promises.push(pub.onFirstOkOrCompleteFailure())
       }
     }
+    const signer = 'Unknown'
     Promise.all(promises)
     return {
       ...proposalContent[type],
+      signer,
       type: ProposalType.Spending,
       status: ProposalStatus.Unsigned,
       policy_id: policy.id,
@@ -427,7 +429,7 @@ export class Coinstr {
    * 
    * @async
    */
-  async getOwnedSigners(): Promise<CoinstrTypes.PublishedOwnedSigner[]> {
+  getOwnedSigners = async (): Promise<CoinstrTypes.PublishedOwnedSigner[]> => {
     const signersFilter = this.buildOwnedSignersFilter()
     return this._getOwnedSigners(signersFilter)
   }
@@ -966,6 +968,8 @@ export class Coinstr {
     return trxDetails;
   }
 
+  getSignerForProposal
+
 
 
   //Mock method to create a proposal, this will be replaced when the policy class is created
@@ -1003,7 +1007,8 @@ export class Coinstr {
     await pub.onFirstOkOrCompleteFailure()
     const proposal_id = proposalEvent.id
     const status = ProposalStatus.Unsigned
-    return { ...proposal[type], proposal_id, type, status, policy_id, createdAt }
+    const signer = 'Unknown'
+    return { ...proposal[type], proposal_id, type, status, signer, policy_id, createdAt }
 
   }
 

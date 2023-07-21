@@ -112,6 +112,7 @@ type PublishedProposal = {
   type: string
   createdAt: Date
   status: string
+  signer: string
 }
 
 export type BaseApprovedProposal = {
