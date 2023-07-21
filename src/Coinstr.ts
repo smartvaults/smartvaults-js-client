@@ -1,6 +1,6 @@
 import { Authenticator, DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { generatePrivateKey, Kind, Event, Filter, Sub } from 'nostr-tools'
-import { CoinstrKind, TagType, ProposalType, ProposalStatus, ApprovalStatus, TrxType } from './enum'
+import { CoinstrKind, TagType, ProposalType, ProposalStatus, ApprovalStatus } from './enum'
 import { NostrClient, PubPool, Store } from './service'
 import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished, nostrDate } from './util'
 import { BasicTrxDetails, BitcoinUtil, Contact, Policy, PublishedPolicy, TrxDetails } from './models'
@@ -40,8 +40,6 @@ export class Coinstr {
     this.stores.set(CoinstrKind.SharedSigners, Store.createSingleIndexStore("id"))
     this.stores.set(CoinstrKind.Signers, Store.createSingleIndexStore("id"))
     this.stores.set(Kind.Metadata, Store.createSingleIndexStore("id"))
-    this.stores.set(TrxType.Basic, new Store({ "policyId": ["policyId", "txid"], "txid": ["txid"] }))
-    this.stores.set(TrxType.Detailed, Store.createSingleIndexStore("txid"))
   }
   initEventKindHandlerFactory() {
     this.eventKindHandlerFactor = new EventKindHandlerFactory(this)
@@ -878,98 +876,48 @@ export class Coinstr {
     return publishedCompletedProposal
   }
 
+
   /**
-   * Fetches transactions by their policy IDs. If transactions are missing from the store,
-   * it fetches the relevant policies and stores the transactions.
+   * Retrieves a completed proposal based on the provided transaction details.
    *
-   * @param {string | string[]} policyIds - A single policy ID or an array of policy IDs
-   * @returns {Promise<Map<string, BasicTrxDetails[]>>} - A Promise that resolves to a map of policy IDs to their associated transactions
-   * @throws Will throw an error if .
+   * @async
+   * @function getCompletedProposalByTx
+   * @param {TrxDetails | BasicTrxDetails} tx - Object containing the transaction details.
+   * @returns {Promise<CoinstrTypes.PublishedCompletedSpendingProposal | null>} A Promise that resolves with the completed proposal, if found, or null.
+   * 
+   * @example
+   * getCompletedProposalByTx({txid: '1234', confirmation_time: {confirmedAt: new Date()}, net: -1})
+   * 
    */
-  async getTransactionsByPolicyId(policyIds: string | string[]): Promise<Map<string, BasicTrxDetails & { policyId: string }[]>> {
-    const store = this.getStore(TrxType.Basic);
-    const policyIdsArray = Array.isArray(policyIds) ? policyIds : [policyIds];
-    const missingTxs = store.missing(policyIdsArray);
-    if (missingTxs.length === 0) {
-      return store.getMany(policyIdsArray, "policyId");
+  async getCompletedProposalByTx(tx: TrxDetails | BasicTrxDetails): Promise<CoinstrTypes.PublishedCompletedSpendingProposal | null> {
+    const { txid: txId, confirmation_time: confirmationTime, net: net } = tx;
+
+    if (!txId || !confirmationTime || net > 0) {
+      return null
     }
-    // This already checks if policy is in store before fetching
-    const policies = await this.getPoliciesById(missingTxs);
 
-    const augmentedTrxsArray: any[] = []; // Use a more specific type if possible
+    const completedProposalStore = this.getStore(CoinstrKind.CompletedProposal);
+    const maybeStoredCompletedProposal = await completedProposalStore.get(txId, 'txId');
 
-    await Promise.all(Array.from(policies.entries()).map(async ([policyId, policy]: [string, PublishedPolicy]) => {
-      const trxs = await policy.getTrxs();
-      if (!trxs) {
-        throw new Error(`No transactions found for policy ${policyId}`);
-      }
-      const augmentedTrxs = trxs.map(trx => { return { ...trx, policyId } });
-      augmentedTrxsArray.push(...augmentedTrxs);
-    }));
+    if (maybeStoredCompletedProposal) {
+      return maybeStoredCompletedProposal;
+    }
 
-    store.store(augmentedTrxsArray);
+    const confirmedAt = confirmationTime.confirmedAt;
 
-    return store.getMany(policyIdsArray, "policyId");
+    const since = new Date(confirmedAt.getTime() - 3 * 60 * 60 * 1000);
+    const until = new Date(confirmedAt.getTime());
+
+    const paginationOpts = { since, until };
+    const completedProposals = await this.getCompletedProposals(paginationOpts) as CoinstrTypes.PublishedCompletedSpendingProposal[];
+    const completedProposal = completedProposals.find(({ txId: id }) => id === txId);
+
+    if (!completedProposal) {
+      return null
+    }
+
+    return completedProposal;
   }
-
-  /**
-   * Fetches transaction details by transaction ID and (optionally) policy ID.
-   * If the transaction details are not stored, it fetches the relevant policy and stores the transaction details.
-   *
-   * @param {string} txId - The ID of the transaction
-   * @param {string} [policyId] - Optional. The ID of the policy associated with the transaction
-   * @returns {Promise<TrxDetails>} - A Promise that resolves to the transaction details
-   * @throws Will throw an error if no policy is found for the given transaction ID or if the transaction is not found.
-  */
-  async getTransactionDetails(txId: string, policyId?: string): Promise<TrxDetails> {
-    const detailsStore = this.getStore(TrxType.Detailed);
-    const maybeStoredTxDetails = detailsStore.get(txId);
-
-    if (maybeStoredTxDetails) {
-      return maybeStoredTxDetails;
-    }
-
-    const trxStore = this.getStore(TrxType.Basic);
-
-    if (!policyId) {
-      const trxPolicyId: string | undefined = trxStore.get(txId, "txid")?.policyId;
-      let completedProposalPolicyId: string | undefined;
-
-      if (!trxPolicyId) {
-        const completedProposalStore = this.getStore(CoinstrKind.CompletedProposal);
-        completedProposalPolicyId = completedProposalStore.get(txId, "txId")?.policy_id;
-
-        if (!completedProposalPolicyId) {
-          await this.getCompletedProposals();
-          completedProposalPolicyId = completedProposalStore.get(txId, "txId")?.policy_id;
-        }
-      }
-
-      policyId = trxPolicyId || completedProposalPolicyId;
-
-      if (!policyId) {
-        throw new Error(`No policy found for the given transaction id ${txId}`);
-      }
-    }
-
-    const policyMap = await this.getPoliciesById([policyId]);
-    const policy: PublishedPolicy = policyMap.get(policyId)!;
-
-    if (!policy) {
-      throw new Error(`Policy with id ${policyId} not found`);
-    }
-
-    const trxDetails = await policy.getTrx(txId);
-    if (!trxDetails) {
-      throw new Error(`Transaction with id ${txId} not found`);
-    }
-    detailsStore.store(trxDetails);
-
-    return trxDetails;
-  }
-
-  getSignerForProposal
-
 
 
   //Mock method to create a proposal, this will be replaced when the policy class is created

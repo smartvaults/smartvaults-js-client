@@ -17,13 +17,14 @@ export class ProposalHandler extends EventKindHandler {
     this.checkPsbts = checkPsbts
     this.getOwnedSigners = getOwnedSigners
   }
+
   private searchSignerInDescriptor(fingerprints: string[], descriptor: string): string | null {
     for (const fingerprint of fingerprints) {
       if (descriptor.includes(fingerprint)) {
-        return fingerprint;
+        return fingerprint
       }
     }
-    return null;
+    return null
   }
 
   protected async _handle<K extends number>(proposalEvents: Array<Event<K>>): Promise<Array<PublishedSpendingProposal | PublishedProofOfReserveProposal>> {
@@ -36,6 +37,8 @@ export class ProposalHandler extends EventKindHandler {
     const decryptedProposals: any[] = []
     const policiesIds = proposalEvents.map(proposal => getTagValues(proposal, TagType.Event)[0])
     const sharedKeyAuthenticators = await this.getSharedKeysById(policiesIds)
+    const signers = await this.getOwnedSigners()
+    const fingerprints: string[] = signers.map(signer => signer.fingerprint)
     for (const proposalEvent of proposalEvents) {
       const storeValue = this.store.get(proposalEvent.id)
       if (storeValue) {
@@ -49,10 +52,8 @@ export class ProposalHandler extends EventKindHandler {
       const type = decryptedProposalObj[ProposalType.Spending] ? ProposalType.Spending : ProposalType.ProofOfReserve
       const createdAt = fromNostrDate(proposalEvent.created_at)
       const status = await this.checkPsbts(proposalEvent.id) ? ProposalStatus.Signed : ProposalStatus.Unsigned
-      const signers = await this.getOwnedSigners()
-      const fingerprints: string[] = signers.map(signer => signer.fingerprint)
       const signerResult: string | null = this.searchSignerInDescriptor(fingerprints, decryptedProposalObj[type].descriptor)
-      const signer = signerResult ? signerResult : 'Unknown'
+      const signer = signerResult ?? 'Unknown'
 
       const publishedProposal: PublishedSpendingProposal | PublishedProofOfReserveProposal = {
         type,
@@ -68,5 +69,4 @@ export class ProposalHandler extends EventKindHandler {
     this.store.store(decryptedProposals)
     return decryptedProposals
   }
-
 }
