@@ -51,5 +51,6 @@ export interface BitcoinUtil {
   createWallet(descriptor): Wallet
   canFinalizePsbt(psbts: string[]): boolean
   getTrxId(trx: any): string
+  getFee(psbt: string): number
 }
 
