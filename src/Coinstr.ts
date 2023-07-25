@@ -280,6 +280,7 @@ export class Coinstr {
    * @param description spend proposal description
    * @param amountDescriptor amount to spend, can be max or an amount in sats
    * @param feeRatePriority can be low, medium, high or a numeric value for the target block
+   * @param policyPath map where the key is the policy node id and the value is the list of the indexes of the items that are intended to be satisfied from the policy node
    */
   async spend({
     policy,
@@ -287,12 +288,14 @@ export class Coinstr {
     description,
     amountDescriptor,
     feeRatePriority,
+    policyPath
   }: CoinstrTypes.SpendProposalPayload): Promise<CoinstrTypes.PublishedSpendingProposal> {
 
     let { amount, psbt } = await policy.buildTrx({
       address: to_address,
       amount: amountDescriptor,
-      feeRate: feeRatePriority
+      feeRate: feeRatePriority,
+      policyPath
     })
 
     let {

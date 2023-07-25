@@ -15,9 +15,9 @@ export class PublishedPolicy {
   createdAt: Date
   sharedKeyAuth: Authenticator
   nostrPublicKeys: string[]
+  lastSyncTime?: Date
   private wallet: Wallet
   private syncTimeGap: number
-  private lastSyncTime?: Date
   private syncPromise?: Promise<void>
 
 
@@ -88,20 +88,26 @@ export class PublishedPolicy {
     return new Balance(balance)
   }
 
-  async getNewAddress(): Promise<String> {
+  async getNewAddress(): Promise<string> {
     return (await this.synced()).get_new_address()
+  }
+
+  getPolicy(): Map<string, any> {
+    return this.wallet.get_policy()
   }
 
   async buildTrx({
     address,
     amount,
-    feeRate
+    feeRate,
+    policyPath
   }: {
     address: string,
     amount: string,
-    feeRate: string
+    feeRate: string,
+    policyPath?: Map<string, Array<number>>
   }): Promise<Trx> {
-    return (await this.synced()).build_trx(address, amount, feeRate)
+    return (await this.synced()).build_trx(address, amount, feeRate, policyPath)
   }
 
   async finalizeTrx(psbts: string[], broadcast: boolean): Promise<FinalizeTrxResponse> {
