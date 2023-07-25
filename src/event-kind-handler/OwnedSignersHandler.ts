@@ -1,15 +1,14 @@
 import { type Event } from 'nostr-tools'
 import { type PublishedOwnedSigner, type BaseOwnedSigner } from '../types'
-import { type NostrClient, type Store } from '../service'
+import { type Store } from '../service'
 import { fromNostrDate } from '../util'
 import { EventKindHandler } from './EventKindHandler'
 import { type Authenticator } from '@smontero/nostr-ual'
-import { type BitcoinUtil } from '../models'
 
 export class OwnedSignerHandler extends EventKindHandler {
   private readonly store: Store
   private readonly authenticator!: Authenticator
-  constructor(_: NostrClient, authenticator: Authenticator, store: Store, __: BitcoinUtil) {
+  constructor(authenticator: Authenticator, store: Store) {
     super()
     this.store = store
     this.authenticator = authenticator

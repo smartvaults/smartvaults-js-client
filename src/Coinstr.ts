@@ -1,9 +1,9 @@
 import { Authenticator, DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { generatePrivateKey, Kind, Event, Filter, Sub } from 'nostr-tools'
-import { CoinstrKind, TagType, ProposalType } from './enum'
+import { CoinstrKind, TagType, ProposalType, ProposalStatus, ApprovalStatus } from './enum'
 import { NostrClient, PubPool, Store } from './service'
 import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished, nostrDate } from './util'
-import { BitcoinUtil, Contact, Policy, PublishedPolicy } from './models'
+import { BasicTrxDetails, BitcoinUtil, Contact, Policy, PublishedPolicy, TrxDetails } from './models'
 import * as CoinstrTypes from './types'
 import { EventKindHandlerFactory } from './event-kind-handler'
 
@@ -36,9 +36,10 @@ export class Coinstr {
     this.stores.set(CoinstrKind.Proposal, new Store({ "proposal_id": ["proposal_id"], "policy_id": ["proposal_id", "policy_id"] }))
     this.stores.set(CoinstrKind.ApprovedProposal, new Store({ "approval_id": ["approval_id"], "proposal_id": ["approval_id", "proposal_id"] }))
     this.stores.set(CoinstrKind.SharedKey, Store.createSingleIndexStore("policyId"))
-    this.stores.set(CoinstrKind.CompletedProposal, Store.createSingleIndexStore("proposal_id"))
+    this.stores.set(CoinstrKind.CompletedProposal, new Store({ "id": ["id"], "txId": ["txId"] }))
     this.stores.set(CoinstrKind.SharedSigners, Store.createSingleIndexStore("id"))
     this.stores.set(CoinstrKind.Signers, Store.createSingleIndexStore("id"))
+    this.stores.set(Kind.Metadata, Store.createSingleIndexStore("id"))
   }
   initEventKindHandlerFactory() {
     this.eventKindHandlerFactor = new EventKindHandlerFactory(this)
@@ -101,22 +102,9 @@ export class Coinstr {
       .kinds(Kind.Metadata)
       .authors(publicKeys)
       .toFilters()
-
     const metadataEvents = await this.nostrClient.list(metadataFilter)
-    const eventsMap: Map<string, Event<Kind>> = new Map()
-    metadataEvents.forEach(e => eventsMap.set(e.pubkey, e))
-    return publicKeys.map(publicKey => {
-      if (eventsMap.has(publicKey)) {
-        return {
-          publicKey,
-          ...JSON.parse(eventsMap.get(publicKey)!.content)
-        }
-      } else {
-        return {
-          publicKey
-        }
-      }
-    })
+    const profiles: CoinstrTypes.Profile[] = await this.eventKindHandlerFactor.getHandler(Kind.Metadata).handle(metadataEvents)
+    return profiles
   }
 
   async getContactProfiles(contacts?: Contact[]): Promise<CoinstrTypes.ContactProfile[]> {
@@ -135,7 +123,7 @@ export class Coinstr {
     if (!contactsEvent) {
       return []
     }
-    return getTagValues(contactsEvent, TagType.PubKey, (params) => Contact.fromParams(params))
+    return this.eventKindHandlerFactor.getHandler(Kind.Contacts).handle([contactsEvent])
   }
 
   /**
@@ -258,7 +246,7 @@ export class Coinstr {
   private async _getPolicies(filter: Filter<CoinstrKind.Policy>[]): Promise<PublishedPolicy[]> {
     const policyEvents = await this.nostrClient.list(filter)
     const policyHandler = this.eventKindHandlerFactor.getHandler(CoinstrKind.Policy)
-    return policyHandler.handle(policyEvents, this.getSharedKeysById)
+    return policyHandler.handle(policyEvents)
   }
 
   private async _getSharedKeys(filter: Filter<CoinstrKind.SharedKey>[]): Promise<Map<string, CoinstrTypes.SharedKeyAuthenticator>> {
@@ -342,10 +330,13 @@ export class Coinstr {
         promises.push(pub.onFirstOkOrCompleteFailure())
       }
     }
+    const signer = 'Unknown'
     Promise.all(promises)
     return {
       ...proposalContent[type],
+      signer,
       type: ProposalType.Spending,
+      status: ProposalStatus.Unsigned,
       policy_id: policy.id,
       proposal_id: proposalEvent.id,
       createdAt
@@ -353,37 +344,70 @@ export class Coinstr {
 
   }
 
-  subscribe(callback: (eventKind: number, payload: any) => void): Sub<number> {
-    let filters = this.subscriptionFilters()
+  subscribe(kinds: (CoinstrKind | Kind)[] | (CoinstrKind | Kind), callback: (eventKind: number, payload: any) => void): Sub<number> {
+    if (!Array.isArray(kinds)) {
+      kinds = [kinds]
+    }
+    const kindsHaveHandler = new Set([...Object.values(CoinstrKind), Kind.Metadata, Kind.Contacts]);
+    let filters = this.subscriptionFilters(kinds)
     return this.nostrClient.sub(filters, async (event: Event<number>) => {
       const {
         kind
       } = event
-      const handler = this.eventKindHandlerFactor.getHandler(kind)
+
       try {
-        const payload = (await handler.handle(event, this.getSharedKeysById))[0]
-        callback(kind, payload)
+        if (kindsHaveHandler.has(kind)) {
+          const handler = this.eventKindHandlerFactor.getHandler(kind)
+          const payload = (await handler.handle(event))[0]
+          callback(kind, payload)
+        } else {
+          callback(kind, event)
+        }
       } catch (error) {
         console.error(`failed processing subscription event: ${event}, error: ${error}`)
       }
     })
   }
 
-  private subscriptionFilters(): Filter<number>[] {
-    let paginationOpts = {
+  private buildFilter(kind: CoinstrKind | Kind, useAuthors = false, paginationOpts: PaginationOpts = {}): Filter<number> {
+
+
+    let builder = filterBuilder().kinds(kind).pagination(paginationOpts)
+
+    if (useAuthors) {
+      builder = builder.authors(this.authenticator.getPublicKey())
+    } else {
+      builder = builder.pubkeys(this.authenticator.getPublicKey())
+    }
+
+    return builder.toFilter()
+  }
+
+  private subscriptionFilters(kinds: (CoinstrKind | Kind)[]): Filter<number>[] {
+    let filters: Filter<number>[] = [];
+    const coinstrKinds = new Set(Object.values(CoinstrKind));
+    const kindsSet = new Set(Object.values(Kind));
+    const paginationOpts = {
       since: nostrDate()
     }
-    return filterBuilder()
-      .kinds(CoinstrKind.Policy)
-      .pubkeys(this.authenticator.getPublicKey())
-      .pagination(paginationOpts)
-      .toFilters()
+    for (const kind of kinds) {
+      if (coinstrKinds.has(kind as CoinstrKind)) {
+        const useAuthors = kind === CoinstrKind.Signers;
+        filters.push(this.buildFilter(kind as CoinstrKind, useAuthors, paginationOpts));
+      } else if (kindsSet.has(kind as Kind)) {
+        const useAuthors = kind === Kind.Metadata || kind === Kind.Contacts;
+        filters.push(this.buildFilter(kind as Kind, useAuthors, paginationOpts));
+      } else {
+        throw new Error(`Invalid kind: ${kind}`);
+      }
+    }
+
+    return filters;
   }
 
   disconnect(): void {
     this.nostrClient.disconnect
   }
-
 
 
   private async _getOwnedSigners(filter: Filter<CoinstrKind.Signers>[]): Promise<CoinstrTypes.PublishedOwnedSigner[]> {
@@ -403,7 +427,7 @@ export class Coinstr {
    * 
    * @async
    */
-  async getOwnedSigners(): Promise<CoinstrTypes.PublishedOwnedSigner[]> {
+  getOwnedSigners = async (): Promise<CoinstrTypes.PublishedOwnedSigner[]> => {
     const signersFilter = this.buildOwnedSignersFilter()
     return this._getOwnedSigners(signersFilter)
   }
@@ -614,18 +638,18 @@ export class Coinstr {
   private async _getCompletedProposals(filter: Filter<CoinstrKind.CompletedProposal>[]): Promise<(CoinstrTypes.PublishedCompletedSpendingProposal | CoinstrTypes.PublishedCompletedProofOfReserveProposal)[]> {
     const completedProposalEvents = await this.nostrClient.list(filter)
     const completedProposalHandler = this.eventKindHandlerFactor.getHandler(CoinstrKind.CompletedProposal)
-    return completedProposalHandler.handle(completedProposalEvents, this.getSharedKeysById)
+    return completedProposalHandler.handle(completedProposalEvents)
   }
 
-  async getCompletedProposalsById(paginationOpts: PaginationOpts = {}, proposal_ids: string[] | string): Promise<Map<string, CoinstrTypes.PublishedCompletedSpendingProposal | CoinstrTypes.PublishedCompletedProofOfReserveProposal>> {
-    const proposalIds = Array.isArray(proposal_ids) ? proposal_ids : [proposal_ids]
+  async getCompletedProposalsById(ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, CoinstrTypes.PublishedCompletedSpendingProposal | CoinstrTypes.PublishedCompletedProofOfReserveProposal>> {
+    const completedProposalsIds = Array.isArray(ids) ? ids : [ids]
     const store = this.getStore(CoinstrKind.CompletedProposal);
-    const missingIds = store.missing(proposalIds);
+    const missingIds = store.missing(completedProposalsIds);
     if (missingIds.length) {
       const completedProposalsFilter = this.buildCompletedProposalsFilter().ids(missingIds).pagination(paginationOpts).toFilters();
       await this._getCompletedProposals(completedProposalsFilter);
     }
-    return store.getMany(proposalIds);
+    return store.getMany(completedProposalsIds);
   }
 
   /**
@@ -645,7 +669,7 @@ export class Coinstr {
   private async _getApprovals(filter: Filter<CoinstrKind.ApprovedProposal>[]): Promise<CoinstrTypes.PublishedApprovedProposal[]> {
     const approvedProposalEvents = await this.nostrClient.list(filter)
     const approvedProposalHandler = this.eventKindHandlerFactor.getHandler(CoinstrKind.ApprovedProposal)
-    return approvedProposalHandler.handle(approvedProposalEvents, this.getSharedKeysById)
+    return approvedProposalHandler.handle(approvedProposalEvents)
   }
 
   /**
@@ -658,38 +682,37 @@ export class Coinstr {
  * 
  * @async
  */
-  async getApprovals(proposal_ids?: string[]): Promise<Map<string, CoinstrTypes.PublishedApprovedProposal[]>> {
+  async getApprovals(proposal_ids?: string[] | string): Promise<Map<string, CoinstrTypes.PublishedApprovedProposal[]>> {
     const proposalIds = Array.isArray(proposal_ids) ? proposal_ids : proposal_ids ? [proposal_ids] : undefined;
-    const approvedProposalsFilter = this.buildApprovedProposalsFilter();
-    if (proposalIds) {
-      approvedProposalsFilter.events(proposalIds);
-    }
-
-    await this._getApprovals(approvedProposalsFilter.toFilters());
-
+    let approvedProposalsFilter = this.buildApprovedProposalsFilter();
     const store = this.getStore(CoinstrKind.ApprovedProposal);
+    if (proposalIds) {
+      approvedProposalsFilter = approvedProposalsFilter.events(proposalIds);
+    }
+    await this._getApprovals(approvedProposalsFilter.toFilters());
     return store.getMany(proposalIds, "proposal_id");
   }
+
 
 
   private async _getProposals(filter: Filter<CoinstrKind.Policy>[]): Promise<PublishedPolicy[]> {
     const proposalEvents = await this.nostrClient.list(filter)
     const proposalHandler = this.eventKindHandlerFactor.getHandler(CoinstrKind.Proposal)
-    return proposalHandler.handle(proposalEvents, this.getSharedKeysById)
+    return proposalHandler.handle(proposalEvents)
   }
 
-  async getProposalsById(paginationOpts: PaginationOpts = {}, proposal_ids: string[] | string): Promise<Map<string, CoinstrTypes.PublishedSpendingProposal | CoinstrTypes.PublishedProofOfReserveProposal>> {
+  async getProposalsById(proposal_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, CoinstrTypes.PublishedSpendingProposal | CoinstrTypes.PublishedProofOfReserveProposal>> {
     const proposalIds = Array.isArray(proposal_ids) ? proposal_ids : [proposal_ids]
     const store = this.getStore(CoinstrKind.Proposal);
-    const missingIds = store.missing(proposalIds);
+    const missingIds = store.missing(proposalIds, "proposal_id");
     if (missingIds.length) {
       const proposalsFilter = this.buildProposalsFilter().ids(missingIds).pagination(paginationOpts).toFilters();
       await this._getProposals(proposalsFilter);
     }
-    return store.getMany(proposalIds);
+    return store.getMany(proposalIds, "proposal_id");
   }
 
-  async getProposalsByPolicyId(paginationOpts: PaginationOpts = {}, policy_ids: string[] | string): Promise<Map<string, CoinstrTypes.PublishedSpendingProposal | CoinstrTypes.PublishedProofOfReserveProposal>> {
+  async getProposalsByPolicyId(policy_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, CoinstrTypes.PublishedSpendingProposal | CoinstrTypes.PublishedProofOfReserveProposal>> {
     const policyIds = Array.isArray(policy_ids) ? policy_ids : [policy_ids]
     const store = this.getStore(CoinstrKind.Proposal);
     const missingIds = store.missing(policyIds, "policy_id");
@@ -700,20 +723,6 @@ export class Coinstr {
     return store.getMany(policyIds, "policy_id");
   }
 
-
-  // async getPoliciesById(ids: string[]): Promise<Map<string, PublishedPolicy>> {
-  //   const store = this.getStore(CoinstrKind.Policy)
-  //   const missingIds = store.missing(ids)
-  //   if (missingIds.length) {
-  //     const policiesFilter = filterBuilder()
-  //       .kinds(CoinstrKind.Policy)
-  //       .pubkeys(this.authenticator.getPublicKey())
-  //       .ids(missingIds)
-  //       .toFilters()
-  //     await this._getPolicies(policiesFilter)
-  //   }
-  //   return store.getMany(ids!)
-  // }
 
   /**
    * Method to retrieve and decrypt not completed proposals.
@@ -727,6 +736,187 @@ export class Coinstr {
     const proposalsFilter = this.buildProposalsFilter().pagination(paginationOpts).toFilters()
     const proposals = await this._getProposals(proposalsFilter)
     return proposals
+  }
+
+
+  /**
+   * Method to check if a proposal's PSBTs can be finalized.
+   *
+   * This method retrieves all approvals for a given proposal ID, filters out the approvals that are expired,
+   * and checks if the PSBTs for the active approvals can be finalized.
+   *
+   * @param proposalId - The ID of the proposal to check.
+   *
+   * @returns A Promise that resolves to a boolean indicating whether the PSBTs for the given proposal can be finalized.
+   */
+  checkPsbts = async (proposalId: string): Promise<boolean> => {
+    try {
+      const approvalsMap = await this.getApprovals(proposalId);
+      const approvalData = approvalsMap.get(proposalId);
+
+      if (!approvalData) {
+        return false;
+      }
+
+      const approvals = Array.isArray(approvalData) ? approvalData : [approvalData];
+
+      const psbts: string[] = approvals
+        .filter(approval => approval.status === ApprovalStatus.Active)
+        .map(activeApproval => activeApproval.psbt);
+
+      return this.bitcoinUtil.canFinalizePsbt(psbts);
+    } catch (error) {
+      console.error(error);
+      throw error;
+    }
+  }
+
+  /**
+   * Method to finalize a spending proposal.
+   *
+   * This method finalizes a spending proposal by doing the following:
+   * 1. It retrieves the proposal by ID and ensures it's a spending proposal.
+   * 2. It fetches the associated policy.
+   * 3. It retrieves all active approvals for the given proposal ID and checks if their PSBTs can be finalized.
+   * 4. If the PSBTs can be finalized, it proceeds to finalize the transaction and broadcast the proposal.
+   * 5. It then encrypts the completed proposal and builds two events: a completed proposal event and a proposal deletion event.
+   * 6. Both events are published 
+   * 7. Finally, it constructs and returns the published completed proposal.
+   *
+   * @param proposalId - The ID of the spending proposal to finalize.
+   *
+   * @returns A Promise that resolves to a `PublishedCompletedSpendingProposal` object representing the finalized proposal.
+   *
+   * @throws An error if the proposal or policy cannot be found, if there are no approvals for the proposal, if the PSBTs cannot be finalized, or if the proposal cannot be broadcast.
+   */
+  async finalizeSpendingProposal(proposalId: string): Promise<CoinstrTypes.PublishedCompletedSpendingProposal> {
+    const proposalMap = await this.getProposalsById(proposalId)
+
+    const proposal = proposalMap.get(proposalId) as CoinstrTypes.PublishedSpendingProposal
+    if (!proposal) {
+      throw new Error(`Proposal with id ${proposalId} not found`)
+    }
+    const type = proposal.type
+    if (type !== ProposalType.Spending) {
+      throw new Error(`Proposal with id ${proposalId} is not a spending proposal`)
+    }
+    const policyId = proposal.policy_id
+    const policyMap = await this.getPoliciesById([policyId])
+    const policy = policyMap.get(policyId)
+    if (!policy) {
+      throw new Error(`Policy with for proposal ${proposalId} not found`)
+    }
+    const approvalsMap = await this.getApprovals(proposalId)
+    let approvals = approvalsMap.get(proposalId)
+    if (!approvals) {
+      throw new Error(`No approvals for ${proposalId} were found`)
+    }
+    if (!Array.isArray(approvals)) {
+      approvals = [approvals]
+    }
+
+    const psbts: string[] = approvals
+      .filter(approval => approval.status === ApprovalStatus.Active)
+      .map(activeApproval => activeApproval.psbt);
+
+    if (!this.bitcoinUtil.canFinalizePsbt(psbts)) {
+      throw new Error(`Cannot finalize psbt for proposal ${proposalId}`)
+    }
+
+    const txResponse = await policy.finalizeTrx(psbts, true)
+
+    if (!txResponse) {
+      throw new Error(`Cannot broadcast proposal ${proposalId}`)
+    }
+    const txId = txResponse.txid
+    const policyMembers = policy.nostrPublicKeys.map(pubkey => [TagType.PubKey, pubkey])
+
+    const sharedKeyAuthenticator = policy.sharedKeyAuth
+
+    const completedProposal: CoinstrTypes.CompletedSpendingProposal = {
+      [type]: {
+        tx: txResponse.trx,
+        description: proposal.description,
+      }
+    }
+
+    const content = await sharedKeyAuthenticator.encryptObj(completedProposal)
+
+    const completedProposalEvent = await buildEvent({
+      kind: CoinstrKind.CompletedProposal,
+      content,
+      tags: [...policyMembers, [TagType.Event, proposalId], [TagType.Event, policy.id]],
+    },
+      this.authenticator)
+
+    const pub = this.nostrClient.publish(completedProposalEvent)
+    const pubCompletedProposalPromise = pub.onFirstOkOrCompleteFailure()
+
+    const deletedProposalEvent = await buildEvent({
+      kind: Kind.EventDeletion,
+      content: "",
+      tags: [...policyMembers, [TagType.Event, proposalId]],
+    }
+      , sharedKeyAuthenticator)
+
+    const pubDelete = this.nostrClient.publish(deletedProposalEvent)
+    const pubDeleteEventPromise = pubDelete.onFirstOkOrCompleteFailure()
+
+    const publishedCompletedProposal: CoinstrTypes.PublishedCompletedSpendingProposal = {
+      type,
+      txId,
+      ...completedProposal[type],
+      proposal_id: proposalId,
+      policy_id: policy.id,
+      completed_by: completedProposalEvent.pubkey,
+      completion_date: fromNostrDate(completedProposalEvent.created_at),
+      id: completedProposalEvent.id,
+    }
+    await Promise.all([pubCompletedProposalPromise, pubDeleteEventPromise])
+    return publishedCompletedProposal
+  }
+
+
+  /**
+   * Retrieves a completed proposal based on the provided transaction details.
+   *
+   * @async
+   * @function getCompletedProposalByTx
+   * @param {TrxDetails | BasicTrxDetails} tx - Object containing the transaction details.
+   * @returns {Promise<CoinstrTypes.PublishedCompletedSpendingProposal | null>} A Promise that resolves with the completed proposal, if found, or null.
+   * 
+   * @example
+   * getCompletedProposalByTx({txid: '1234', confirmation_time: {confirmedAt: new Date()}, net: -1})
+   * 
+   */
+  async getCompletedProposalByTx(tx: TrxDetails | BasicTrxDetails): Promise<CoinstrTypes.PublishedCompletedSpendingProposal | null> {
+    const { txid: txId, confirmation_time: confirmationTime, net: net } = tx;
+
+    if (!txId || !confirmationTime || net > 0) {
+      return null
+    }
+
+    const completedProposalStore = this.getStore(CoinstrKind.CompletedProposal);
+    const maybeStoredCompletedProposal = await completedProposalStore.get(txId, 'txId');
+
+    if (maybeStoredCompletedProposal) {
+      return maybeStoredCompletedProposal;
+    }
+
+    const confirmedAt = confirmationTime.confirmedAt;
+
+    const since = new Date(confirmedAt.getTime() - 3 * 60 * 60 * 1000);
+    const until = new Date(confirmedAt.getTime());
+
+    const paginationOpts = { since, until };
+    const completedProposals = await this.getCompletedProposals(paginationOpts) as CoinstrTypes.PublishedCompletedSpendingProposal[];
+    const completedProposal = completedProposals.find(({ txId: id }) => id === txId);
+
+    if (!completedProposal) {
+      return null
+    }
+
+    return completedProposal;
   }
 
 
@@ -764,8 +954,9 @@ export class Coinstr {
     const createdAt = fromNostrDate(proposalEvent.created_at)
     await pub.onFirstOkOrCompleteFailure()
     const proposal_id = proposalEvent.id
-
-    return { ...proposal[type], proposal_id, type, policy_id, createdAt }
+    const status = ProposalStatus.Unsigned
+    const signer = 'Unknown'
+    return { ...proposal[type], proposal_id, type, status, signer, policy_id, createdAt }
 
   }
 
@@ -804,7 +995,7 @@ export class Coinstr {
       approved_by: approvedProposalEvent.pubkey,
       approval_date: fromNostrDate(approvedProposalEvent.created_at),
       expiration_date: fromNostrDate(expirationDate),
-      status: "active"
+      status: ApprovalStatus.Active,
     }
 
     const pub = this.nostrClient.publish(approvedProposalEvent)
@@ -813,7 +1004,7 @@ export class Coinstr {
     return publishedApprovedProposal
   }
 
-  async _saveCompletedProposal(proposal_id: string, payload: CoinstrTypes.CompletedProofOfReserveProposal): Promise<any> {
+  async _saveCompletedProposal(proposal_id: string, payload: CoinstrTypes.CompletedProofOfReserveProposal | CoinstrTypes.CompletedSpendingProposal): Promise<any> {
     const proposalEvent = await this.getProposalEvent(proposal_id)
     const policyId = getTagValues(proposalEvent, TagType.Event)[0]
     const policyEvent = await this.getPolicyEvent(policyId)
@@ -826,7 +1017,11 @@ export class Coinstr {
     }
     const type = payload[ProposalType.Spending] ? ProposalType.Spending : ProposalType.ProofOfReserve
     const content = await sharedKeyAuthenticator.encryptObj(completedProposal)
-
+    let txId;
+    if (type === ProposalType.Spending) {
+      const spendingProposal: CoinstrTypes.CompletedSpendingProposal = payload as CoinstrTypes.CompletedSpendingProposal;
+      txId = this.bitcoinUtil.getTrxId(spendingProposal[type].tx)
+    }
     const completedProposalEvent = await buildEvent({
       kind: CoinstrKind.CompletedProposal,
       content,
@@ -845,15 +1040,17 @@ export class Coinstr {
       , sharedKeyAuthenticator)
 
     const pubDelete = this.nostrClient.publish(deletedProposalEvent)
-    await pubDelete.onFirstOkOrCompleteFailure()
+    pubDelete.onFirstOkOrCompleteFailure()
 
-    const publishedCompletedProposal: CoinstrTypes.PublishedCompletedProofOfReserveProposal = {
+    const publishedCompletedProposal: CoinstrTypes.PublishedCompletedProofOfReserveProposal | CoinstrTypes.PublishedCompletedSpendingProposal = {
       type,
+      txId,
       ...payload[type],
       proposal_id,
       policy_id: policyId,
       completed_by: completedProposalEvent.pubkey,
       completion_date: fromNostrDate(completedProposalEvent.created_at),
+      id: completedProposalEvent.id,
     }
 
     return publishedCompletedProposal
