@@ -335,10 +335,12 @@ export class Coinstr {
       }
     }
     const signer = 'Unknown'
+    const fee = this.bitcoinUtil.getFee(psbt)
     Promise.all(promises)
     return {
       ...proposalContent[type],
       signer,
+      fee,
       type: ProposalType.Spending,
       status: ProposalStatus.Unsigned,
       policy_id: policy.id,
@@ -985,7 +987,8 @@ export class Coinstr {
     const proposal_id = proposalEvent.id
     const status = ProposalStatus.Unsigned
     const signer = 'Unknown'
-    return { ...proposal[type], proposal_id, type, status, signer, policy_id, createdAt }
+    const fee = this.bitcoinUtil.getFee(psbt)
+    return { ...proposal[type], proposal_id, type, status, signer, fee, policy_id, createdAt }
 
   }
 

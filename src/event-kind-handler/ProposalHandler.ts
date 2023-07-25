@@ -4,19 +4,22 @@ import { type SpendingProposal, type ProofOfReserveProposal, type PublishedSpend
 import { type Store, type NostrClient } from '../service'
 import { getTagValues, fromNostrDate, buildEvent } from '../util'
 import { EventKindHandler } from './EventKindHandler'
+import { type BitcoinUtil } from '../models'
 export class ProposalHandler extends EventKindHandler {
   private readonly store: Store
   private readonly eventsStore: Store
   private readonly nostrClient: NostrClient
+  private readonly bitcoinUtil: BitcoinUtil
   private readonly getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>
   private readonly checkPsbts: (proposalId: string) => Promise<boolean>
   private readonly getOwnedSigners: () => Promise<PublishedOwnedSigner[]>
-  constructor(store: Store, eventsStore: Store, nostrClient: NostrClient, getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>, checkPsbts: (proposalId: string) => Promise<boolean>,
+  constructor(store: Store, eventsStore: Store, nostrClient: NostrClient, bitcoinUtil: BitcoinUtil, getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>, checkPsbts: (proposalId: string) => Promise<boolean>,
     getOwnedSigners: () => Promise<PublishedOwnedSigner[]>) {
     super()
     this.store = store
     this.eventsStore = eventsStore
     this.nostrClient = nostrClient
+    this.bitcoinUtil = bitcoinUtil
     this.getSharedKeysById = getSharedKeysById
     this.checkPsbts = checkPsbts
     this.getOwnedSigners = getOwnedSigners
@@ -60,11 +63,13 @@ export class ProposalHandler extends EventKindHandler {
       const status = await this.checkPsbts(proposalEvent.id) ? ProposalStatus.Signed : ProposalStatus.Unsigned
       const signerResult: string | null = this.searchSignerInDescriptor(fingerprints, decryptedProposalObj[type].descriptor)
       const signer = signerResult ?? 'Unknown'
-
+      const psbt = decryptedProposalObj[type].psbt
+      const fee = this.bitcoinUtil.getFee(psbt)
       const publishedProposal: PublishedSpendingProposal | PublishedProofOfReserveProposal = {
         type,
         status,
         signer,
+        fee,
         ...decryptedProposalObj[type],
         createdAt,
         policy_id: policyId,

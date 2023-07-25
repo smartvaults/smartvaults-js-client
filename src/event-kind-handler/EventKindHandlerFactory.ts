@@ -37,7 +37,7 @@ export class EventKindHandlerFactory {
           this.handlers.set(eventKind, new PolicyHandler(stores.get(eventKind)!, eventsStore, nostrClient, bitcoinUtil, getSharedKeysById))
           break
         case CoinstrKind.Proposal:
-          this.handlers.set(eventKind, new ProposalHandler(stores.get(eventKind)!, eventsStore, nostrClient, getSharedKeysById, checkPsbts, getOwnedSigners))
+          this.handlers.set(eventKind, new ProposalHandler(stores.get(eventKind)!, eventsStore, nostrClient, bitcoinUtil, getSharedKeysById, checkPsbts, getOwnedSigners))
           break
         case CoinstrKind.ApprovedProposal:
           this.handlers.set(eventKind, new ApprovalsHandler(stores.get(eventKind)!, eventsStore, nostrClient, authenticator, getSharedKeysById))

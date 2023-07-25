@@ -213,6 +213,7 @@ describe('Coinstr', () => {
         .mockResolvedValueOnce({ amount: 3000, psbt: "encoded psbt3" })
         .mockResolvedValueOnce({ amount: 4000, psbt: "encoded psbt4" })
       bitcoinUtil.createWallet.mockReturnValue(wallet)
+      bitcoinUtil.getFee.mockReturnValue(100)
     })
 
     it('should receive policy events', async () => {
@@ -754,7 +755,7 @@ describe('Coinstr', () => {
       expectedTrx = { txid: mockTxid, psbt: "psbt1", trx: { inputs: ["input1"] } }
       wallet.finalize_trx.mockResolvedValue(expectedTrx)
       bitcoinUtil.getTrxId.mockReturnValue(mockTxid)
-
+      bitcoinUtil.getFee.mockReturnValue(420)
 
       let savePolicyPayload1 = getSavePolicyPayload(11, keySet1.getPublicKeys(), -10)
       let policy1 = await coinstr.savePolicy(savePolicyPayload1) // Policy 1 is created by authenticator 1
