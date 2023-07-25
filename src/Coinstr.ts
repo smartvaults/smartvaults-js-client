@@ -925,27 +925,27 @@ export class Coinstr {
     return completedProposal;
   }
 
-  async deleteApproval(ids: string | string[], mock: boolean = false): Promise<void> {
+  async deleteApprovals(ids: string | string[], mock: boolean = false): Promise<void> {
     const approvalIds = Array.isArray(ids) ? ids : [ids]
     await this.eventKindHandlerFactor.getHandler(CoinstrKind.ApprovedProposal).delete(approvalIds, mock)
   }
 
-  async deleteProposal(ids: string | string[], mock: boolean = false): Promise<void> {
+  async deleteProposals(ids: string | string[], mock: boolean = false): Promise<void> {
     const proposalIds = Array.isArray(ids) ? ids : [ids]
     await this.eventKindHandlerFactor.getHandler(CoinstrKind.Proposal).delete(proposalIds, mock)
   }
 
-  async deleteCompletedProposal(ids: string | string[], mock: boolean = false): Promise<void> {
+  async deleteCompletedProposals(ids: string | string[], mock: boolean = false): Promise<void> {
     const completedProposalIds = Array.isArray(ids) ? ids : [ids]
     await this.eventKindHandlerFactor.getHandler(CoinstrKind.CompletedProposal).delete(completedProposalIds, mock)
   }
 
-  async deleteSigner(ids: string | string[], mock: boolean = false): Promise<void> {
+  async deleteSigners(ids: string | string[], mock: boolean = false): Promise<void> {
     const signerIds = Array.isArray(ids) ? ids : [ids]
     await this.eventKindHandlerFactor.getHandler(CoinstrKind.Signers).delete(signerIds, mock)
   }
 
-  async deletePolicy(ids: string | string[], mock: boolean = false): Promise<void> {
+  async deletePolicies(ids: string | string[], mock: boolean = false): Promise<void> {
     const policyIds = Array.isArray(ids) ? ids : [ids]
     await this.eventKindHandlerFactor.getHandler(CoinstrKind.Policy).delete(policyIds, mock)
   }

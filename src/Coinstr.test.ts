@@ -184,10 +184,10 @@ describe('Coinstr', () => {
 
     })
 
-    it('deletePolicy works', async () => {
+    it('deletePolicies works', async () => {
       const policies = await coinstr.getPolicies()
       expect(policies.length).toBe(3)
-      await coinstr.deletePolicy([policy1.id, policy2.id])
+      await coinstr.deletePolicies([policy1.id, policy2.id])
       const policies2 = await coinstr.getPolicies()
       expect(policies2.length).toBe(1)
       assertPublishedPolicy(policies2[0], policy3)
@@ -517,11 +517,11 @@ describe('Coinstr', () => {
       const expectedDeleteEvent2 = new Map([[CoinstrKind.Policy, [policy1.id]]])
       const expectedDeleteEvent3 = new Map([[CoinstrKind.ApprovedProposal, [approval1.approval_id, approval2.approval_id, approval3.approval_id]]])
       await coinstr.getProposals()
-      await coinstr.deleteProposal([spendProposal1.proposal_id], true)
+      await coinstr.deleteProposals([spendProposal1.proposal_id], true)
       await coinstr.getPolicies()
-      await coinstr.deletePolicy([policy1.id], true)
+      await coinstr.deletePolicies([policy1.id], true)
       await coinstr.getApprovals()
-      await coinstr.deleteApproval([approval1.approval_id, approval2.approval_id, approval3.approval_id], true)
+      await coinstr.deleteApprovals([approval1.approval_id, approval2.approval_id, approval3.approval_id], true)
       await sleep(500)
       sub.unsub()
     })
@@ -623,10 +623,10 @@ describe('Coinstr', () => {
       });
     });
 
-    it('deleteSigner works', async () => {
+    it('deleteSigners works', async () => {
       const signers = await coinstr.getOwnedSigners();
       expect(signers.length).toBe(3);
-      await coinstr.deleteSigner([signers[0].id, signers[1].id])
+      await coinstr.deleteSigners([signers[0].id, signers[1].id])
       const signers2 = await coinstr.getOwnedSigners();
       expect(signers2.length).toBe(1);
       expect(signers2[0]).toEqual(ownedSigner1)
@@ -938,28 +938,28 @@ describe('Coinstr', () => {
     }
     );
 
-    it('deleteProposal works', async () => {
+    it('deleteProposals works', async () => {
       const spendProposal = await coinstr.getProposalsById([spendProposal1.proposal_id]);
       expect(spendProposal.size).toBe(1);
-      await coinstr.deleteProposal(spendProposal1.proposal_id)
+      await coinstr.deleteProposals(spendProposal1.proposal_id)
       await sleep(200)
       const proposals = await coinstr.getProposalsById([spendProposal1.proposal_id]);
       expect(proposals.size).toBe(0);
     }
     );
 
-    it('deleteApproval works', async () => {
-      await coinstr.deleteApproval([saveApprovedProposal1.approval_id, saveApprovedProposal4.approval_id])
+    it('deleteApprovals works', async () => {
+      await coinstr.deleteApprovals([saveApprovedProposal1.approval_id, saveApprovedProposal4.approval_id])
       await sleep(200)
       const approvedProposals = await coinstr.getApprovals([proposalApproved1]);
       expect(approvedProposals.size).toBe(0);
     }
     );
 
-    it('deleteCompletedProposal works', async () => {
+    it('deleteCompletedProposals works', async () => {
       const completedProposals = await coinstr.getCompletedProposalsById([completedProposal2.id, completedProposal3.id]);
       expect(completedProposals.size).toBe(2);
-      await coinstr.deleteCompletedProposal([completedProposal2.id, completedProposal3.id])
+      await coinstr.deleteCompletedProposals([completedProposal2.id, completedProposal3.id])
       await sleep(200)
       const completedProposals2 = await coinstr.getCompletedProposalsById([completedProposal2.id, completedProposal3.id]);
       expect(completedProposals2.size).toBe(0);
