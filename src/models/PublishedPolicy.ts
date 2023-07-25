@@ -15,9 +15,9 @@ export class PublishedPolicy {
   createdAt: Date
   sharedKeyAuth: Authenticator
   nostrPublicKeys: string[]
+  lastSyncTime?: Date
   private wallet: Wallet
   private syncTimeGap: number
-  private lastSyncTime?: Date
   private syncPromise?: Promise<void>
 
 
