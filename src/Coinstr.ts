@@ -40,6 +40,7 @@ export class Coinstr {
     this.stores.set(CoinstrKind.SharedSigners, Store.createSingleIndexStore("id"))
     this.stores.set(CoinstrKind.Signers, Store.createSingleIndexStore("id"))
     this.stores.set(Kind.Metadata, Store.createSingleIndexStore("id"))
+    this.stores.set(1234, Store.createSingleIndexStore("id"))
   }
   initEventKindHandlerFactory() {
     this.eventKindHandlerFactor = new EventKindHandlerFactory(this)
@@ -348,7 +349,7 @@ export class Coinstr {
     if (!Array.isArray(kinds)) {
       kinds = [kinds]
     }
-    const kindsHaveHandler = new Set([...Object.values(CoinstrKind), Kind.Metadata, Kind.Contacts]);
+    const kindsHaveHandler = new Set([...Object.values(CoinstrKind), Kind.Metadata, Kind.Contacts, Kind.EventDeletion]);
     let filters = this.subscriptionFilters(kinds)
     return this.nostrClient.sub(filters, async (event: Event<number>) => {
       const {
@@ -847,7 +848,7 @@ export class Coinstr {
       content,
       tags: [...policyMembers, [TagType.Event, proposalId], [TagType.Event, policy.id]],
     },
-      this.authenticator)
+      sharedKeyAuthenticator)
 
     const pub = this.nostrClient.publish(completedProposalEvent)
     const pubCompletedProposalPromise = pub.onFirstOkOrCompleteFailure()
@@ -917,6 +918,31 @@ export class Coinstr {
     }
 
     return completedProposal;
+  }
+
+  async deleteApproval(ids: string | string[], mock: boolean = false): Promise<void> {
+    const approvalIds = Array.isArray(ids) ? ids : [ids]
+    await this.eventKindHandlerFactor.getHandler(CoinstrKind.ApprovedProposal).delete(approvalIds, mock)
+  }
+
+  async deleteProposal(ids: string | string[], mock: boolean = false): Promise<void> {
+    const proposalIds = Array.isArray(ids) ? ids : [ids]
+    await this.eventKindHandlerFactor.getHandler(CoinstrKind.Proposal).delete(proposalIds, mock)
+  }
+
+  async deleteCompletedProposal(ids: string | string[], mock: boolean = false): Promise<void> {
+    const completedProposalIds = Array.isArray(ids) ? ids : [ids]
+    await this.eventKindHandlerFactor.getHandler(CoinstrKind.CompletedProposal).delete(completedProposalIds, mock)
+  }
+
+  async deleteSigner(ids: string | string[], mock: boolean = false): Promise<void> {
+    const signerIds = Array.isArray(ids) ? ids : [ids]
+    await this.eventKindHandlerFactor.getHandler(CoinstrKind.Signers).delete(signerIds, mock)
+  }
+
+  async deletePolicy(ids: string | string[], mock: boolean = false): Promise<void> {
+    const policyIds = Array.isArray(ids) ? ids : [ids]
+    await this.eventKindHandlerFactor.getHandler(CoinstrKind.Policy).delete(policyIds, mock)
   }
 
 
@@ -1027,7 +1053,7 @@ export class Coinstr {
       content,
       tags: [...policyMembers, [TagType.Event, proposal_id], [TagType.Event, policyId]],
     },
-      this.authenticator)
+      sharedKeyAuthenticator)
 
     const pub = this.nostrClient.publish(completedProposalEvent)
     await pub.onFirstOkOrCompleteFailure()

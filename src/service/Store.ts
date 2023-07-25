@@ -32,6 +32,34 @@ export class Store {
     })
   }
 
+  delete(objs: any | any[]): void {
+    objs = Array.isArray(objs) ? objs : [objs]
+    if (!objs.length) {
+      return
+    }
+    objs.forEach(obj => {
+      for (const indexName in this.indexMap) {
+        const keyValues = this.indexMap[indexName].map(indexKey => obj[indexKey])
+        const key = keyValues.join('-')
+        const map = this.indexes.get(indexName)
+        if (!map) throw new Error('Invalid index key')
+
+        let innerMap = map.get(obj[indexName])
+        if (!innerMap) {
+          continue
+        }
+        if (innerMap.get(key)) {
+          innerMap.delete(key)
+        }
+
+        if (innerMap.size === 0) {
+          map.delete(obj[indexName]);
+        }
+      }
+    })
+  }
+
+
   get(indexValue: string, indexKey?: string): any | undefined {
     const InnerMap = this.getIndex(indexKey).get(indexValue)
     if (InnerMap) {

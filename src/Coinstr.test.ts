@@ -183,6 +183,16 @@ describe('Coinstr', () => {
       assertPublishedPolicy(policies.get(policy1.id)!, policy1)
 
     })
+
+    it('deletePolicy works', async () => {
+      const policies = await coinstr.getPolicies()
+      expect(policies.length).toBe(3)
+      await coinstr.deletePolicy([policy1.id, policy2.id])
+      const policies2 = await coinstr.getPolicies()
+      expect(policies2.length).toBe(1)
+      assertPublishedPolicy(policies2[0], policy3)
+    })
+
   })
 
   describe('subscribe', () => {
@@ -472,6 +482,48 @@ describe('Coinstr', () => {
       sub.unsub()
     }
     )
+
+    it('should receive delete events', async () => {
+      let counter: number = 0
+      expect.assertions(4)
+      let savePolicyPayload1 = getSavePolicyPayload(1, keySet.getPublicKeys(), 2)
+      let policy1 = await coinstr.savePolicy(savePolicyPayload1)
+      let spendProposalPayload1 = spendProposalPayload(1, policy1)
+
+      const sub = coinstr.subscribe(Kind.EventDeletion, (kind: number, payload: any) => {
+        switch (counter) {
+          case 0:
+            expect(kind).toBe(Kind.EventDeletion)
+            expect(payload).toEqual(expectedDeleteEvent1)
+            break
+          case 1:
+            expect(kind).toBe(Kind.EventDeletion)
+            expect(payload).toEqual(expectedDeleteEvent2)
+            break
+          case 2:
+            expect(kind).toBe(Kind.EventDeletion)
+            expect(payload).toEqual(expectedDeleteEvent3)
+            break
+        }
+        counter++
+      })
+
+      let spendProposal1 = await coinstr.spend(spendProposalPayload1)
+      let approval1 = await coinstr._saveApprovedProposal(spendProposal1.proposal_id)
+      let approval2 = await coinstr._saveApprovedProposal(spendProposal1.proposal_id)
+      let approval3 = await coinstr._saveApprovedProposal(spendProposal1.proposal_id)
+      const expectedDeleteEvent1 = new Map([[CoinstrKind.Proposal, [spendProposal1.proposal_id]]])
+      const expectedDeleteEvent2 = new Map([[CoinstrKind.Policy, [policy1.id]]])
+      const expectedDeleteEvent3 = new Map([[CoinstrKind.ApprovedProposal, [approval1.approval_id, approval2.approval_id, approval3.approval_id]]])
+      await coinstr.getProposals()
+      await coinstr.deleteProposal([spendProposal1.proposal_id], true)
+      await coinstr.getPolicies()
+      await coinstr.deletePolicy([policy1.id], true)
+      await coinstr.getApprovals()
+      await coinstr.deleteApproval([approval1.approval_id, approval2.approval_id, approval3.approval_id], true)
+      await sleep(500)
+      sub.unsub()
+    })
   })
 
   describe('Store methods work as expected', () => {
@@ -569,6 +621,16 @@ describe('Coinstr', () => {
         expect(signer).toHaveProperty('description');
       });
     });
+
+    it('deleteSigner works', async () => {
+      const signers = await coinstr.getOwnedSigners();
+      expect(signers.length).toBe(3);
+      await coinstr.deleteSigner([signers[0].id, signers[1].id])
+      const signers2 = await coinstr.getOwnedSigners();
+      expect(signers2.length).toBe(1);
+      expect(signers2[0]).toEqual(ownedSigner1)
+    }
+    );
   });
 
   describe('getSharedSigners', () => {
@@ -872,6 +934,34 @@ describe('Coinstr', () => {
       const completedProposalsMap = await coinstr.getCompletedProposalsById(finalizedProposal.id);
       expect(completedProposalsMap.size).toBe(1);
       expect(completedProposalsMap.get(finalizedProposal.id)).toEqual(finalizedProposal);
+    }
+    );
+
+    it('deleteProposal works', async () => {
+      const spendProposal = await coinstr.getProposalsById([spendProposal1.proposal_id]);
+      expect(spendProposal.size).toBe(1);
+      await coinstr.deleteProposal(spendProposal1.proposal_id)
+      await sleep(200)
+      const proposals = await coinstr.getProposalsById([spendProposal1.proposal_id]);
+      expect(proposals.size).toBe(0);
+    }
+    );
+
+    it('deleteApproval works', async () => {
+      await coinstr.deleteApproval([saveApprovedProposal1.approval_id, saveApprovedProposal4.approval_id])
+      await sleep(200)
+      const approvedProposals = await coinstr.getApprovals([proposalApproved1]);
+      expect(approvedProposals.size).toBe(0);
+    }
+    );
+
+    it('deleteCompletedProposal works', async () => {
+      const completedProposals = await coinstr.getCompletedProposalsById([completedProposal2.id, completedProposal3.id]);
+      expect(completedProposals.size).toBe(2);
+      await coinstr.deleteCompletedProposal([completedProposal2.id, completedProposal3.id])
+      await sleep(200)
+      const completedProposals2 = await coinstr.getCompletedProposalsById([completedProposal2.id, completedProposal3.id]);
+      expect(completedProposals2.size).toBe(0);
     }
     );
 

@@ -1,18 +1,22 @@
-import { type Event } from 'nostr-tools'
+import { type Event, Kind } from 'nostr-tools'
 import { ProposalType, TagType } from '../enum'
 import { type PublishedCompletedProofOfReserveProposal, type PublishedCompletedSpendingProposal, type CompletedProofOfReserveProposal, type CompletedSpendingProposal, type SharedKeyAuthenticator } from '../types'
-import { type Store } from '../service'
-import { getTagValues, fromNostrDate } from '../util'
+import { type Store, type NostrClient } from '../service'
+import { getTagValues, fromNostrDate, buildEvent } from '../util'
 import { EventKindHandler } from './EventKindHandler'
 import { type BitcoinUtil } from '../models'
 
 export class CompletedProposalHandler extends EventKindHandler {
   private readonly store: Store
-  private readonly getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>
+  private readonly eventsStore: Store
+  private readonly nostrClient: NostrClient
   private readonly bitcoinUtil: BitcoinUtil
-  constructor(store: Store, bitcoinUtil: BitcoinUtil, getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>) {
+  private readonly getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>
+  constructor(store: Store, eventsStore: Store, nostrClient: NostrClient, bitcoinUtil: BitcoinUtil, getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>) {
     super()
     this.store = store
+    this.eventsStore = eventsStore
+    this.nostrClient = nostrClient
     this.bitcoinUtil = bitcoinUtil
     this.getSharedKeysById = getSharedKeysById
   }
@@ -22,6 +26,7 @@ export class CompletedProposalHandler extends EventKindHandler {
     const sharedKeyAuthenticators = await this.getSharedKeysById(policiesIds)
     const completedProposalsIds = completedProposalEvents.map(proposal => proposal.id)
     const missingCompletedProposalsIds = this.store.missing(completedProposalsIds)
+    const rawCompletedProposals: Array<Event<K>> = []
     if (missingCompletedProposalsIds.length === 0) {
       return this.store.getManyAsArray(completedProposalsIds)
     }
@@ -32,6 +37,7 @@ export class CompletedProposalHandler extends EventKindHandler {
       const storeValue = this.store.get(completedProposalId)
       if (storeValue) {
         completedProposals.push(storeValue)
+        rawCompletedProposals.push(completedProposalEvent)
         continue
       }
       const policyId = getTagValues(completedProposalEvent, TagType.Event)[1]
@@ -55,8 +61,42 @@ export class CompletedProposalHandler extends EventKindHandler {
         id: completedProposalEvent.id
       }
       completedProposals.push(publishedCompleteProposal)
+      rawCompletedProposals.push(completedProposalEvent)
     }
     this.store.store(completedProposals)
+    this.eventsStore.store(rawCompletedProposals)
     return completedProposals
+  }
+
+
+
+  protected async _delete<K extends number>(ids: string[], mock: boolean = false): Promise<void> {
+    const promises: Promise<void>[] = []
+    const completedProposals: Array<PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal> = []
+    const rawCompletedProposals: Array<Event<K>> = []
+    for (const id of ids) {
+      const completedProposal: PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal = this.store.get(id)
+      if (completedProposal) {
+        const policyId = completedProposal.policy_id
+        const sharedKeyAuthenticator = (await this.getSharedKeysById([policyId])).get(policyId)?.sharedKeyAuthenticator
+        if (sharedKeyAuthenticator?.getPublicKey() === completedProposal.completed_by) {
+          const completedProposalEvent: Event<K> = this.eventsStore.get(id)
+          const policyMembers: [TagType, string][] = getTagValues(completedProposalEvent, TagType.PubKey).map(pubkey => [TagType.PubKey, pubkey])
+          const deleteEvent = await buildEvent({
+            kind: Kind.EventDeletion,
+            content: '',
+            tags: [...policyMembers, [TagType.Event, id]],
+          }, sharedKeyAuthenticator);
+          const pub = this.nostrClient.publish(deleteEvent);
+          promises.push(pub.onFirstOkOrCompleteFailure());
+          completedProposals.push(completedProposal)
+          rawCompletedProposals.push(completedProposalEvent)
+        }
+      }
+    }
+    await Promise.all(promises)
+    if (mock) return
+    this.store.delete(completedProposals)
+    this.eventsStore.delete(rawCompletedProposals)
   }
 }
