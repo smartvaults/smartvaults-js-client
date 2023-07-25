@@ -107,9 +107,24 @@ describe('PublishedPolicy', () => {
     })
   })
 
+
+  describe('getPolicy', () => {
+
+    it('should return correct policy', async () => {
+      wallet.sync.mockResolvedValue()
+      const p = new Map<string, any>()
+      p.set("id", "asdas")
+      p.set("type", "Signature")
+      wallet.get_policy.mockReturnValue(p)
+      let expected = policy.getPolicy()
+      expect(expected).toEqual(p)
+      expect(wallet.sync).toBeCalledTimes(0)
+    })
+  })
+
   describe('buildTrx', () => {
 
-    it('should correctly call the build_trx method of the wallet instance', async () => {
+    it('should correctly call the build_trx method of the wallet instance without policy path', async () => {
       wallet.sync.mockResolvedValue()
       const expected = { amount: 1000, psbt: "psbt1" }
       wallet.build_trx.mockResolvedValue(expected)
@@ -120,7 +135,24 @@ describe('PublishedPolicy', () => {
       })
       expect(expected).toEqual(actual)
       expect(wallet.sync).toBeCalledTimes(1)
-      expect(wallet.build_trx).toHaveBeenNthCalledWith(1, "address", "1000", "low")
+      expect(wallet.build_trx).toHaveBeenNthCalledWith(1, "address", "1000", "low", undefined)
+    })
+
+    it('should correctly call the build_trx method of the wallet instance with policy path', async () => {
+      wallet.sync.mockResolvedValue()
+      const expected = { amount: 3000, psbt: "psbt2" }
+      wallet.build_trx.mockResolvedValue(expected)
+      let policyPath = new Map<string, Array<number>>()
+      policyPath.set("83aswe", [1])
+      let actual = await policy.buildTrx({
+        address: "address1",
+        amount: "3000",
+        feeRate: "high",
+        policyPath
+      })
+      expect(expected).toEqual(actual)
+      expect(wallet.sync).toBeCalledTimes(1)
+      expect(wallet.build_trx).toHaveBeenNthCalledWith(1, "address1", "3000", "high", policyPath)
     })
   })
 
