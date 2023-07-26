@@ -69,28 +69,33 @@ export class ApprovalsHandler extends EventKindHandler {
     return approvedPublishedProposals
   }
 
-  private _getOwnedApprovals(ids: string[]): PublishedApprovedProposal[] {
+  private _getOwnedApprovals(ids: string[]): Map<string, PublishedApprovedProposal[]> {
     const pubKey = this.authenticator.getPublicKey();
     const storedApprovals: PublishedApprovedProposal[] = this.store.getManyAsArray(ids, 'approval_id');
-    return storedApprovals.filter(approval => approval.approved_by === pubKey);
+    const ownedStoredApprovalsIds = storedApprovals.filter(approval => approval.approved_by === pubKey).map(approval => approval.proposal_id);
+    return this.store.getMany(ownedStoredApprovalsIds, 'proposal_id');
   }
 
   protected async _delete(ids: string[], mock: boolean = false): Promise<any> {
-    const ownedApprovals = this._getOwnedApprovals(ids);
-    if (ownedApprovals.length) {
-      const tags: [TagType, string][] = ids.map(id => [TagType.Event, id]);
+    const ownedApprovalsMap = this._getOwnedApprovals(ids);
+    const promises: Promise<any>[] = [];
+    for (const [proposal_id, ownedApprovals] of ownedApprovalsMap.entries()) {
+      const ownedApprovalsArray = Array.isArray(ownedApprovals) ? ownedApprovals : [ownedApprovals];
+      const proposalEvent = this.eventsStore.get(proposal_id);
+      const proposalParticipants = getTagValues(proposalEvent, TagType.PubKey).map(pubkey => [TagType.PubKey, pubkey]);
+      const eventTags: [TagType, string][] = ownedApprovalsArray.map(approval => [TagType.Event, approval.approval_id]);
       const deleteEvent = await buildEvent({
         kind: Kind.EventDeletion,
         content: '',
-        tags,
+        tags: [...eventTags, ...proposalParticipants],
       }, this.authenticator);
       const pub = this.nostrClient.publish(deleteEvent);
-      await pub.onFirstOkOrCompleteFailure();
+      promises.push(pub.onFirstOkOrCompleteFailure());
       if (mock) return;
-      this.store.delete(ownedApprovals);
-      const rawEvents = ownedApprovals.map(approval => this.eventsStore.get(approval.approval_id));
+      this.store.delete(ownedApprovalsArray);
+      const rawEvents = ownedApprovalsArray.map(approval => this.eventsStore.get(approval.approval_id));
       this.eventsStore.delete(rawEvents);
     }
+    await Promise.all(promises);
   }
-
 }

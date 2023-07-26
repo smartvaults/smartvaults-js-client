@@ -486,10 +486,21 @@ describe('Coinstr', () => {
 
     it('should receive delete events', async () => {
       let counter: number = 0
-      expect.assertions(4)
+      expect.assertions(12)
       let savePolicyPayload1 = getSavePolicyPayload(1, keySet.getPublicKeys(), 2)
+      let savePolicyPayload2 = getSavePolicyPayload(2, keySet.getPublicKeys(), 3)
       let policy1 = await coinstr.savePolicy(savePolicyPayload1)
+      let policy2 = await coinstr.savePolicy(savePolicyPayload2)
       let spendProposalPayload1 = spendProposalPayload(1, policy1)
+      let spendProposalPayload2 = spendProposalPayload(2, policy2)
+      let spendProposal1 = await coinstr.spend(spendProposalPayload1)
+      let spendProposal2 = await coinstr.spend(spendProposalPayload2)
+      let approval1 = await coinstr._saveApprovedProposal(spendProposal2.proposal_id)
+      let approval2 = await coinstr._saveApprovedProposal(spendProposal2.proposal_id)
+      let approval3 = await coinstr._saveApprovedProposal(spendProposal2.proposal_id)
+      const expectedDeleteEvent1 = new Map([[CoinstrKind.Proposal, [spendProposal1.proposal_id]]])
+      const expectedDeleteEvent2 = new Map([[CoinstrKind.Policy, [policy1.id]]])
+      const expectedDeleteEvent3 = new Map([[CoinstrKind.ApprovedProposal, [approval1.approval_id, approval2.approval_id, approval3.approval_id]]])
 
       const sub = coinstr.subscribe(Kind.EventDeletion, (kind: number, payload: any) => {
         switch (counter) {
@@ -503,26 +514,32 @@ describe('Coinstr', () => {
             break
           case 2:
             expect(kind).toBe(Kind.EventDeletion)
-            expect(payload).toEqual(expectedDeleteEvent3)
+            expect(new Set(payload.get(CoinstrKind.ApprovedProposal))).toEqual(new Set(expectedDeleteEvent3.get(CoinstrKind.ApprovedProposal)))
             break
         }
         counter++
       })
 
-      let spendProposal1 = await coinstr.spend(spendProposalPayload1)
-      let approval1 = await coinstr._saveApprovedProposal(spendProposal1.proposal_id)
-      let approval2 = await coinstr._saveApprovedProposal(spendProposal1.proposal_id)
-      let approval3 = await coinstr._saveApprovedProposal(spendProposal1.proposal_id)
-      const expectedDeleteEvent1 = new Map([[CoinstrKind.Proposal, [spendProposal1.proposal_id]]])
-      const expectedDeleteEvent2 = new Map([[CoinstrKind.Policy, [policy1.id]]])
-      const expectedDeleteEvent3 = new Map([[CoinstrKind.ApprovedProposal, [approval1.approval_id, approval2.approval_id, approval3.approval_id]]])
-      await coinstr.getProposals()
+      const policies = await coinstr.getPolicies()
+      const proposals = await coinstr.getProposals()
+      const approvals = await coinstr.getApprovals()
+      expect(policies.length).toBe(2)
+      expect(proposals.length).toBe(2)
+      expect(approvals.size).toBe(1)
+
       await coinstr.deleteProposals([spendProposal1.proposal_id], true)
-      await coinstr.getPolicies()
+      await sleep(100)
+      const proposals2 = await coinstr.getProposals()
+      expect(proposals2.length).toBe(1)
       await coinstr.deletePolicies([policy1.id], true)
-      await coinstr.getApprovals()
+      await sleep(100)
+      const policies2 = await coinstr.getPolicies()
+      expect(policies2.length).toBe(1)
       await coinstr.deleteApprovals([approval1.approval_id, approval2.approval_id, approval3.approval_id], true)
-      await sleep(500)
+      await sleep(200)
+      const approvals2 = await coinstr.getApprovals()
+      expect(approvals2.size).toBe(0)
+      await sleep(200)
       sub.unsub()
     })
   })
