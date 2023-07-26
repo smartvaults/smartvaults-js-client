@@ -36,7 +36,7 @@ export class Coinstr {
     this.stores.set(CoinstrKind.Proposal, new Store({ "proposal_id": ["proposal_id"], "policy_id": ["proposal_id", "policy_id"] }))
     this.stores.set(CoinstrKind.ApprovedProposal, new Store({ "approval_id": ["approval_id"], "proposal_id": ["approval_id", "proposal_id"] }))
     this.stores.set(CoinstrKind.SharedKey, Store.createSingleIndexStore("policyId"))
-    this.stores.set(CoinstrKind.CompletedProposal, new Store({ "id": ["id"], "txId": ["txId"] }))
+    this.stores.set(CoinstrKind.CompletedProposal, new Store({ "id": ["id"], "txId": ["txId"], "policy_id": ["id", "policy_id"] }))
     this.stores.set(CoinstrKind.SharedSigners, Store.createSingleIndexStore("id"))
     this.stores.set(CoinstrKind.Signers, Store.createSingleIndexStore("id"))
     this.stores.set(Kind.Metadata, Store.createSingleIndexStore("id"))
@@ -655,7 +655,20 @@ export class Coinstr {
       const completedProposalsFilter = this.buildCompletedProposalsFilter().ids(missingIds).pagination(paginationOpts).toFilters();
       await this._getCompletedProposals(completedProposalsFilter);
     }
-    return store.getMany(completedProposalsIds);
+    return store.getMany(completedProposalsIds, "id");
+  }
+
+  getCompletedProposalsByPolicyId = async (policy_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, (CoinstrTypes.PublishedCompletedSpendingProposal | CoinstrTypes.PublishedCompletedProofOfReserveProposal)
+    | Array<CoinstrTypes.PublishedCompletedSpendingProposal | CoinstrTypes.PublishedCompletedProofOfReserveProposal>
+  >> => {
+    const policyIds = Array.isArray(policy_ids) ? policy_ids : [policy_ids]
+    const store = this.getStore(CoinstrKind.CompletedProposal);
+    const missingIds = store.missing(policyIds, "policy_id");
+    if (missingIds.length) {
+      const completedProposalsFilter = this.buildCompletedProposalsFilter().events(policyIds).pagination(paginationOpts).toFilters();
+      await this._getCompletedProposals(completedProposalsFilter);
+    }
+    return store.getMany(policyIds, "policy_id");
   }
 
   /**
@@ -718,7 +731,9 @@ export class Coinstr {
     return store.getMany(proposalIds, "proposal_id");
   }
 
-  async getProposalsByPolicyId(policy_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, CoinstrTypes.PublishedSpendingProposal | CoinstrTypes.PublishedProofOfReserveProposal>> {
+  getProposalsByPolicyId = async (policy_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, (CoinstrTypes.PublishedSpendingProposal | CoinstrTypes.PublishedProofOfReserveProposal)
+    | Array<CoinstrTypes.PublishedSpendingProposal | CoinstrTypes.PublishedProofOfReserveProposal>
+  >> => {
     const policyIds = Array.isArray(policy_ids) ? policy_ids : [policy_ids]
     const store = this.getStore(CoinstrKind.Proposal);
     const missingIds = store.missing(policyIds, "policy_id");

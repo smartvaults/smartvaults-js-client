@@ -31,10 +31,14 @@ export class EventKindHandlerFactory {
       const getSharedKeysById = this.coinstr.getSharedKeysById
       const checkPsbts = this.coinstr.checkPsbts
       const getOwnedSigners = this.coinstr.getOwnedSigners
+      const getCompletedProposalsByPolicyId = this.coinstr.getCompletedProposalsByPolicyId
+      const getProposalsByPolicyId = this.coinstr.getProposalsByPolicyId
       const eventsStore = stores.get(1234)!
+      const completedProposalsStore = stores.get(CoinstrKind.CompletedProposal)!
+      const proposalsStore = stores.get(CoinstrKind.Proposal)!
       switch (eventKind) {
         case CoinstrKind.Policy:
-          this.handlers.set(eventKind, new PolicyHandler(stores.get(eventKind)!, eventsStore, nostrClient, bitcoinUtil, getSharedKeysById))
+          this.handlers.set(eventKind, new PolicyHandler(stores.get(eventKind)!, eventsStore, completedProposalsStore, proposalsStore, nostrClient, bitcoinUtil, getSharedKeysById, getCompletedProposalsByPolicyId, getProposalsByPolicyId))
           break
         case CoinstrKind.Proposal:
           this.handlers.set(eventKind, new ProposalHandler(stores.get(eventKind)!, eventsStore, nostrClient, bitcoinUtil, getSharedKeysById, checkPsbts, getOwnedSigners))

@@ -185,11 +185,22 @@ describe('Coinstr', () => {
     })
 
     it('deletePolicies works', async () => {
+      const proposal1 = await coinstr._saveProofOfReserveProposal(policy1.id, saveProofOfReserveProposalPayload(1))
+      await coinstr._saveCompletedProposal(proposal1.proposal_id, saveProofOfReserveProposalPayload(1))
       const policies = await coinstr.getPolicies()
+      const completedProposals = await coinstr.getCompletedProposals()
+      await coinstr._saveProofOfReserveProposal(policy2.id, saveProofOfReserveProposalPayload(2))
+      const proposals = await coinstr.getProposals()
+      expect(proposals.length).toBe(1)
       expect(policies.length).toBe(3)
+      expect(completedProposals.length).toBe(1)
       await coinstr.deletePolicies([policy1.id, policy2.id])
       const policies2 = await coinstr.getPolicies()
+      const proposals2 = await coinstr.getProposals()
+      const completedProposals2 = await coinstr.getCompletedProposals()
       expect(policies2.length).toBe(1)
+      expect(proposals2.length).toBe(0)
+      expect(completedProposals2.length).toBe(0)
       assertPublishedPolicy(policies2[0], policy3)
     })
 
@@ -939,6 +950,15 @@ describe('Coinstr', () => {
       expect(proposals.size).toBe(2);
       expect(proposals.get(completedProposal2.id)).toEqual(completedProposal2);
       expect(proposals.get(completedProposal3.id)).toEqual(completedProposal3);
+    }
+    );
+
+    it('getCompletedProposalsByPolicyId', async () => {
+      const policyId1 = completedProposal2.policy_id;
+      const expectedMap1 = new Map([[policyId1, [completedProposal3, completedProposal2]]]);
+      const proposals1 = await coinstr.getCompletedProposalsByPolicyId([policyId1]);
+      expect(proposals1.size).toBe(1);
+      expect(proposals1).toEqual(expectedMap1);
     }
     );
 
