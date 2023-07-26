@@ -3,7 +3,7 @@ import { MockProxy, mock } from 'jest-mock-extended'
 import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { Coinstr } from './Coinstr'
 import { NostrClient, Keys, Store } from './service'
-import { TimeUtil } from './util'
+import { TimeUtil, buildEvent } from './util'
 import { Contact, PublishedPolicy, BitcoinUtil, Wallet, type FinalizeTrxResponse } from './models'
 import { Metadata, Profile, SavePolicyPayload, OwnedSigner, SharedSigner, SpendProposalPayload, PublishedDirectMessage, PublishedSpendingProposal, PublishedApprovedProposal, PublishedSharedSigner } from './types'
 import { CoinstrKind } from './enum'
@@ -527,15 +527,15 @@ describe('Coinstr', () => {
       expect(proposals.length).toBe(2)
       expect(approvals.size).toBe(1)
 
-      await coinstr.deleteProposals([spendProposal1.proposal_id], true)
+      await _deleteProposals([spendProposal1.proposal_id], coinstr)
       await sleep(100)
       const proposals2 = await coinstr.getProposals()
       expect(proposals2.length).toBe(1)
-      await coinstr.deletePolicies([policy1.id], true)
+      await _deletePolicies([policy1.id], coinstr)
       await sleep(100)
       const policies2 = await coinstr.getPolicies()
       expect(policies2.length).toBe(1)
-      await coinstr.deleteApprovals([approval1.approval_id, approval2.approval_id, approval3.approval_id], true)
+      await _deleteApprovals([approval1.approval_id, approval2.approval_id, approval3.approval_id], coinstr)
       await sleep(200)
       const approvals2 = await coinstr.getApprovals()
       expect(approvals2.size).toBe(0)
@@ -1146,6 +1146,63 @@ function saveProofOfReserveProposalPayload(id: number) {
     }
   }
 }
+
+async function _deleteApprovals(ids: string[], coinstr: Coinstr): Promise<void> {
+  const pubKey = coinstr.authenticator.getPublicKey()
+  const promises: Promise<any>[] = [];
+  const proposalParticipants = ['p', pubKey];
+  const eventTags = ids.map(id => ['e', id]);
+  const deleteEvent = await buildEvent({
+    kind: Kind.EventDeletion,
+    content: '',
+    tags: [...eventTags, proposalParticipants],
+  }, coinstr.authenticator);
+  const pub = coinstr.nostrClient.publish(deleteEvent);
+  promises.push(pub.onFirstOkOrCompleteFailure());
+  await Promise.all(promises);
+}
+
+async function _deleteProposals(ids: string[], coinstr: Coinstr): Promise<any> {
+  const pubKey = coinstr.authenticator.getPublicKey()
+  const promises: Promise<any>[] = [];
+  const proposalParticipants = ['p', pubKey];
+  for (const id of ids) {
+    const proposal = (await coinstr.getProposalsById([id]))?.get(id);
+    if (!proposal) continue
+    const sharedKeyAuth = (await coinstr.getSharedKeysById([proposal.policy_id])).get(proposal.policy_id)!.sharedKeyAuthenticator;
+    const deleteEvent = await buildEvent({
+      kind: Kind.EventDeletion,
+      content: '',
+      tags: [['e', id], proposalParticipants],
+    }, sharedKeyAuth);
+    const pub = coinstr.nostrClient.publish(deleteEvent);
+    promises.push(pub.onFirstOkOrCompleteFailure());
+  }
+  await Promise.all(promises);
+}
+
+async function _deletePolicies(ids: string[], coinstr: Coinstr): Promise<any> {
+  const pubKey = coinstr.authenticator.getPublicKey()
+  const promises: Promise<any>[] = [];
+  const proposalParticipants = ['p', pubKey];
+  for (const id of ids) {
+    const policy = (await coinstr.getPoliciesById([id]))?.get(id);
+    if (!policy) continue
+    const sharedKeyAuth = policy.sharedKeyAuth;
+    const deleteEvent = await buildEvent({
+      kind: Kind.EventDeletion,
+      content: '',
+      tags: [['e', id], proposalParticipants],
+    }, sharedKeyAuth);
+    const pub = coinstr.nostrClient.publish(deleteEvent);
+    promises.push(pub.onFirstOkOrCompleteFailure());
+  }
+  await Promise.all(promises);
+}
+
+
+
+
 
 class KeySet {
   keys: Keys[]

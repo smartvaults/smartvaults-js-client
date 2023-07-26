@@ -76,7 +76,7 @@ export class ApprovalsHandler extends EventKindHandler {
     return this.store.getMany(ownedStoredApprovalsIds, 'proposal_id');
   }
 
-  protected async _delete(ids: string[], mock: boolean = false): Promise<any> {
+  protected async _delete(ids: string[]): Promise<any> {
     const ownedApprovalsMap = this._getOwnedApprovals(ids);
     const promises: Promise<any>[] = [];
     for (const [proposal_id, ownedApprovals] of ownedApprovalsMap.entries()) {
@@ -92,7 +92,6 @@ export class ApprovalsHandler extends EventKindHandler {
       }, this.authenticator);
       const pub = this.nostrClient.publish(deleteEvent);
       promises.push(pub.onFirstOkOrCompleteFailure());
-      if (mock) return;
       this.store.delete(ownedApprovalsArray);
       const rawEvents = ownedApprovalsArray.map(approval => this.eventsStore.get(approval.approval_id));
       this.eventsStore.delete(rawEvents);

@@ -57,7 +57,7 @@ export class PolicyHandler extends EventKindHandler {
     return policies
   }
 
-  protected async _delete<K extends number>(ids: string[], mock: boolean = false): Promise<any> {
+  protected async _delete<K extends number>(ids: string[]): Promise<any> {
     const policies: PublishedPolicy[] = []
     const rawPolicyEvents: Event<K>[] = []
     const promises: Promise<any>[] = []
@@ -85,7 +85,6 @@ export class PolicyHandler extends EventKindHandler {
       }
     }
     await Promise.all(promises)
-    if (mock) return
     this.store.delete(policies)
     this.eventsStore.delete(rawPolicyEvents)
   }

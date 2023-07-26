@@ -925,29 +925,29 @@ export class Coinstr {
     return completedProposal;
   }
 
-  async deleteApprovals(ids: string | string[], mock: boolean = false): Promise<void> {
+  async deleteApprovals(ids: string | string[]): Promise<void> {
     const approvalIds = Array.isArray(ids) ? ids : [ids]
-    await this.eventKindHandlerFactor.getHandler(CoinstrKind.ApprovedProposal).delete(approvalIds, mock)
+    await this.eventKindHandlerFactor.getHandler(CoinstrKind.ApprovedProposal).delete(approvalIds)
   }
 
-  async deleteProposals(ids: string | string[], mock: boolean = false): Promise<void> {
+  async deleteProposals(ids: string | string[]): Promise<void> {
     const proposalIds = Array.isArray(ids) ? ids : [ids]
-    await this.eventKindHandlerFactor.getHandler(CoinstrKind.Proposal).delete(proposalIds, mock)
+    await this.eventKindHandlerFactor.getHandler(CoinstrKind.Proposal).delete(proposalIds)
   }
 
-  async deleteCompletedProposals(ids: string | string[], mock: boolean = false): Promise<void> {
+  async deleteCompletedProposals(ids: string | string[]): Promise<void> {
     const completedProposalIds = Array.isArray(ids) ? ids : [ids]
-    await this.eventKindHandlerFactor.getHandler(CoinstrKind.CompletedProposal).delete(completedProposalIds, mock)
+    await this.eventKindHandlerFactor.getHandler(CoinstrKind.CompletedProposal).delete(completedProposalIds)
   }
 
-  async deleteSigners(ids: string | string[], mock: boolean = false): Promise<void> {
+  async deleteSigners(ids: string | string[]): Promise<void> {
     const signerIds = Array.isArray(ids) ? ids : [ids]
-    await this.eventKindHandlerFactor.getHandler(CoinstrKind.Signers).delete(signerIds, mock)
+    await this.eventKindHandlerFactor.getHandler(CoinstrKind.Signers).delete(signerIds)
   }
 
-  async deletePolicies(ids: string | string[], mock: boolean = false): Promise<void> {
+  async deletePolicies(ids: string | string[]): Promise<void> {
     const policyIds = Array.isArray(ids) ? ids : [ids]
-    await this.eventKindHandlerFactor.getHandler(CoinstrKind.Policy).delete(policyIds, mock)
+    await this.eventKindHandlerFactor.getHandler(CoinstrKind.Policy).delete(policyIds)
   }
 
 

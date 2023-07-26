@@ -84,7 +84,7 @@ export class ProposalHandler extends EventKindHandler {
   }
 
 
-  protected async _delete(proposalIds: string[], mock: boolean = false): Promise<void> {
+  protected async _delete(proposalIds: string[]): Promise<void> {
     const promises: Promise<void>[] = []
     const eventsToDelete: Array<Event<any>> = []
     const rawEventsToDelete: Array<Event<any>> = []
@@ -110,7 +110,6 @@ export class ProposalHandler extends EventKindHandler {
       promises.push(pub.onFirstOkOrCompleteFailure());
     }
     await Promise.all(promises)
-    if (mock) return
     this.store.delete(eventsToDelete)
     this.eventsStore.delete(rawEventsToDelete)
   }

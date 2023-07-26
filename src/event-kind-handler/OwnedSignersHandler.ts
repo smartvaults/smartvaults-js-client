@@ -38,7 +38,7 @@ export class OwnedSignerHandler extends EventKindHandler {
     return signers
   }
 
-  protected async _delete<K extends number>(signersIds: string[], mock: boolean = false): Promise<void> {
+  protected async _delete<K extends number>(signersIds: string[]): Promise<void> {
     const pubKey = this.authenticator.getPublicKey()
     const tags: [TagType.Event, string][] = []
     const rawEventsToDelete: Array<Event<K>> = []
@@ -58,7 +58,6 @@ export class OwnedSignerHandler extends EventKindHandler {
     }, this.authenticator)
     const pub = this.nostrClient.publish(deleteEvent);
     await pub.onFirstOkOrCompleteFailure();
-    if (mock) return
     this.store.delete(signers)
     this.eventsStore.delete(rawEventsToDelete)
   }
