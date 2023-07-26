@@ -81,6 +81,7 @@ export class CompletedProposalHandler extends EventKindHandler {
         const sharedKeyAuthenticator = (await this.getSharedKeysById([policyId])).get(policyId)?.sharedKeyAuthenticator
         if (sharedKeyAuthenticator?.getPublicKey() === completedProposal.completed_by) {
           const completedProposalEvent: Event<K> = this.eventsStore.get(id)
+          if (!completedProposalEvent) continue
           const policyMembers: [TagType, string][] = getTagValues(completedProposalEvent, TagType.PubKey).map(pubkey => [TagType.PubKey, pubkey])
           const deleteEvent = await buildEvent({
             kind: Kind.EventDeletion,

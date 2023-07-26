@@ -45,8 +45,8 @@ export class OwnedSignerHandler extends EventKindHandler {
     const signers: Array<Event<K>> = []
     for (const signerId of signersIds) {
       const signerEvent: Event<K> = this.eventsStore.get(signerId)
+      if (!signerEvent || signerEvent.pubkey !== pubKey) continue
       const publishedSigner = this.store.get(signerId)
-      if (signerEvent.pubkey !== pubKey) continue
       tags.push([TagType.Event, signerEvent.id])
       signers.push(publishedSigner)
       rawEventsToDelete.push(signerEvent)

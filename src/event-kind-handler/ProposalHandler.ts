@@ -90,6 +90,7 @@ export class ProposalHandler extends EventKindHandler {
     const rawEventsToDelete: Array<Event<any>> = []
     for (const proposalId of proposalIds) {
       const proposalEvent = this.eventsStore.get(proposalId)
+      if (!proposalEvent) continue
       const proposalParticipants = getTagValues(proposalEvent, TagType.PubKey)
       const policyId = getTagValues(proposalEvent, TagType.Event)[0]
       const sharedKeyAuth = await this.getSharedKeysById([policyId])

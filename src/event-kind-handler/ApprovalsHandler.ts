@@ -82,6 +82,7 @@ export class ApprovalsHandler extends EventKindHandler {
     for (const [proposal_id, ownedApprovals] of ownedApprovalsMap.entries()) {
       const ownedApprovalsArray = Array.isArray(ownedApprovals) ? ownedApprovals : [ownedApprovals];
       const proposalEvent = this.eventsStore.get(proposal_id);
+      if (!proposalEvent) continue;
       const proposalParticipants = getTagValues(proposalEvent, TagType.PubKey).map(pubkey => [TagType.PubKey, pubkey]);
       const eventTags: [TagType, string][] = ownedApprovalsArray.map(approval => [TagType.Event, approval.approval_id]);
       const deleteEvent = await buildEvent({
