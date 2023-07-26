@@ -1,16 +1,22 @@
-import { type Event } from 'nostr-tools'
+import { type Event, Kind } from 'nostr-tools'
 import { ProposalType, TagType, ApprovalStatus } from '../enum'
-import { type PublishedApprovedProposal, type BaseApprovedProposal, type SharedKeyAuthenticator } from '../types'
-import { type Store } from '../service'
-import { getTagValues, fromNostrDate } from '../util'
+import { type PublishedApprovedProposal, type BaseApprovedProposal, type SharedKeyAuthenticator, } from '../types'
+import { type Store, type NostrClient } from '../service'
+import { getTagValues, fromNostrDate, buildEvent } from '../util'
 import { EventKindHandler } from './EventKindHandler'
-
+import { type Authenticator } from '@smontero/nostr-ual'
 export class ApprovalsHandler extends EventKindHandler {
   private readonly store: Store
+  private readonly eventsStore: Store
+  private readonly nostrClient: NostrClient
+  private readonly authenticator: Authenticator
   private readonly getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>
-  constructor(store: Store, getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>) {
+  constructor(store: Store, eventsStore: Store, nostrClient: NostrClient, authenticator: Authenticator, getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>) {
     super()
     this.store = store
+    this.eventsStore = eventsStore
+    this.nostrClient = nostrClient
+    this.authenticator = authenticator
     this.getSharedKeysById = getSharedKeysById
 
   }
@@ -20,6 +26,7 @@ export class ApprovalsHandler extends EventKindHandler {
     const sharedKeys = await this.getSharedKeysById(policiesIds)
     const indexKey = 'approval_id'
     const approvedPublishedProposals: PublishedApprovedProposal[] = []
+    const rawApprovalEvents: Array<Event<K>> = []
     const approvalIds = approvalEvents.map(approval => approval.id)
     const missingApprovalIds = this.store.missing(approvalIds, indexKey)
     if (missingApprovalIds.length === 0) {
@@ -32,6 +39,7 @@ export class ApprovalsHandler extends EventKindHandler {
 
       if (this.store.has(approvalId, indexKey)) {
         approvedPublishedProposals.push(this.store.get(approvalId, indexKey))
+        rawApprovalEvents.push(approvedProposalEvent)
         continue
       }
       const sharedKeyAuthenticator = sharedKeys.get(policyId)?.sharedKeyAuthenticator
@@ -54,8 +62,40 @@ export class ApprovalsHandler extends EventKindHandler {
         status: expirationDate < new Date() ? ApprovalStatus.Expired : ApprovalStatus.Active
       }
       approvedPublishedProposals.push(publishedApprovedProposal)
+      rawApprovalEvents.push(approvedProposalEvent)
     }
     this.store.store(approvedPublishedProposals)
+    this.eventsStore.store(rawApprovalEvents)
     return approvedPublishedProposals
+  }
+
+  private _getOwnedApprovals(ids: string[]): Map<string, PublishedApprovedProposal[]> {
+    const pubKey = this.authenticator.getPublicKey();
+    const storedApprovals: PublishedApprovedProposal[] = this.store.getManyAsArray(ids, 'approval_id');
+    const ownedStoredApprovalsIds = storedApprovals.filter(approval => approval.approved_by === pubKey).map(approval => approval.proposal_id);
+    return this.store.getMany(ownedStoredApprovalsIds, 'proposal_id');
+  }
+
+  protected async _delete(ids: string[]): Promise<any> {
+    const ownedApprovalsMap = this._getOwnedApprovals(ids);
+    const promises: Promise<any>[] = [];
+    for (const [proposal_id, ownedApprovals] of ownedApprovalsMap.entries()) {
+      const ownedApprovalsArray = Array.isArray(ownedApprovals) ? ownedApprovals : [ownedApprovals];
+      const proposalEvent = this.eventsStore.get(proposal_id);
+      if (!proposalEvent) continue;
+      const proposalParticipants = getTagValues(proposalEvent, TagType.PubKey).map(pubkey => [TagType.PubKey, pubkey]);
+      const eventTags: [TagType, string][] = ownedApprovalsArray.map(approval => [TagType.Event, approval.approval_id]);
+      const deleteEvent = await buildEvent({
+        kind: Kind.EventDeletion,
+        content: '',
+        tags: [...eventTags, ...proposalParticipants],
+      }, this.authenticator);
+      const pub = this.nostrClient.publish(deleteEvent);
+      promises.push(pub.onFirstOkOrCompleteFailure());
+      this.store.delete(ownedApprovalsArray);
+      const rawEvents = ownedApprovalsArray.map(approval => this.eventsStore.get(approval.approval_id));
+      this.eventsStore.delete(rawEvents);
+    }
+    await Promise.all(promises);
   }
 }

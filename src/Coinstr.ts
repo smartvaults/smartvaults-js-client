@@ -40,6 +40,7 @@ export class Coinstr {
     this.stores.set(CoinstrKind.SharedSigners, Store.createSingleIndexStore("id"))
     this.stores.set(CoinstrKind.Signers, Store.createSingleIndexStore("id"))
     this.stores.set(Kind.Metadata, Store.createSingleIndexStore("id"))
+    this.stores.set(1234, Store.createSingleIndexStore("id"))
   }
   initEventKindHandlerFactory() {
     this.eventKindHandlerFactor = new EventKindHandlerFactory(this)
@@ -334,10 +335,12 @@ export class Coinstr {
       }
     }
     const signer = 'Unknown'
+    const fee = this.bitcoinUtil.getFee(psbt)
     Promise.all(promises)
     return {
       ...proposalContent[type],
       signer,
+      fee,
       type: ProposalType.Spending,
       status: ProposalStatus.Unsigned,
       policy_id: policy.id,
@@ -351,7 +354,7 @@ export class Coinstr {
     if (!Array.isArray(kinds)) {
       kinds = [kinds]
     }
-    const kindsHaveHandler = new Set([...Object.values(CoinstrKind), Kind.Metadata, Kind.Contacts]);
+    const kindsHaveHandler = new Set([...Object.values(CoinstrKind), Kind.Metadata, Kind.Contacts, Kind.EventDeletion]);
     let filters = this.subscriptionFilters(kinds)
     return this.nostrClient.sub(filters, async (event: Event<number>) => {
       const {
@@ -850,7 +853,7 @@ export class Coinstr {
       content,
       tags: [...policyMembers, [TagType.Event, proposalId], [TagType.Event, policy.id]],
     },
-      this.authenticator)
+      sharedKeyAuthenticator)
 
     const pub = this.nostrClient.publish(completedProposalEvent)
     const pubCompletedProposalPromise = pub.onFirstOkOrCompleteFailure()
@@ -922,6 +925,31 @@ export class Coinstr {
     return completedProposal;
   }
 
+  async deleteApprovals(ids: string | string[]): Promise<void> {
+    const approvalIds = Array.isArray(ids) ? ids : [ids]
+    await this.eventKindHandlerFactor.getHandler(CoinstrKind.ApprovedProposal).delete(approvalIds)
+  }
+
+  async deleteProposals(ids: string | string[]): Promise<void> {
+    const proposalIds = Array.isArray(ids) ? ids : [ids]
+    await this.eventKindHandlerFactor.getHandler(CoinstrKind.Proposal).delete(proposalIds)
+  }
+
+  async deleteCompletedProposals(ids: string | string[]): Promise<void> {
+    const completedProposalIds = Array.isArray(ids) ? ids : [ids]
+    await this.eventKindHandlerFactor.getHandler(CoinstrKind.CompletedProposal).delete(completedProposalIds)
+  }
+
+  async deleteSigners(ids: string | string[]): Promise<void> {
+    const signerIds = Array.isArray(ids) ? ids : [ids]
+    await this.eventKindHandlerFactor.getHandler(CoinstrKind.Signers).delete(signerIds)
+  }
+
+  async deletePolicies(ids: string | string[]): Promise<void> {
+    const policyIds = Array.isArray(ids) ? ids : [ids]
+    await this.eventKindHandlerFactor.getHandler(CoinstrKind.Policy).delete(policyIds)
+  }
+
 
   //Mock method to create a proposal, this will be replaced when the policy class is created
   async _saveProofOfReserveProposal(policy_id: string, { "ProofOfReserve": { message, psbt, descriptor } }): Promise<CoinstrTypes.PublishedProofOfReserveProposal> {
@@ -959,7 +987,8 @@ export class Coinstr {
     const proposal_id = proposalEvent.id
     const status = ProposalStatus.Unsigned
     const signer = 'Unknown'
-    return { ...proposal[type], proposal_id, type, status, signer, policy_id, createdAt }
+    const fee = this.bitcoinUtil.getFee(psbt)
+    return { ...proposal[type], proposal_id, type, status, signer, fee, policy_id, createdAt }
 
   }
 
@@ -1030,7 +1059,7 @@ export class Coinstr {
       content,
       tags: [...policyMembers, [TagType.Event, proposal_id], [TagType.Event, policyId]],
     },
-      this.authenticator)
+      sharedKeyAuthenticator)
 
     const pub = this.nostrClient.publish(completedProposalEvent)
     await pub.onFirstOkOrCompleteFailure()

@@ -3,7 +3,7 @@ import { MockProxy, mock } from 'jest-mock-extended'
 import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { Coinstr } from './Coinstr'
 import { NostrClient, Keys, Store } from './service'
-import { TimeUtil } from './util'
+import { TimeUtil, buildEvent } from './util'
 import { Contact, PublishedPolicy, BitcoinUtil, Wallet, type FinalizeTrxResponse } from './models'
 import { Metadata, Profile, SavePolicyPayload, OwnedSigner, SharedSigner, SpendProposalPayload, PublishedDirectMessage, PublishedSpendingProposal, PublishedApprovedProposal, PublishedSharedSigner } from './types'
 import { CoinstrKind } from './enum'
@@ -183,6 +183,16 @@ describe('Coinstr', () => {
       assertPublishedPolicy(policies.get(policy1.id)!, policy1)
 
     })
+
+    it('deletePolicies works', async () => {
+      const policies = await coinstr.getPolicies()
+      expect(policies.length).toBe(3)
+      await coinstr.deletePolicies([policy1.id, policy2.id])
+      const policies2 = await coinstr.getPolicies()
+      expect(policies2.length).toBe(1)
+      assertPublishedPolicy(policies2[0], policy3)
+    })
+
   })
 
   describe('subscribe', () => {
@@ -203,6 +213,7 @@ describe('Coinstr', () => {
         .mockResolvedValueOnce({ amount: 3000, psbt: "encoded psbt3" })
         .mockResolvedValueOnce({ amount: 4000, psbt: "encoded psbt4" })
       bitcoinUtil.createWallet.mockReturnValue(wallet)
+      bitcoinUtil.getFee.mockReturnValue(100)
     })
 
     it('should receive policy events', async () => {
@@ -472,6 +483,65 @@ describe('Coinstr', () => {
       sub.unsub()
     }
     )
+
+    it('should receive delete events', async () => {
+      let counter: number = 0
+      expect.assertions(12)
+      let savePolicyPayload1 = getSavePolicyPayload(1, keySet.getPublicKeys(), 2)
+      let savePolicyPayload2 = getSavePolicyPayload(2, keySet.getPublicKeys(), 3)
+      let policy1 = await coinstr.savePolicy(savePolicyPayload1)
+      let policy2 = await coinstr.savePolicy(savePolicyPayload2)
+      let spendProposalPayload1 = spendProposalPayload(1, policy1)
+      let spendProposalPayload2 = spendProposalPayload(2, policy2)
+      let spendProposal1 = await coinstr.spend(spendProposalPayload1)
+      let spendProposal2 = await coinstr.spend(spendProposalPayload2)
+      let approval1 = await coinstr._saveApprovedProposal(spendProposal2.proposal_id)
+      let approval2 = await coinstr._saveApprovedProposal(spendProposal2.proposal_id)
+      let approval3 = await coinstr._saveApprovedProposal(spendProposal2.proposal_id)
+      const expectedDeleteEvent1 = new Map([[CoinstrKind.Proposal, [spendProposal1.proposal_id]]])
+      const expectedDeleteEvent2 = new Map([[CoinstrKind.Policy, [policy1.id]]])
+      const expectedDeleteEvent3 = new Map([[CoinstrKind.ApprovedProposal, [approval1.approval_id, approval2.approval_id, approval3.approval_id]]])
+
+      const sub = coinstr.subscribe(Kind.EventDeletion, (kind: number, payload: any) => {
+        switch (counter) {
+          case 0:
+            expect(kind).toBe(Kind.EventDeletion)
+            expect(payload).toEqual(expectedDeleteEvent1)
+            break
+          case 1:
+            expect(kind).toBe(Kind.EventDeletion)
+            expect(payload).toEqual(expectedDeleteEvent2)
+            break
+          case 2:
+            expect(kind).toBe(Kind.EventDeletion)
+            expect(new Set(payload.get(CoinstrKind.ApprovedProposal))).toEqual(new Set(expectedDeleteEvent3.get(CoinstrKind.ApprovedProposal)))
+            break
+        }
+        counter++
+      })
+
+      const policies = await coinstr.getPolicies()
+      const proposals = await coinstr.getProposals()
+      const approvals = await coinstr.getApprovals()
+      expect(policies.length).toBe(2)
+      expect(proposals.length).toBe(2)
+      expect(approvals.size).toBe(1)
+
+      await _deleteProposals([spendProposal1.proposal_id], coinstr)
+      await sleep(100)
+      const proposals2 = await coinstr.getProposals()
+      expect(proposals2.length).toBe(1)
+      await _deletePolicies([policy1.id], coinstr)
+      await sleep(100)
+      const policies2 = await coinstr.getPolicies()
+      expect(policies2.length).toBe(1)
+      await _deleteApprovals([approval1.approval_id, approval2.approval_id, approval3.approval_id], coinstr)
+      await sleep(200)
+      const approvals2 = await coinstr.getApprovals()
+      expect(approvals2.size).toBe(0)
+      await sleep(200)
+      sub.unsub()
+    })
   })
 
   describe('Store methods work as expected', () => {
@@ -569,6 +639,16 @@ describe('Coinstr', () => {
         expect(signer).toHaveProperty('description');
       });
     });
+
+    it('deleteSigners works', async () => {
+      const signers = await coinstr.getOwnedSigners();
+      expect(signers.length).toBe(3);
+      await coinstr.deleteSigners([signers[0].id, signers[1].id])
+      const signers2 = await coinstr.getOwnedSigners();
+      expect(signers2.length).toBe(1);
+      expect(signers2[0]).toEqual(ownedSigner1)
+    }
+    );
   });
 
   describe('getSharedSigners', () => {
@@ -692,7 +772,7 @@ describe('Coinstr', () => {
       expectedTrx = { txid: mockTxid, psbt: "psbt1", trx: { inputs: ["input1"] } }
       wallet.finalize_trx.mockResolvedValue(expectedTrx)
       bitcoinUtil.getTrxId.mockReturnValue(mockTxid)
-
+      bitcoinUtil.getFee.mockReturnValue(420)
 
       let savePolicyPayload1 = getSavePolicyPayload(11, keySet1.getPublicKeys(), -10)
       let policy1 = await coinstr.savePolicy(savePolicyPayload1) // Policy 1 is created by authenticator 1
@@ -875,6 +955,34 @@ describe('Coinstr', () => {
     }
     );
 
+    it('deleteProposals works', async () => {
+      const spendProposal = await coinstr.getProposalsById([spendProposal1.proposal_id]);
+      expect(spendProposal.size).toBe(1);
+      await coinstr.deleteProposals(spendProposal1.proposal_id)
+      await sleep(200)
+      const proposals = await coinstr.getProposalsById([spendProposal1.proposal_id]);
+      expect(proposals.size).toBe(0);
+    }
+    );
+
+    it('deleteApprovals works', async () => {
+      await coinstr.deleteApprovals([saveApprovedProposal1.approval_id, saveApprovedProposal4.approval_id])
+      await sleep(200)
+      const approvedProposals = await coinstr.getApprovals([proposalApproved1]);
+      expect(approvedProposals.size).toBe(0);
+    }
+    );
+
+    it('deleteCompletedProposals works', async () => {
+      const completedProposals = await coinstr.getCompletedProposalsById([completedProposal2.id, completedProposal3.id]);
+      expect(completedProposals.size).toBe(2);
+      await coinstr.deleteCompletedProposals([completedProposal2.id, completedProposal3.id])
+      await sleep(200)
+      const completedProposals2 = await coinstr.getCompletedProposalsById([completedProposal2.id, completedProposal3.id]);
+      expect(completedProposals2.size).toBe(0);
+    }
+    );
+
   });
 
   function newCoinstr(keys: Keys): Coinstr {
@@ -1038,6 +1146,63 @@ function saveProofOfReserveProposalPayload(id: number) {
     }
   }
 }
+
+async function _deleteApprovals(ids: string[], coinstr: Coinstr): Promise<void> {
+  const pubKey = coinstr.authenticator.getPublicKey()
+  const promises: Promise<any>[] = [];
+  const proposalParticipants = ['p', pubKey];
+  const eventTags = ids.map(id => ['e', id]);
+  const deleteEvent = await buildEvent({
+    kind: Kind.EventDeletion,
+    content: '',
+    tags: [...eventTags, proposalParticipants],
+  }, coinstr.authenticator);
+  const pub = coinstr.nostrClient.publish(deleteEvent);
+  promises.push(pub.onFirstOkOrCompleteFailure());
+  await Promise.all(promises);
+}
+
+async function _deleteProposals(ids: string[], coinstr: Coinstr): Promise<any> {
+  const pubKey = coinstr.authenticator.getPublicKey()
+  const promises: Promise<any>[] = [];
+  const proposalParticipants = ['p', pubKey];
+  for (const id of ids) {
+    const proposal = (await coinstr.getProposalsById([id]))?.get(id);
+    if (!proposal) continue
+    const sharedKeyAuth = (await coinstr.getSharedKeysById([proposal.policy_id])).get(proposal.policy_id)!.sharedKeyAuthenticator;
+    const deleteEvent = await buildEvent({
+      kind: Kind.EventDeletion,
+      content: '',
+      tags: [['e', id], proposalParticipants],
+    }, sharedKeyAuth);
+    const pub = coinstr.nostrClient.publish(deleteEvent);
+    promises.push(pub.onFirstOkOrCompleteFailure());
+  }
+  await Promise.all(promises);
+}
+
+async function _deletePolicies(ids: string[], coinstr: Coinstr): Promise<any> {
+  const pubKey = coinstr.authenticator.getPublicKey()
+  const promises: Promise<any>[] = [];
+  const proposalParticipants = ['p', pubKey];
+  for (const id of ids) {
+    const policy = (await coinstr.getPoliciesById([id]))?.get(id);
+    if (!policy) continue
+    const sharedKeyAuth = policy.sharedKeyAuth;
+    const deleteEvent = await buildEvent({
+      kind: Kind.EventDeletion,
+      content: '',
+      tags: [['e', id], proposalParticipants],
+    }, sharedKeyAuth);
+    const pub = coinstr.nostrClient.publish(deleteEvent);
+    promises.push(pub.onFirstOkOrCompleteFailure());
+  }
+  await Promise.all(promises);
+}
+
+
+
+
 
 class KeySet {
   keys: Keys[]
