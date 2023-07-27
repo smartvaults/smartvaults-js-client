@@ -175,6 +175,8 @@ export type PublishedCompletedProofOfReserveProposal = PublishedCompleted & Base
 
 
 export type SharedKeyAuthenticator = {
+  id: string
   policyId: string
+  creator: string
   sharedKeyAuthenticator: DirectPrivateKeyAuthenticator
 }
