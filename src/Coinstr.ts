@@ -883,7 +883,7 @@ export class Coinstr {
       sharedKeyAuthenticator)
 
     const pub = this.nostrClient.publish(completedProposalEvent)
-    const primises: Promise<void>[] = [pub.onFirstOkOrCompleteFailure(), this.deleteProposals(proposalId)]
+    const promises: Promise<void>[] = [pub.onFirstOkOrCompleteFailure(), this.deleteProposals(proposalId)]
 
     const publishedCompletedProposal: CoinstrTypes.PublishedCompletedSpendingProposal = {
       type,
@@ -895,7 +895,7 @@ export class Coinstr {
       completion_date: fromNostrDate(completedProposalEvent.created_at),
       id: completedProposalEvent.id,
     }
-    await Promise.all(primises)
+    await Promise.all(promises)
     return publishedCompletedProposal
   }
 
