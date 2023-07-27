@@ -9,15 +9,17 @@ import { type Authenticator, DirectPrivateKeyAuthenticator } from '@smontero/nos
 export class SharedKeyHandler extends EventKindHandler {
   private readonly authenticator: Authenticator
   private readonly store: Store
-
-  constructor(authenticator: Authenticator, store: Store) {
+  private readonly eventsStore: Store
+  constructor(authenticator: Authenticator, store: Store, eventsStore: Store) {
     super()
     this.authenticator = authenticator
     this.store = store
+    this.eventsStore = eventsStore
   }
 
   protected async _handle<K extends number>(sharedKeyEvents: Array<Event<K>>): Promise<SharedKeyAuthenticator[]> {
     const sharedKeyAuthenticators: SharedKeyAuthenticator[] = []
+    const rawSharedKeyAuthEvents: Array<Event<K>> = []
     for (const sharedKeyEvent of sharedKeyEvents) {
       const policyId = getTagValues(sharedKeyEvent, TagType.Event)[0]
       if (this.store.has(policyId)) {
@@ -28,9 +30,13 @@ export class SharedKeyHandler extends EventKindHandler {
         sharedKeyEvent.pubkey
       )
       const sharedKeyAuthenticator = new DirectPrivateKeyAuthenticator(sharedKey)
-      sharedKeyAuthenticators.push({ policyId, sharedKeyAuthenticator })
+      const id = sharedKeyEvent.id
+      const creator = sharedKeyEvent.pubkey
+      sharedKeyAuthenticators.push({ id, policyId, creator, sharedKeyAuthenticator })
+      rawSharedKeyAuthEvents.push(sharedKeyEvent)
     }
     this.store.store(sharedKeyAuthenticators)
+    this.eventsStore.store(rawSharedKeyAuthEvents)
     return sharedKeyAuthenticators
   }
 }

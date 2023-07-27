@@ -34,7 +34,7 @@ export class Coinstr {
     this.stores = new Map()
     this.stores.set(CoinstrKind.Policy, Store.createSingleIndexStore("id"))
     this.stores.set(CoinstrKind.Proposal, new Store({ "proposal_id": ["proposal_id"], "policy_id": ["proposal_id", "policy_id"] }))
-    this.stores.set(CoinstrKind.ApprovedProposal, new Store({ "approval_id": ["approval_id"], "proposal_id": ["approval_id", "proposal_id"] }))
+    this.stores.set(CoinstrKind.ApprovedProposal, new Store({ "approval_id": ["approval_id"], "proposal_id": ["approval_id", "proposal_id"], "policy_id": ["approval_id", "policy_id"] }))
     this.stores.set(CoinstrKind.SharedKey, Store.createSingleIndexStore("policyId"))
     this.stores.set(CoinstrKind.CompletedProposal, new Store({ "id": ["id"], "txId": ["txId"], "policy_id": ["id", "policy_id"] }))
     this.stores.set(CoinstrKind.SharedSigners, Store.createSingleIndexStore("id"))
@@ -701,7 +701,7 @@ export class Coinstr {
  * 
  * @async
  */
-  async getApprovals(proposal_ids?: string[] | string): Promise<Map<string, CoinstrTypes.PublishedApprovedProposal[]>> {
+  getApprovals = async (proposal_ids?: string[] | string): Promise<Map<string, CoinstrTypes.PublishedApprovedProposal[]>> => {
     const proposalIds = Array.isArray(proposal_ids) ? proposal_ids : proposal_ids ? [proposal_ids] : undefined;
     let approvedProposalsFilter = this.buildApprovedProposalsFilter();
     const store = this.getStore(CoinstrKind.ApprovedProposal);
@@ -710,6 +710,18 @@ export class Coinstr {
     }
     await this._getApprovals(approvedProposalsFilter.toFilters());
     return store.getMany(proposalIds, "proposal_id");
+  }
+
+  getApprovalsByPolicyId = async (policy_ids: string[] | string | string): Promise<Map<string, (CoinstrTypes.PublishedApprovedProposal)
+    | Array<CoinstrTypes.PublishedApprovedProposal>>> => {
+    const policyIds = Array.isArray(policy_ids) ? policy_ids : [policy_ids]
+    let approvedProposalsFilter = this.buildApprovedProposalsFilter();
+    const store = this.getStore(CoinstrKind.ApprovedProposal);
+    if (policyIds) {
+      approvedProposalsFilter = approvedProposalsFilter.events(policyIds);
+    }
+    await this._getApprovals(approvedProposalsFilter.toFilters());
+    return store.getMany(policyIds, "policy_id");
   }
 
 
@@ -871,17 +883,7 @@ export class Coinstr {
       sharedKeyAuthenticator)
 
     const pub = this.nostrClient.publish(completedProposalEvent)
-    const pubCompletedProposalPromise = pub.onFirstOkOrCompleteFailure()
-
-    const deletedProposalEvent = await buildEvent({
-      kind: Kind.EventDeletion,
-      content: "",
-      tags: [...policyMembers, [TagType.Event, proposalId]],
-    }
-      , sharedKeyAuthenticator)
-
-    const pubDelete = this.nostrClient.publish(deletedProposalEvent)
-    const pubDeleteEventPromise = pubDelete.onFirstOkOrCompleteFailure()
+    const primises: Promise<void>[] = [pub.onFirstOkOrCompleteFailure(), this.deleteProposals(proposalId)]
 
     const publishedCompletedProposal: CoinstrTypes.PublishedCompletedSpendingProposal = {
       type,
@@ -893,7 +895,7 @@ export class Coinstr {
       completion_date: fromNostrDate(completedProposalEvent.created_at),
       id: completedProposalEvent.id,
     }
-    await Promise.all([pubCompletedProposalPromise, pubDeleteEventPromise])
+    await Promise.all(primises)
     return publishedCompletedProposal
   }
 

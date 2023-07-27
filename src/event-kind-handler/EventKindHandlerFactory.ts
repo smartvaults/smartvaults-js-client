@@ -33,21 +33,26 @@ export class EventKindHandlerFactory {
       const getOwnedSigners = this.coinstr.getOwnedSigners
       const getCompletedProposalsByPolicyId = this.coinstr.getCompletedProposalsByPolicyId
       const getProposalsByPolicyId = this.coinstr.getProposalsByPolicyId
+      const getApprovalsByPolicyId = this.coinstr.getApprovalsByPolicyId
+      const getApprovalsByProposalId = this.coinstr.getApprovals
       const eventsStore = stores.get(1234)!
       const completedProposalsStore = stores.get(CoinstrKind.CompletedProposal)!
       const proposalsStore = stores.get(CoinstrKind.Proposal)!
+      const approvalsStore = stores.get(CoinstrKind.ApprovedProposal)!
+      const sharedKeysStore = stores.get(CoinstrKind.SharedKey)!
       switch (eventKind) {
         case CoinstrKind.Policy:
-          this.handlers.set(eventKind, new PolicyHandler(stores.get(eventKind)!, eventsStore, completedProposalsStore, proposalsStore, nostrClient, bitcoinUtil, getSharedKeysById, getCompletedProposalsByPolicyId, getProposalsByPolicyId))
+          this.handlers.set(eventKind, new PolicyHandler(stores.get(eventKind)!, eventsStore, completedProposalsStore, proposalsStore, approvalsStore, sharedKeysStore, nostrClient, bitcoinUtil, authenticator,
+            getSharedKeysById, getCompletedProposalsByPolicyId, getProposalsByPolicyId, getApprovalsByPolicyId))
           break
         case CoinstrKind.Proposal:
-          this.handlers.set(eventKind, new ProposalHandler(stores.get(eventKind)!, eventsStore, nostrClient, bitcoinUtil, getSharedKeysById, checkPsbts, getOwnedSigners))
+          this.handlers.set(eventKind, new ProposalHandler(stores.get(eventKind)!, eventsStore, approvalsStore, nostrClient, bitcoinUtil, authenticator, getSharedKeysById, checkPsbts, getOwnedSigners, getApprovalsByProposalId))
           break
         case CoinstrKind.ApprovedProposal:
           this.handlers.set(eventKind, new ApprovalsHandler(stores.get(eventKind)!, eventsStore, nostrClient, authenticator, getSharedKeysById))
           break
         case CoinstrKind.SharedKey:
-          this.handlers.set(eventKind, new SharedKeyHandler(authenticator, stores.get(eventKind)!))
+          this.handlers.set(eventKind, new SharedKeyHandler(authenticator, stores.get(eventKind)!, eventsStore))
           break
         case CoinstrKind.CompletedProposal:
           this.handlers.set(eventKind, new CompletedProposalHandler(stores.get(eventKind)!, eventsStore, nostrClient, bitcoinUtil, getSharedKeysById))

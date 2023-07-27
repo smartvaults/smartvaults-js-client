@@ -8,36 +8,53 @@ import { getTagValues, buildEvent } from '../util'
 import { NostrClient, type Store } from '../service'
 import { EventKindHandler } from './EventKindHandler'
 import { type BitcoinUtil, PublishedPolicy } from '../models'
-import { type PublishedCompletedSpendingProposal, type PublishedCompletedProofOfReserveProposal, type PublishedSpendingProposal, type PublishedProofOfReserveProposal } from '../types'
+import {
+  type PublishedCompletedSpendingProposal, type PublishedCompletedProofOfReserveProposal, type PublishedSpendingProposal, type PublishedProofOfReserveProposal,
+  type PublishedApprovedProposal, type SharedKeyAuthenticator
+} from '../types'
+import { type Authenticator } from '@smontero/nostr-ual'
 
 export class PolicyHandler extends EventKindHandler {
   private readonly store: Store
   private readonly eventsStore: Store
   private readonly completedProposalsStore: Store
   private readonly proposalsStore: Store
+  private readonly approvalsStore: Store
+  private readonly sharedKeysStore: Store
   private readonly nostrClient: NostrClient
   private readonly bitcoinUtil: BitcoinUtil
-  private readonly getSharedKeysById: (ids: string[]) => Promise<Map<string, any>>
+  private readonly authenticator: Authenticator
+  private readonly getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>
   private readonly getCompletedProposalsByPolicyId: (policyId: string) => Promise<Map<string, (PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal)
     | Array<PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal>>>
   private readonly getProposalsByPolicyId: (policyId: string) => Promise<Map<string, (PublishedSpendingProposal | PublishedProofOfReserveProposal)
     | Array<PublishedSpendingProposal | PublishedProofOfReserveProposal>>>
-  constructor(store: Store, eventsStore: Store, completedProposalsStore: Store, proposalsStore: Store, nostrClient: NostrClient, bitcoinUtil: BitcoinUtil, getSharedKeysById: (ids: string[]) => Promise<Map<string, any>>,
+
+  private readonly getApprovalsByPolicyId: (policy_ids: string[] | string | string) => Promise<Map<string, (PublishedApprovedProposal)
+    | Array<PublishedApprovedProposal>>>
+  constructor(store: Store, eventsStore: Store, completedProposalsStore: Store, proposalsStore: Store, approvalsStore: Store, sharedKeysStore: Store, nostrClient: NostrClient, bitcoinUtil: BitcoinUtil, authenticator: Authenticator,
+    getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>,
     getCompletedProposalsByPolicyId: (policyId: string) => Promise<Map<string, (PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal)
       | Array<PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal>>>,
     getProposalsByPolicyId: (policyId: string) => Promise<Map<string, (PublishedSpendingProposal | PublishedProofOfReserveProposal)
-      | Array<PublishedSpendingProposal | PublishedProofOfReserveProposal>>>
+      | Array<PublishedSpendingProposal | PublishedProofOfReserveProposal>>>,
+    getApprovalsByPolicyId: (policy_ids: string[] | string | string) => Promise<Map<string, (PublishedApprovedProposal)
+      | Array<PublishedApprovedProposal>>>
   ) {
     super()
     this.store = store
     this.eventsStore = eventsStore
     this.completedProposalsStore = completedProposalsStore
     this.proposalsStore = proposalsStore
+    this.approvalsStore = approvalsStore
+    this.sharedKeysStore = sharedKeysStore
     this.nostrClient = nostrClient
     this.bitcoinUtil = bitcoinUtil
+    this.authenticator = authenticator
     this.getSharedKeysById = getSharedKeysById
     this.getCompletedProposalsByPolicyId = getCompletedProposalsByPolicyId
     this.getProposalsByPolicyId = getProposalsByPolicyId
+    this.getApprovalsByPolicyId = getApprovalsByPolicyId
   }
 
   protected async _handle<K extends number>(policyEvents: Array<Event<K>>): Promise<any[]> {
@@ -56,7 +73,7 @@ export class PolicyHandler extends EventKindHandler {
         rawPolicyEvents.push(policyEvent)
         continue
       }
-      const sharedKeyAuthenticator = policyIdSharedKeyAuthenticatorMap.get(policyId).sharedKeyAuthenticator
+      const sharedKeyAuthenticator = policyIdSharedKeyAuthenticatorMap.get(policyId)?.sharedKeyAuthenticator
       if (!sharedKeyAuthenticator) continue
       const policyContent = await sharedKeyAuthenticator.decryptObj(policyEvent.content)
       policies.push(PublishedPolicy.fromPolicyAndEvent({
@@ -75,32 +92,51 @@ export class PolicyHandler extends EventKindHandler {
 
   private async getPolicyRelatedEvents(policyId: string): Promise<Map<CoinstrKind, any[]>> {
     const map = new Map<CoinstrKind, any[]>()
-    const completedProposals = (await this.getCompletedProposalsByPolicyId(policyId)).values()
-    const completedProposalsArray = Array.isArray(completedProposals) ? completedProposals : Array.from(completedProposals)
-    const proposals = (await this.getProposalsByPolicyId(policyId)).values()
-    const proposalsArray = Array.isArray(proposals) ? proposals : Array.from(proposals)
-    map.set(CoinstrKind.CompletedProposal, completedProposalsArray)
-    map.set(CoinstrKind.Proposal, proposalsArray)
+    const completedProposals = Array.from((await this.getCompletedProposalsByPolicyId(policyId)).values()).flat()
+    const proposals = Array.from((await this.getProposalsByPolicyId(policyId)).values()).flat()
+    const approvals = Array.from((await this.getApprovalsByPolicyId(policyId)).values()).flat()
+    const sharedKeys = Array.from((await this.getSharedKeysById([policyId])).values()).flat()
+    map.set(CoinstrKind.ApprovedProposal, approvals)
+    map.set(CoinstrKind.CompletedProposal, completedProposals)
+    map.set(CoinstrKind.Proposal, proposals)
+    map.set(CoinstrKind.SharedKey, sharedKeys)
     return map
   }
 
   protected async _delete<K extends number>(ids: string[]): Promise<any> {
     const policies: PublishedPolicy[] = []
-    const rawPolicyEvents: Event<K>[] = []
+    const rawPolicyRelatedEvents: Event<K>[] = []
     const promises: Promise<any>[] = []
+    const pubKey = this.authenticator.getPublicKey()
     for (const id of ids) {
       const policy: PublishedPolicy = this.store.get(id)
       if (policy) {
         const sharedKeyAuthenticator = policy.sharedKeyAuth
+        const policyRelatedEvents = await this.getPolicyRelatedEvents(id)
         if (sharedKeyAuthenticator) {
-          const policyRelatedEvents = await this.getPolicyRelatedEvents(id)
-          const proposalRelatedEventsIds: string[] = policyRelatedEvents.get(CoinstrKind.Proposal)!.map(proposal => proposal.proposal_id)
-          const completedProposalRelatedEventsIds: string[] = policyRelatedEvents.get(CoinstrKind.CompletedProposal)!.map(completedProposal => completedProposal.id)
-          const policyRelatedEventsIds = [...proposalRelatedEventsIds, ...completedProposalRelatedEventsIds]
+          policies.push(policy)
+          const tags: [TagType.Event | TagType.PubKey, string][] = [[TagType.Event, id]]
+          const proposalRelatedEvents: (PublishedSpendingProposal | PublishedProofOfReserveProposal)[] | undefined = policyRelatedEvents.get(CoinstrKind.Proposal)
+          const completedProposalRelatedEvents: (PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal)[] | undefined = policyRelatedEvents.get(CoinstrKind.CompletedProposal)
+          const approvalsRelatedEvents: PublishedApprovedProposal[] | undefined = (policyRelatedEvents.get(CoinstrKind.ApprovedProposal))?.filter(approval => approval.approved_by === pubKey)
+          const sharedKeysRelatedEvents: SharedKeyAuthenticator[] | undefined = policyRelatedEvents.get(CoinstrKind.SharedKey)?.filter(sharedKey => sharedKey.creator === pubKey)
           const policyMembers = policy.nostrPublicKeys
-          const membersTags = policyMembers.map(member => [TagType.PubKey, member])
-          const eventIdsTags = Array.from(policyRelatedEventsIds.values()).flatMap(value => value).map(eventId => [TagType.Event, eventId])
-          const tags = [...membersTags, ...eventIdsTags, [TagType.Event, id]]
+          const membersTags: [TagType.PubKey, string][] = policyMembers.map(member => [TagType.PubKey, member])
+          const rawSharedKeyAuthEvents: Event<K>[] = []
+          const rawAutoredEvents: Event<K>[] = []
+          const rawPolicyEvent: Event<K> = this.eventsStore.get(id)
+
+          tags.push(...membersTags)
+
+          if (proposalRelatedEvents?.length || completedProposalRelatedEvents?.length) {
+            const proposalRelatedEventsIds: string[] = policyRelatedEvents.get(CoinstrKind.Proposal)!.map(proposal => proposal.proposal_id)
+            const completedProposalRelatedEventsIds: string[] = policyRelatedEvents.get(CoinstrKind.CompletedProposal)!.map(completedProposal => completedProposal.id)
+            const policyRelatedEventsIds: string[] = [...proposalRelatedEventsIds, ...completedProposalRelatedEventsIds]
+            const eventIdsTags: [TagType.Event, string][] = policyRelatedEventsIds.map(eventId => [TagType.Event, eventId])
+            tags.push(...eventIdsTags)
+            rawSharedKeyAuthEvents.push(...policyRelatedEventsIds.map(eventId => this.eventsStore.get(eventId)))
+          }
+
           const deleteEvent = await buildEvent({
             kind: Kind.EventDeletion,
             content: '',
@@ -108,25 +144,45 @@ export class PolicyHandler extends EventKindHandler {
           }, sharedKeyAuthenticator)
           const pub = this.nostrClient.publish(deleteEvent);
           promises.push(pub.onFirstOkOrCompleteFailure());
-          policies.push(policy)
-          const proposalRelatedEvents = policyRelatedEvents.get(CoinstrKind.Proposal)
-          const completedProposalRelatedEvents = policyRelatedEvents.get(CoinstrKind.CompletedProposal)
+
+
+          if (approvalsRelatedEvents?.length || sharedKeysRelatedEvents?.length) {
+            const approvalsRelatedEventsIds = approvalsRelatedEvents!.map(approval => approval.approval_id)
+            const sharedKeysRelatedEventsIds = sharedKeysRelatedEvents!.map(sharedKey => sharedKey.id)
+            const autoredRelatedEventsIds = [...approvalsRelatedEventsIds, ...sharedKeysRelatedEventsIds]
+            const autoredEventsIdsTags = autoredRelatedEventsIds.map(eventId => [TagType.Event, eventId])
+            const autoredDeleteEvent = await buildEvent({
+              kind: Kind.EventDeletion,
+              content: '',
+              tags: [...autoredEventsIdsTags, ...membersTags]
+            }, this.authenticator)
+            const autoredPub = this.nostrClient.publish(autoredDeleteEvent);
+            promises.push(autoredPub.onFirstOkOrCompleteFailure());
+            rawAutoredEvents.push(...autoredRelatedEventsIds.map(eventId => this.eventsStore.get(eventId)))
+          }
+
           if (proposalRelatedEvents?.length) {
             this.proposalsStore.delete(proposalRelatedEvents)
           }
           if (completedProposalRelatedEvents?.length) {
             this.completedProposalsStore.delete(completedProposalRelatedEvents)
           }
-          const rawEvent = this.eventsStore.get(id)
-          if (rawEvent) {
-            rawPolicyEvents.push(rawEvent)
+          if (approvalsRelatedEvents?.length) {
+            this.approvalsStore.delete(approvalsRelatedEvents)
+          }
+          if (sharedKeysRelatedEvents?.length) {
+            this.sharedKeysStore.delete(sharedKeysRelatedEvents)
+          }
+          const allRawEvents = [...rawSharedKeyAuthEvents, ...rawAutoredEvents, rawPolicyEvent]
+          if (allRawEvents.length) {
+            rawPolicyRelatedEvents.push(...allRawEvents)
           }
         }
       }
     }
     await Promise.all(promises)
     this.store.delete(policies)
-    this.eventsStore.delete(rawPolicyEvents)
+    this.eventsStore.delete(rawPolicyRelatedEvents)
   }
 
 }

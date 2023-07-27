@@ -189,18 +189,23 @@ describe('Coinstr', () => {
       await coinstr._saveCompletedProposal(proposal1.proposal_id, saveProofOfReserveProposalPayload(1))
       const policies = await coinstr.getPolicies()
       const completedProposals = await coinstr.getCompletedProposals()
-      await coinstr._saveProofOfReserveProposal(policy2.id, saveProofOfReserveProposalPayload(2))
+      const proposal2 = await coinstr._saveProofOfReserveProposal(policy2.id, saveProofOfReserveProposalPayload(2))
       const proposals = await coinstr.getProposals()
+      await coinstr._saveApprovedProposal(proposal2.proposal_id)
+      const approvals = await coinstr.getApprovals()
       expect(proposals.length).toBe(1)
       expect(policies.length).toBe(3)
       expect(completedProposals.length).toBe(1)
+      expect(approvals.size).toBe(1)
       await coinstr.deletePolicies([policy1.id, policy2.id])
       const policies2 = await coinstr.getPolicies()
       const proposals2 = await coinstr.getProposals()
       const completedProposals2 = await coinstr.getCompletedProposals()
+      const approvals2 = await coinstr.getApprovals()
       expect(policies2.length).toBe(1)
       expect(proposals2.length).toBe(0)
       expect(completedProposals2.length).toBe(0)
+      expect(approvals2.size).toBe(0)
       assertPublishedPolicy(policies2[0], policy3)
     })
 
@@ -976,12 +981,17 @@ describe('Coinstr', () => {
     );
 
     it('deleteProposals works', async () => {
-      const spendProposal = await coinstr.getProposalsById([spendProposal1.proposal_id]);
+      const spendProposal = await coinstr.getProposalsById([spendProposal3.proposal_id]);
+      const approvals = await coinstr.getApprovals([spendProposal3.proposal_id]);
       expect(spendProposal.size).toBe(1);
-      await coinstr.deleteProposals(spendProposal1.proposal_id)
+      expect(approvals.size).toBe(1);
+      expect(approvals.get(spendProposal3.proposal_id)!.length).toBe(2);
+      await coinstr.deleteProposals(spendProposal3.proposal_id)
       await sleep(200)
-      const proposals = await coinstr.getProposalsById([spendProposal1.proposal_id]);
+      const proposals = await coinstr.getProposalsById([spendProposal3.proposal_id]);
+      const approvals2 = await coinstr.getApprovals([spendProposal3.proposal_id]);
       expect(proposals.size).toBe(0);
+      expect(approvals2.size).toBe(0);
     }
     );
 
