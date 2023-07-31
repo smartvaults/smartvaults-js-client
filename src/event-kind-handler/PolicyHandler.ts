@@ -5,7 +5,7 @@ import {
 
 import { TagType, CoinstrKind } from '../enum'
 import { getTagValues, buildEvent } from '../util'
-import { NostrClient, type Store } from '../service'
+import { type NostrClient, type Store } from '../service'
 import { EventKindHandler } from './EventKindHandler'
 import { type BitcoinUtil, PublishedPolicy } from '../models'
 import {
@@ -76,13 +76,20 @@ export class PolicyHandler extends EventKindHandler {
       const sharedKeyAuthenticator = policyIdSharedKeyAuthenticatorMap.get(policyId)?.sharedKeyAuthenticator
       if (!sharedKeyAuthenticator) continue
       const policyContent = await sharedKeyAuthenticator.decryptObj(policyEvent.content)
-      policies.push(PublishedPolicy.fromPolicyAndEvent({
-        policyContent,
-        policyEvent,
-        bitcoinUtil: this.bitcoinUtil,
-        nostrPublicKeys: getTagValues(policyEvent, TagType.PubKey),
-        sharedKeyAuth: sharedKeyAuthenticator
-      }))
+      let publishedPolicy: PublishedPolicy;
+      try {
+          publishedPolicy = PublishedPolicy.fromPolicyAndEvent({
+            policyContent,
+            policyEvent,
+            bitcoinUtil: this.bitcoinUtil,
+            nostrPublicKeys: getTagValues(policyEvent, TagType.PubKey),
+            sharedKeyAuth: sharedKeyAuthenticator
+          })
+      } catch (e) {
+          console.error(`Error parsing policy ${policyId}: ${String(e)}`);
+          continue;
+      }
+      policies.push(publishedPolicy);
       rawPolicyEvents.push(policyEvent)
     }
     this.store.store(policies)
