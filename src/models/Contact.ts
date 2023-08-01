@@ -47,6 +47,16 @@ export class Contact {
     return [...contactsMap.values()]
   }
 
+  static remove(publicKey: string | string[], contacts: Contact[]): Contact[] {
+    const contactsMap = Contact.toMap(contacts)
+    if (Array.isArray(publicKey)) {
+      publicKey.forEach(pk => contactsMap.delete(pk))
+    } else {
+      contactsMap.delete(publicKey)
+    }
+    return [...contactsMap.values()]
+  }
+
   static toMap(contacts: Contact[], contactsMap: Map<string, Contact> = new Map()): Map<string, Contact> {
     contacts.forEach(c => contactsMap.set(c.publicKey, c))
     return contactsMap
