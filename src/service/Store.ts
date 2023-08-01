@@ -132,4 +132,13 @@ export class Store {
   static createSingleIndexStore(indexKey: string): Store {
     return new Store({ [indexKey]: [indexKey] })
   }
+
+  static createMultiIndexStore(indexKeys: string[], ids: string | string[]): Store {
+    const indexMap: Record<string, string[]> = {}
+    const idsArray = Array.isArray(ids) ? ids : [ids]
+    indexKeys.forEach(indexKey => {
+      indexMap[indexKey] = idsArray
+    })
+    return new Store(indexMap)
+  }
 }
