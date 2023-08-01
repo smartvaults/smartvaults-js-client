@@ -1,6 +1,6 @@
 import { Authenticator, DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { generatePrivateKey, Kind, Event, Filter, Sub } from 'nostr-tools'
-import { CoinstrKind, TagType, ProposalType, ProposalStatus, ApprovalStatus } from './enum'
+import { CoinstrKind, TagType, ProposalType, ProposalStatus, ApprovalStatus, StoreKind } from './enum'
 import { NostrClient, PubPool, Store } from './service'
 import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished, nostrDate } from './util'
 import { BasicTrxDetails, BitcoinUtil, Contact, Policy, PublishedPolicy, TrxDetails } from './models'
@@ -33,15 +33,15 @@ export class Coinstr {
   initStores() {
     this.stores = new Map()
     this.stores.set(CoinstrKind.Policy, Store.createSingleIndexStore("id"))
-    this.stores.set(CoinstrKind.Proposal, new Store({ "proposal_id": ["proposal_id"], "policy_id": ["proposal_id", "policy_id"] }))
-    this.stores.set(CoinstrKind.ApprovedProposal, new Store({ "approval_id": ["approval_id"], "proposal_id": ["approval_id", "proposal_id"], "policy_id": ["approval_id", "policy_id"] }))
+    this.stores.set(CoinstrKind.Proposal, Store.createMultiIndexStore (["proposal_id", "policy_id"], "proposal_id" ))
+    this.stores.set(CoinstrKind.ApprovedProposal, Store.createMultiIndexStore (["approval_id", "proposal_id", "policy_id" ], "approval_id" ))
     this.stores.set(CoinstrKind.SharedKey, Store.createSingleIndexStore("policyId"))
-    this.stores.set(CoinstrKind.CompletedProposal, new Store({ "id": ["id"], "txId": ["txId"], "policy_id": ["id", "policy_id"] }))
+    this.stores.set(CoinstrKind.CompletedProposal, Store.createMultiIndexStore(["id", "txId", "policy_id"], "id"))
     this.stores.set(CoinstrKind.SharedSigners, Store.createSingleIndexStore("id"))
     this.stores.set(CoinstrKind.Signers, Store.createSingleIndexStore("id"))
     this.stores.set(Kind.Metadata, Store.createSingleIndexStore("id"))
-    this.stores.set(1234, Store.createSingleIndexStore("id"))
-    this.stores.set(1235, new Store({ "id": ["id"], "signerId": ["signerId", "id"] }))
+    this.stores.set(StoreKind.Events, Store.createSingleIndexStore("id"))
+    this.stores.set(StoreKind.MySharedSigners, Store.createMultiIndexStore(["id","signerId"], "id"))
   }
   initEventKindHandlerFactory() {
     this.eventKindHandlerFactor = new EventKindHandlerFactory(this)
@@ -461,7 +461,7 @@ export class Coinstr {
    */
   getMySharedSigners = async (id?: string | string[] ): Promise<Map<string, CoinstrTypes.MySharedSigner | Array<CoinstrTypes.MySharedSigner> >> => {
     const ids: string[] | undefined = Array.isArray(id) ? id : id ? [id] : undefined;
-    const mysharedSignersStore = this.getStore(1235)
+    const mysharedSignersStore = this.getStore(StoreKind.MySharedSigners)
     let signersFilter = this.buildMySharedSignersFilter()
     if (ids && mysharedSignersStore.has(ids[0], "signerId")) {
       return mysharedSignersStore.getMany(ids, "signerId");
@@ -1020,7 +1020,7 @@ export class Coinstr {
   }
 
   async revokeMySharedSigners(ids: string | string[]): Promise<void> {
-    const mySharedSignersStore = this.getStore(1235);
+    const mySharedSignersStore = this.getStore(StoreKind.MySharedSigners);
     const mySharedSignersToDelete: CoinstrTypes.MySharedSigner[] = [];
     const promises = (Array.isArray(ids) ? ids : [ids]).map(async (sharedSignerId) => {
         const mySharedSignerEvent: CoinstrTypes.MySharedSigner = mySharedSignersStore.get(sharedSignerId, 'id');

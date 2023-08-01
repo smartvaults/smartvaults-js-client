@@ -431,7 +431,7 @@ describe('Coinstr', () => {
       let pubkey = coinstr.authenticator.getPublicKey()
       let saveOwnedSignerPayload1 = saveOwnedSignerPayload(1, pubkey)
       let saveSharedSignerPayload1 = await saveSharedSignerPayload(coinstr, 1)
-      await sleep(1000)
+      await sleep(2000)
       const sub = coinstr.subscribe([CoinstrKind.Policy, CoinstrKind.Signers, CoinstrKind.SharedSigners, CoinstrKind.Proposal, CoinstrKind.ApprovedProposal, CoinstrKind.CompletedProposal],
         (kind: number, payload: any) => {
           sleep(2000)

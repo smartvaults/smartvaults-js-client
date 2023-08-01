@@ -1,7 +1,7 @@
 import { EventKindHandler } from "./EventKindHandler";
 import { PolicyHandler } from "./PolicyHandler";
 import { Coinstr } from "../Coinstr";
-import { CoinstrKind } from "../enum";
+import { CoinstrKind, StoreKind } from "../enum";
 import { SharedKeyHandler } from "./SharedKeyHandler";
 import { ProposalHandler } from "./ProposalHandler";
 import { ApprovalsHandler } from "./ApprovalsHandler";
@@ -35,7 +35,7 @@ export class EventKindHandlerFactory {
       const getProposalsByPolicyId = this.coinstr.getProposalsByPolicyId
       const getApprovalsByPolicyId = this.coinstr.getApprovalsByPolicyId
       const getApprovalsByProposalId = this.coinstr.getApprovals
-      const eventsStore = stores.get(1234)!
+      const eventsStore = stores.get(StoreKind.Events)!
       const completedProposalsStore = stores.get(CoinstrKind.CompletedProposal)!
       const proposalsStore = stores.get(CoinstrKind.Proposal)!
       const approvalsStore = stores.get(CoinstrKind.ApprovedProposal)!
