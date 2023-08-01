@@ -180,3 +180,10 @@ export type SharedKeyAuthenticator = {
   creator: string
   sharedKeyAuthenticator: DirectPrivateKeyAuthenticator
 }
+
+export type MySharedSigner = {
+  id: string
+  signerId: string
+  sharedWith: string
+  sharedDate: Date
+}

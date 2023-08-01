@@ -41,6 +41,7 @@ export class Coinstr {
     this.stores.set(CoinstrKind.Signers, Store.createSingleIndexStore("id"))
     this.stores.set(Kind.Metadata, Store.createSingleIndexStore("id"))
     this.stores.set(1234, Store.createSingleIndexStore("id"))
+    this.stores.set(1235, new Store({ "id": ["id"], "signerId": ["signerId", "id"] }))
   }
   initEventKindHandlerFactory() {
     this.eventKindHandlerFactor = new EventKindHandlerFactory(this)
@@ -66,6 +67,20 @@ export class Coinstr {
     newContacts = Array.isArray(newContacts) ? newContacts : [newContacts]
     let contacts = await this.getContacts()
     contacts = Contact.merge(contacts, newContacts)
+    const contactsEvent = await buildEvent({
+      kind: Kind.Contacts,
+      content: "",
+      tags: Contact.toTags(contacts),
+    },
+      this.authenticator)
+    const pub = this.nostrClient.publish(contactsEvent)
+    await pub.onFirstOkOrCompleteFailure()
+    return contactsEvent
+  }
+
+  async removeContacts(contactsToRemove: string | string[]): Promise<Event<Kind.Contacts>> {
+    const currentContacts: Contact[] = await this.getContacts()
+    const contacts = Contact.remove( contactsToRemove, currentContacts)
     const contactsEvent = await buildEvent({
       kind: Kind.Contacts,
       content: "",
@@ -438,6 +453,40 @@ export class Coinstr {
     return this._getOwnedSigners(signersFilter)
   }
 
+  /**
+   * Fetch the signers the user has shared.
+   * 
+   * @param id - An array of ids or a single id
+   * @returns A map of MySharedSigners objects by signerId
+   */
+  getMySharedSigners = async (id?: string | string[] ): Promise<Map<string, CoinstrTypes.MySharedSigner | Array<CoinstrTypes.MySharedSigner> >> => {
+    const ids: string[] | undefined = Array.isArray(id) ? id : id ? [id] : undefined;
+    const mysharedSignersStore = this.getStore(1235)
+    let signersFilter = this.buildMySharedSignersFilter()
+    if (ids && mysharedSignersStore.has(ids[0], "signerId")) {
+      return mysharedSignersStore.getMany(ids, "signerId");
+    }
+    if(ids) {
+      signersFilter = signersFilter.events(ids)
+    }
+    const mySharedSignersEvents = await this.nostrClient.list(signersFilter.toFilters())
+    const missingIds = mysharedSignersStore.missing(mySharedSignersEvents.map(e => e.id), 'id')
+    if(missingIds.length === 0) {
+      return mysharedSignersStore.getMany(ids, "signerId")
+    }
+    const missingMySharedSignersEvents = mySharedSignersEvents.filter(e => missingIds.includes(e.id))
+    const mySharedSigners = missingMySharedSignersEvents.map(event => {
+      const signerId = getTagValues(event, TagType.Event)[0];
+      const sharedWith = getTagValues(event, TagType.PubKey)[0];
+      const sharedId = event.id;
+      const sharedDate = fromNostrDate(event.created_at);
+
+      return { id: sharedId, signerId, sharedWith, sharedDate } as CoinstrTypes.MySharedSigner;
+    });
+    mysharedSignersStore.store(mySharedSigners)
+    return mysharedSignersStore.getMany(ids, "signerId")
+
+  }
 
   private async _getSharedSigners(filter: Filter<CoinstrKind.SharedSigners>[]): Promise<CoinstrTypes.PublishedOwnedSigner[]> {
     const signersEvents = await this.nostrClient.list(filter)
@@ -521,26 +570,23 @@ export class Coinstr {
    * @example
    * const signer = await saveSharedSigner({descriptor, fingerprint}, pubKey);
    */
-  async saveSharedSigner({
-    descriptor,
-    fingerprint,
-  }: CoinstrTypes.SharedSigner, pubKeys: string | string[]): Promise<CoinstrTypes.PublishedSharedSigner[]> {
+  async saveSharedSigner(ownedSigner: CoinstrTypes.PublishedOwnedSigner, pubKeys: string | string[]): Promise<CoinstrTypes.PublishedSharedSigner[]> {
 
     if (!Array.isArray(pubKeys)) {
       pubKeys = [pubKeys]
     }
     const ownerPubKey = this.authenticator.getPublicKey()
-    const signer: CoinstrTypes.SharedSigner = {
-      descriptor,
-      fingerprint,
+    const SharedSigner: CoinstrTypes.SharedSigner = {
+      descriptor: ownedSigner.descriptor,
+      fingerprint: ownedSigner.fingerprint,
     }
     const sharedSigners: CoinstrTypes.PublishedSharedSigner[] = []
     for (const pubKey of pubKeys) {
-      const content = await this.authenticator.encryptObj(signer, pubKey)
+      const content = await this.authenticator.encryptObj(SharedSigner, pubKey)
       const signerEvent = await buildEvent({
         kind: CoinstrKind.SharedSigners,
         content,
-        tags: [[TagType.PubKey, pubKey]],
+        tags: [[TagType.Event, ownedSigner.id],[TagType.PubKey, pubKey]],
       },
         this.authenticator)
 
@@ -549,7 +595,7 @@ export class Coinstr {
 
       const id = signerEvent.id
       const createdAt = fromNostrDate(signerEvent.created_at)
-      sharedSigners.push({ ...signer, id, ownerPubKey, createdAt })
+      sharedSigners.push({ ...SharedSigner, id, ownerPubKey, createdAt })
     }
     return sharedSigners
   }
@@ -600,6 +646,12 @@ export class Coinstr {
       .kinds(CoinstrKind.Signers)
       .authors(this.authenticator.getPublicKey())
       .toFilters();
+  }
+
+  private buildMySharedSignersFilter() {
+    return filterBuilder()
+      .kinds(CoinstrKind.SharedSigners)
+      .authors(this.authenticator.getPublicKey())
   }
 
   private buildProposalsFilter() {
@@ -966,6 +1018,33 @@ export class Coinstr {
     const policyIds = Array.isArray(ids) ? ids : [ids]
     await this.eventKindHandlerFactor.getHandler(CoinstrKind.Policy).delete(policyIds)
   }
+
+  async revokeMySharedSigners(ids: string | string[]): Promise<void> {
+    const mySharedSignersStore = this.getStore(1235);
+    const mySharedSignersToDelete: CoinstrTypes.MySharedSigner[] = [];
+    const promises = (Array.isArray(ids) ? ids : [ids]).map(async (sharedSignerId) => {
+        const mySharedSignerEvent: CoinstrTypes.MySharedSigner = mySharedSignersStore.get(sharedSignerId, 'id');
+
+        if (!mySharedSignerEvent) {
+            throw new Error(`Shared signer with id ${sharedSignerId} not found`);
+        }
+
+        const deleteEvent = await buildEvent({
+            kind: Kind.EventDeletion,
+            content: '',
+            tags: [[TagType.Event, mySharedSignerEvent.id], [TagType.PubKey, mySharedSignerEvent.sharedWith]],
+        }, this.authenticator);
+
+        mySharedSignersToDelete.push(mySharedSignerEvent);
+
+        return this.nostrClient.publish(deleteEvent).onFirstOkOrCompleteFailure();
+    });
+
+    await Promise.all(promises).catch((error) => {
+        console.error(error);
+    });
+    mySharedSignersStore.delete(mySharedSignersToDelete);
+}
 
 
   //Mock method to create a proposal, this will be replaced when the policy class is created
