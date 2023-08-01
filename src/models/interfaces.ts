@@ -1,4 +1,4 @@
-import { Trx, FinalizeTrxResponse, UndecoratedBasicTrxDetails, UndecoratedTrxDetails } from "./types"
+import { Trx, FinalizeTrxResponse, UndecoratedBasicTrxDetails, UndecoratedTrxDetails, Utxo } from "./types"
 
 
 type BalancePayload = {
@@ -26,7 +26,7 @@ export interface Wallet {
   * @param {Map<string,Array<number>>} policy_path
   * @returns {Promise<any>}
   */
-  build_trx(address: string, amount: string, fee_rate: string, policy_path?: Map<string, Array<number>>): Promise<Trx>;
+  build_trx(address: string, amount: string, fee_rate: string, policy_path?: Map<string, Array<number>>, utxos?: Array<string>): Promise<Trx>;
 
   /**
   * @returns {Map<string, any>}
@@ -42,6 +42,8 @@ export interface Wallet {
   get_trxs(): Array<UndecoratedBasicTrxDetails>;
 
   get_trx(txid: string): Promise<UndecoratedTrxDetails>;
+
+  get_utxos(): Array<Utxo>;
 }
 
 
