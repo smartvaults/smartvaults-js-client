@@ -28,8 +28,9 @@ export class ApprovalsHandler extends EventKindHandler {
     const approvedPublishedProposals: PublishedApprovedProposal[] = []
     const rawApprovalEvents: Array<Event<K>> = []
     const approvalIds = approvalEvents.map(approval => approval.id)
+    if(!approvalIds.length) return []
     const missingApprovalIds = this.store.missing(approvalIds, indexKey)
-    if (missingApprovalIds.length === 0) {
+    if (missingApprovalIds.length === 0 ) {
       return this.store.getManyAsArray(approvalIds, indexKey)
     }
     for (const approvedProposalEvent of approvalEvents) {
@@ -39,13 +40,10 @@ export class ApprovalsHandler extends EventKindHandler {
 
       if (this.store.has(approvalId, indexKey)) {
         approvedPublishedProposals.push(this.store.get(approvalId, indexKey))
-        rawApprovalEvents.push(approvedProposalEvent)
         continue
       }
       const sharedKeyAuthenticator = sharedKeys.get(policyId)?.sharedKeyAuthenticator
-      if (sharedKeyAuthenticator == null) {
-        continue
-      }
+      if (!sharedKeyAuthenticator) continue
       const decryptedProposalObj: BaseApprovedProposal = await sharedKeyAuthenticator.decryptObj(approvedProposalEvent.content)
       const type = decryptedProposalObj[ProposalType.Spending] ? ProposalType.Spending : ProposalType.ProofOfReserve
       const expirationDate = fromNostrDate(getTagValues(approvedProposalEvent, TagType.Expiration)[0])

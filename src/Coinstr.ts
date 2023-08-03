@@ -756,12 +756,20 @@ export class Coinstr {
   getApprovals = async (proposal_ids?: string[] | string): Promise<Map<string, CoinstrTypes.PublishedApprovedProposal[]>> => {
     const proposalIds = Array.isArray(proposal_ids) ? proposal_ids : proposal_ids ? [proposal_ids] : undefined;
     let approvedProposalsFilter = this.buildApprovedProposalsFilter();
-    const store = this.getStore(CoinstrKind.ApprovedProposal);
     if (proposalIds) {
       approvedProposalsFilter = approvedProposalsFilter.events(proposalIds);
     }
-    await this._getApprovals(approvedProposalsFilter.toFilters());
-    return store.getMany(proposalIds, "proposal_id");
+    const approvalsArray = await this._getApprovals(approvedProposalsFilter.toFilters());
+    const approvalsMap = new Map<string, CoinstrTypes.PublishedApprovedProposal[]>();
+    approvalsArray.forEach(approval => {
+      const proposalId = approval.proposal_id;
+      if (approvalsMap.has(proposalId)) {
+        approvalsMap.get(proposalId)!.push(approval);
+      } else {
+        approvalsMap.set(proposalId, [approval]);
+      }
+    });
+    return approvalsMap;
   }
 
   getApprovalsByPolicyId = async (policy_ids: string[] | string | string): Promise<Map<string, (CoinstrTypes.PublishedApprovedProposal)
@@ -778,7 +786,7 @@ export class Coinstr {
 
 
 
-  private async _getProposals(filter: Filter<CoinstrKind.Policy>[]): Promise<PublishedPolicy[]> {
+  private async _getProposals(filter: Filter<CoinstrKind.Policy>[]): Promise<Array<CoinstrTypes.PublishedSpendingProposal | CoinstrTypes. PublishedProofOfReserveProposal>>{
     const proposalEvents = await this.nostrClient.list(filter)
     const proposalHandler = this.eventKindHandlerFactor.getHandler(CoinstrKind.Proposal)
     return proposalHandler.handle(proposalEvents)
@@ -787,11 +795,8 @@ export class Coinstr {
   async getProposalsById(proposal_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, CoinstrTypes.PublishedSpendingProposal | CoinstrTypes.PublishedProofOfReserveProposal>> {
     const proposalIds = Array.isArray(proposal_ids) ? proposal_ids : [proposal_ids]
     const store = this.getStore(CoinstrKind.Proposal);
-    const missingIds = store.missing(proposalIds, "proposal_id");
-    if (missingIds.length) {
-      const proposalsFilter = this.buildProposalsFilter().ids(missingIds).pagination(paginationOpts).toFilters();
-      await this._getProposals(proposalsFilter);
-    }
+    const proposalsFilter = this.buildProposalsFilter().ids(proposal_ids).pagination(paginationOpts).toFilters();
+    await this._getProposals(proposalsFilter);
     return store.getMany(proposalIds, "proposal_id");
   }
 
@@ -800,11 +805,8 @@ export class Coinstr {
   >> => {
     const policyIds = Array.isArray(policy_ids) ? policy_ids : [policy_ids]
     const store = this.getStore(CoinstrKind.Proposal);
-    const missingIds = store.missing(policyIds, "policy_id");
-    if (missingIds.length) {
-      const proposalsFilter = this.buildProposalsFilter().events(policyIds).pagination(paginationOpts).toFilters();
-      await this._getProposals(proposalsFilter);
-    }
+    const proposalsFilter = this.buildProposalsFilter().events(policyIds).pagination(paginationOpts).toFilters();
+    await this._getProposals(proposalsFilter);
     return store.getMany(policyIds, "policy_id");
   }
 
@@ -817,7 +819,7 @@ export class Coinstr {
    * 
    * @returns A Promise that resolves to an array of decrypted proposals.
    */
-  async getProposals(paginationOpts: PaginationOpts = {}): Promise<any> {
+  async getProposals(paginationOpts: PaginationOpts = {}):  Promise<Array<CoinstrTypes.PublishedSpendingProposal | CoinstrTypes. PublishedProofOfReserveProposal>> {
     const proposalsFilter = this.buildProposalsFilter().pagination(paginationOpts).toFilters()
     const proposals = await this._getProposals(proposalsFilter)
     return proposals
@@ -967,7 +969,7 @@ export class Coinstr {
   async getCompletedProposalByTx(tx: TrxDetails | BasicTrxDetails): Promise<CoinstrTypes.PublishedCompletedSpendingProposal | null> {
     const { txid: txId, confirmation_time: confirmationTime, net: net } = tx;
 
-    if (!txId || !confirmationTime || net > 0) {
+    if (!txId || net > 0) {
       return null
     }
 
@@ -977,13 +979,15 @@ export class Coinstr {
     if (maybeStoredCompletedProposal) {
       return maybeStoredCompletedProposal;
     }
-
+    
+    let paginationOpts: PaginationOpts = {};
+    if(confirmationTime?.confirmedAt) {
     const confirmedAt = confirmationTime.confirmedAt;
-
     const since = new Date(confirmedAt.getTime() - 3 * 60 * 60 * 1000);
     const until = new Date(confirmedAt.getTime());
+    paginationOpts = { since, until };
+    }
 
-    const paginationOpts = { since, until };
     const completedProposals = await this.getCompletedProposals(paginationOpts) as CoinstrTypes.PublishedCompletedSpendingProposal[];
     const completedProposal = completedProposals.find(({ txId: id }) => id === txId);
 
