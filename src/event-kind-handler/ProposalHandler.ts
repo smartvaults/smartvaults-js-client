@@ -45,10 +45,10 @@ export class ProposalHandler extends EventKindHandler {
   protected async _handle<K extends number>(proposalEvents: Array<Event<K>>): Promise<Array<PublishedSpendingProposal | PublishedProofOfReserveProposal>> {
     const proposalIds = proposalEvents.map(proposal => proposal.id)
     const proposalsStatusMap = new Map<string, ProposalStatus>()
-    for(const proposalId of proposalIds) {
+    for (const proposalId of proposalIds) {
       const status = await this.checkPsbts(proposalId) ? ProposalStatus.Signed : ProposalStatus.Unsigned
       proposalsStatusMap.set(proposalId, status)
-    } 
+    }
     const decryptedProposals: any[] = []
     const rawEvents: Array<Event<K>> = []
     const policiesIds = proposalEvents.map(proposal => getTagValues(proposal, TagType.Event)[0])
@@ -57,9 +57,9 @@ export class ProposalHandler extends EventKindHandler {
     const fingerprints: string[] = signers.map(signer => signer.fingerprint)
     for (const proposalEvent of proposalEvents) {
       const storeValue: PublishedSpendingProposal | PublishedProofOfReserveProposal = this.store.get(proposalEvent.id, 'proposal_id')
-      if(storeValue && proposalsStatusMap.get(proposalEvent.id) !== storeValue.status) {
+      if (storeValue && proposalsStatusMap.get(proposalEvent.id) !== storeValue.status) {
         this.store.delete([storeValue])
-        const updatedProposal = {...storeValue, status: proposalsStatusMap.get(proposalEvent.id)}
+        const updatedProposal = { ...storeValue, status: proposalsStatusMap.get(proposalEvent.id) }
         decryptedProposals.push(updatedProposal)
         continue
       }

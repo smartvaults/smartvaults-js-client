@@ -33,15 +33,15 @@ export class Coinstr {
   initStores() {
     this.stores = new Map()
     this.stores.set(CoinstrKind.Policy, Store.createSingleIndexStore("id"))
-    this.stores.set(CoinstrKind.Proposal, Store.createMultiIndexStore (["proposal_id", "policy_id"], "proposal_id" ))
-    this.stores.set(CoinstrKind.ApprovedProposal, Store.createMultiIndexStore (["approval_id", "proposal_id", "policy_id" ], "approval_id" ))
+    this.stores.set(CoinstrKind.Proposal, Store.createMultiIndexStore(["proposal_id", "policy_id"], "proposal_id"))
+    this.stores.set(CoinstrKind.ApprovedProposal, Store.createMultiIndexStore(["approval_id", "proposal_id", "policy_id"], "approval_id"))
     this.stores.set(CoinstrKind.SharedKey, Store.createSingleIndexStore("policyId"))
     this.stores.set(CoinstrKind.CompletedProposal, Store.createMultiIndexStore(["id", "txId", "policy_id"], "id"))
     this.stores.set(CoinstrKind.SharedSigners, Store.createSingleIndexStore("id"))
     this.stores.set(CoinstrKind.Signers, Store.createSingleIndexStore("id"))
     this.stores.set(Kind.Metadata, Store.createSingleIndexStore("id"))
     this.stores.set(StoreKind.Events, Store.createSingleIndexStore("id"))
-    this.stores.set(StoreKind.MySharedSigners, Store.createMultiIndexStore(["id","signerId"], "id"))
+    this.stores.set(StoreKind.MySharedSigners, Store.createMultiIndexStore(["id", "signerId"], "id"))
   }
   initEventKindHandlerFactory() {
     this.eventKindHandlerFactor = new EventKindHandlerFactory(this)
@@ -80,7 +80,7 @@ export class Coinstr {
 
   async removeContacts(contactsToRemove: string | string[]): Promise<Event<Kind.Contacts>> {
     const currentContacts: Contact[] = await this.getContacts()
-    const contacts = Contact.remove( contactsToRemove, currentContacts)
+    const contacts = Contact.remove(contactsToRemove, currentContacts)
     const contactsEvent = await buildEvent({
       kind: Kind.Contacts,
       content: "",
@@ -459,19 +459,19 @@ export class Coinstr {
    * @param id - An array of ids or a single id
    * @returns A map of MySharedSigners objects by signerId
    */
-  getMySharedSigners = async (id?: string | string[] ): Promise<Map<string, CoinstrTypes.MySharedSigner | Array<CoinstrTypes.MySharedSigner> >> => {
+  getMySharedSigners = async (id?: string | string[]): Promise<Map<string, CoinstrTypes.MySharedSigner | Array<CoinstrTypes.MySharedSigner>>> => {
     const ids: string[] | undefined = Array.isArray(id) ? id : id ? [id] : undefined;
     const mysharedSignersStore = this.getStore(StoreKind.MySharedSigners)
     let signersFilter = this.buildMySharedSignersFilter()
     if (ids && mysharedSignersStore.has(ids[0], "signerId")) {
       return mysharedSignersStore.getMany(ids, "signerId");
     }
-    if(ids) {
+    if (ids) {
       signersFilter = signersFilter.events(ids)
     }
     const mySharedSignersEvents = await this.nostrClient.list(signersFilter.toFilters())
     const missingIds = mysharedSignersStore.missing(mySharedSignersEvents.map(e => e.id), 'id')
-    if(missingIds.length === 0) {
+    if (missingIds.length === 0) {
       return mysharedSignersStore.getMany(ids, "signerId")
     }
     const missingMySharedSignersEvents = mySharedSignersEvents.filter(e => missingIds.includes(e.id))
@@ -586,7 +586,7 @@ export class Coinstr {
       const signerEvent = await buildEvent({
         kind: CoinstrKind.SharedSigners,
         content,
-        tags: [[TagType.Event, ownedSigner.id],[TagType.PubKey, pubKey]],
+        tags: [[TagType.Event, ownedSigner.id], [TagType.PubKey, pubKey]],
       },
         this.authenticator)
 
@@ -786,7 +786,7 @@ export class Coinstr {
 
 
 
-  private async _getProposals(filter: Filter<CoinstrKind.Policy>[]): Promise<Array<CoinstrTypes.PublishedSpendingProposal | CoinstrTypes. PublishedProofOfReserveProposal>>{
+  private async _getProposals(filter: Filter<CoinstrKind.Policy>[]): Promise<Array<CoinstrTypes.PublishedSpendingProposal | CoinstrTypes.PublishedProofOfReserveProposal>> {
     const proposalEvents = await this.nostrClient.list(filter)
     const proposalHandler = this.eventKindHandlerFactor.getHandler(CoinstrKind.Proposal)
     return proposalHandler.handle(proposalEvents)
@@ -819,7 +819,7 @@ export class Coinstr {
    * 
    * @returns A Promise that resolves to an array of decrypted proposals.
    */
-  async getProposals(paginationOpts: PaginationOpts = {}):  Promise<Array<CoinstrTypes.PublishedSpendingProposal | CoinstrTypes. PublishedProofOfReserveProposal>> {
+  async getProposals(paginationOpts: PaginationOpts = {}): Promise<Array<CoinstrTypes.PublishedSpendingProposal | CoinstrTypes.PublishedProofOfReserveProposal>> {
     const proposalsFilter = this.buildProposalsFilter().pagination(paginationOpts).toFilters()
     const proposals = await this._getProposals(proposalsFilter)
     return proposals
@@ -979,13 +979,13 @@ export class Coinstr {
     if (maybeStoredCompletedProposal) {
       return maybeStoredCompletedProposal;
     }
-    
+
     let paginationOpts: PaginationOpts = {};
-    if(confirmationTime?.confirmedAt) {
-    const confirmedAt = confirmationTime.confirmedAt;
-    const since = new Date(confirmedAt.getTime() - 3 * 60 * 60 * 1000);
-    const until = new Date(confirmedAt.getTime());
-    paginationOpts = { since, until };
+    if (confirmationTime?.confirmedAt) {
+      const confirmedAt = confirmationTime.confirmedAt;
+      const since = new Date(confirmedAt.getTime() - 3 * 60 * 60 * 1000);
+      const until = new Date(confirmedAt.getTime());
+      paginationOpts = { since, until };
     }
 
     const completedProposals = await this.getCompletedProposals(paginationOpts) as CoinstrTypes.PublishedCompletedSpendingProposal[];
@@ -1027,28 +1027,28 @@ export class Coinstr {
     const mySharedSignersStore = this.getStore(StoreKind.MySharedSigners);
     const mySharedSignersToDelete: CoinstrTypes.MySharedSigner[] = [];
     const promises = (Array.isArray(ids) ? ids : [ids]).map(async (sharedSignerId) => {
-        const mySharedSignerEvent: CoinstrTypes.MySharedSigner = mySharedSignersStore.get(sharedSignerId, 'id');
+      const mySharedSignerEvent: CoinstrTypes.MySharedSigner = mySharedSignersStore.get(sharedSignerId, 'id');
 
-        if (!mySharedSignerEvent) {
-            throw new Error(`Shared signer with id ${sharedSignerId} not found`);
-        }
+      if (!mySharedSignerEvent) {
+        throw new Error(`Shared signer with id ${sharedSignerId} not found`);
+      }
 
-        const deleteEvent = await buildEvent({
-            kind: Kind.EventDeletion,
-            content: '',
-            tags: [[TagType.Event, mySharedSignerEvent.id], [TagType.PubKey, mySharedSignerEvent.sharedWith]],
-        }, this.authenticator);
+      const deleteEvent = await buildEvent({
+        kind: Kind.EventDeletion,
+        content: '',
+        tags: [[TagType.Event, mySharedSignerEvent.id], [TagType.PubKey, mySharedSignerEvent.sharedWith]],
+      }, this.authenticator);
 
-        mySharedSignersToDelete.push(mySharedSignerEvent);
+      mySharedSignersToDelete.push(mySharedSignerEvent);
 
-        return this.nostrClient.publish(deleteEvent).onFirstOkOrCompleteFailure();
+      return this.nostrClient.publish(deleteEvent).onFirstOkOrCompleteFailure();
     });
 
     await Promise.all(promises).catch((error) => {
-        console.error(error);
+      console.error(error);
     });
     mySharedSignersStore.delete(mySharedSignersToDelete);
-}
+  }
 
 
   //Mock method to create a proposal, this will be replaced when the policy class is created

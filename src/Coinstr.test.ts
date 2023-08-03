@@ -5,7 +5,7 @@ import { Coinstr } from './Coinstr'
 import { NostrClient, Keys, Store } from './service'
 import { TimeUtil, buildEvent } from './util'
 import { Contact, PublishedPolicy, BitcoinUtil, Wallet, type FinalizeTrxResponse } from './models'
-import { Metadata, Profile, SavePolicyPayload, OwnedSigner,  SpendProposalPayload, PublishedDirectMessage, PublishedSpendingProposal, PublishedApprovedProposal, PublishedSharedSigner, PublishedOwnedSigner, MySharedSigner } from './types'
+import { Metadata, Profile, SavePolicyPayload, OwnedSigner, SpendProposalPayload, PublishedDirectMessage, PublishedSpendingProposal, PublishedApprovedProposal, PublishedSharedSigner, PublishedOwnedSigner, MySharedSigner } from './types'
 import { CoinstrKind, ProposalStatus } from './enum'
 import { Kind } from 'nostr-tools'
 jest.setTimeout(1000000);
@@ -456,7 +456,7 @@ describe('Coinstr', () => {
           }
           counter++
         })
-      
+
       let policy1 = await coinstr.savePolicy(savePolicyPayload1)
       await sleep(100)
       await coinstr.saveOwnedSigner(saveOwnedSignerPayload1)
@@ -708,7 +708,7 @@ describe('Coinstr', () => {
 
       pubKey = keySet1.keys[1].publicKey
       pubKey2 = keySet1.keys[2].publicKey
-      ownedSigner1 = await  saveSharedSignerPayload(coinstr, 1)
+      ownedSigner1 = await saveSharedSignerPayload(coinstr, 1)
       let sharedSignerResult = await coinstr.saveSharedSigner(ownedSigner1, pubKey)
       sharedSigner11 = (await coinstr.saveSharedSigner(ownedSigner1, pubKey2))[0]
       sharedSigner1 = sharedSignerResult[0]
@@ -725,10 +725,10 @@ describe('Coinstr', () => {
         nostrClient
       });
 
-      ownedSigner4 = await saveSharedSignerPayload(coinstrWithAuthenticator3,6)
+      ownedSigner4 = await saveSharedSignerPayload(coinstrWithAuthenticator3, 6)
       sharedSignerResult = await coinstrWithAuthenticator3.saveSharedSigner(ownedSigner4, pubKey)
       sharedSigner4 = sharedSignerResult[0]
-      ownedSigner5 = await saveSharedSignerPayload(coinstrWithAuthenticator3,7)
+      ownedSigner5 = await saveSharedSignerPayload(coinstrWithAuthenticator3, 7)
       sharedSignerResult = await coinstrWithAuthenticator3.saveSharedSigner(ownedSigner5, pubKey)
       sharedSigner5 = sharedSignerResult[0]
 
@@ -775,12 +775,12 @@ describe('Coinstr', () => {
     it('getMySharedSigners', async () => {
       const mySharedSigners = await coinstr.getMySharedSigners();
       const mySharedSigner1 = [
-        {id: sharedSigner11.id, sharedDate: sharedSigner1.createdAt, signerId: ownedSigner1.id, sharedWith: pubKey2 },
-        {id: sharedSigner1.id, sharedDate: sharedSigner1.createdAt, signerId: ownedSigner1.id, sharedWith: pubKey }
+        { id: sharedSigner11.id, sharedDate: sharedSigner1.createdAt, signerId: ownedSigner1.id, sharedWith: pubKey2 },
+        { id: sharedSigner1.id, sharedDate: sharedSigner1.createdAt, signerId: ownedSigner1.id, sharedWith: pubKey }
       ]
-      const mySharedSigner2 = {id: sharedSigner2.id, sharedDate: sharedSigner2.createdAt, signerId: ownedSigner2.id, sharedWith: pubKey }
-      const mySharedSigner3 = {id: sharedSigner3.id, sharedDate: sharedSigner3.createdAt, signerId: ownedSigner3.id, sharedWith: pubKey }
-      const expected1: Map<string, MySharedSigner | MySharedSigner[]>  = new Map()
+      const mySharedSigner2 = { id: sharedSigner2.id, sharedDate: sharedSigner2.createdAt, signerId: ownedSigner2.id, sharedWith: pubKey }
+      const mySharedSigner3 = { id: sharedSigner3.id, sharedDate: sharedSigner3.createdAt, signerId: ownedSigner3.id, sharedWith: pubKey }
+      const expected1: Map<string, MySharedSigner | MySharedSigner[]> = new Map()
       expected1.set(ownedSigner3.id, mySharedSigner3);
       expected1.set(ownedSigner2.id, mySharedSigner2);
       expected1.set(ownedSigner1.id, mySharedSigner1);
@@ -791,9 +791,9 @@ describe('Coinstr', () => {
       await coinstr.revokeMySharedSigners(sharedSigner1.id)
       await coinstr.revokeMySharedSigners(sharedSigner11.id)
       const mySharedSigners = await coinstr.getMySharedSigners();
-      const mySharedSigner2 = {id: sharedSigner2.id, sharedDate: sharedSigner2.createdAt, signerId: ownedSigner2.id, sharedWith: pubKey }
-      const mySharedSigner3 = {id: sharedSigner3.id, sharedDate: sharedSigner3.createdAt, signerId: ownedSigner3.id, sharedWith: pubKey }
-      const expected1: Map<string, MySharedSigner | MySharedSigner[]>  = new Map()
+      const mySharedSigner2 = { id: sharedSigner2.id, sharedDate: sharedSigner2.createdAt, signerId: ownedSigner2.id, sharedWith: pubKey }
+      const mySharedSigner3 = { id: sharedSigner3.id, sharedDate: sharedSigner3.createdAt, signerId: ownedSigner3.id, sharedWith: pubKey }
+      const expected1: Map<string, MySharedSigner | MySharedSigner[]> = new Map()
       expected1.set(ownedSigner3.id, mySharedSigner3);
       expected1.set(ownedSigner2.id, mySharedSigner2);
       expect(mySharedSigners).toEqual(expected1)
@@ -837,7 +837,7 @@ describe('Coinstr', () => {
         .mockResolvedValueOnce({ amount: 4000, psbt: "encoded psbt4" })
       bitcoinUtil.createWallet.mockReturnValue(wallet)
       let mockTxid = Math.random().toString(36).substring(7)
-      expectedTrx = { txid: mockTxid, psbt: "psbt1", trx: { inputs: ["input1"], txid: mockTxid, net:-1, confirmation_time: {confirmetAt: (new Date()).toString() } } }
+      expectedTrx = { txid: mockTxid, psbt: "psbt1", trx: { inputs: ["input1"], txid: mockTxid, net: -1, confirmation_time: { confirmetAt: (new Date()).toString() } } }
       wallet.finalize_trx.mockResolvedValue(expectedTrx)
       bitcoinUtil.getTrxId.mockReturnValue(mockTxid)
       bitcoinUtil.getFee.mockReturnValue(420)
@@ -1212,14 +1212,14 @@ async function setProfile(id: number, coinstr: Coinstr): Promise<Profile> {
 }
 
 async function saveSharedSignerPayload(coinstr: Coinstr, id: number): Promise<PublishedOwnedSigner> {
-   const ownedSigner =  await coinstr.saveOwnedSigner({
-      description: `description${id}`,
-      descriptor: `descriptor${id}`,
-      fingerprint: `fingerprint${id}`,
-      name: `name${id}`,
-      t: `t${id}`,
-    })
-    return ownedSigner
+  const ownedSigner = await coinstr.saveOwnedSigner({
+    description: `description${id}`,
+    descriptor: `descriptor${id}`,
+    fingerprint: `fingerprint${id}`,
+    name: `name${id}`,
+    t: `t${id}`,
+  })
+  return ownedSigner
 }
 
 function saveOwnedSignerPayload(id: number, ownerPubKey: string): OwnedSigner {

@@ -28,9 +28,9 @@ export class ApprovalsHandler extends EventKindHandler {
     const approvedPublishedProposals: PublishedApprovedProposal[] = []
     const rawApprovalEvents: Array<Event<K>> = []
     const approvalIds = approvalEvents.map(approval => approval.id)
-    if(!approvalIds.length) return []
+    if (!approvalIds.length) return []
     const missingApprovalIds = this.store.missing(approvalIds, indexKey)
-    if (missingApprovalIds.length === 0 ) {
+    if (missingApprovalIds.length === 0) {
       return this.store.getManyAsArray(approvalIds, indexKey)
     }
     for (const approvedProposalEvent of approvalEvents) {
