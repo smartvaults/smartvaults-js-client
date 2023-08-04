@@ -212,7 +212,13 @@ export class Coinstr {
 
   private async createSharedKeysAsync(nostrPublicKeys: string[], secretKey: string, policyEvent: Event<CoinstrKind.Policy>): Promise<Array<Event<CoinstrKind.SharedKey>>> {
     let promises = nostrPublicKeys.map(async pubkey => {
-      const content = await this.authenticator.encrypt(secretKey, pubkey)
+      let content;
+      try {
+        content = await this.authenticator.encrypt(secretKey, pubkey);
+      } catch (err) {
+        console.error('Error while encrypting:', err);
+        throw err;
+      }
       const rawSharedKeyEvent = await buildEvent({
         kind: CoinstrKind.SharedKey,
         content,
@@ -228,7 +234,7 @@ export class Coinstr {
       if (result.status === "fulfilled" && result.value !== null) {
         acc.push(result.value);
       } else if (result.status === "rejected") {
-        console.error(`Error while creating shared key: ${result.reason}`);
+        throw new Error(`Error while creating shared key: ${result.reason}`);
       }
       return acc;
     }, [] as { pubResult: void, rawSharedKeyEvent: Event<CoinstrKind.SharedKey> }[]);
@@ -241,7 +247,13 @@ export class Coinstr {
     const sharedKeyEvents: Array<{ sharedKeyEvent: Event<CoinstrKind.SharedKey>, pubPromise: Promise<void> }> = []
 
     for (const pubkey of nostrPublicKeys) {
-      const content = await this.authenticator.encrypt(secretKey, pubkey)
+      let content;
+      try {
+        content = await this.authenticator.encrypt(secretKey, pubkey);
+      } catch (err) {
+        console.error('Error while encrypting:', err);
+        throw err;
+      }
       const sharedKeyEvent = await buildEvent({
         kind: CoinstrKind.SharedKey,
         content,
@@ -260,7 +272,7 @@ export class Coinstr {
       if (result.status === "fulfilled" && result.value !== null) {
         acc.push(sharedKeyEvents[index].sharedKeyEvent)
       } else if (result.status === "rejected") {
-        console.error(`Error while creating shared key: ${result.reason}`);
+        throw new Error(`Error while creating shared key: ${result.reason}`);
       }
       return acc;
     }, [] as Event<CoinstrKind.SharedKey>[])
