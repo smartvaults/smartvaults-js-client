@@ -112,6 +112,7 @@ describe('Coinstr', () => {
     })
 
     it('removeContacts', async () => {
+      await sleep(200)
       await coinstr.removeContacts([contact1.publicKey, contact2.publicKey])
       const contacts = await coinstr.getContacts()
       expect(contacts.length).toBe(1)
@@ -967,6 +968,7 @@ describe('Coinstr', () => {
 
     const checkApprovals = async (expectedSize: number, expectedProposals: Record<string, PublishedApprovedProposal[]>) => {
       const approvedProposals = await coinstr.getApprovals();
+      await coinstr.getApprovals()
       expect(approvedProposals.size).toBe(expectedSize);
 
       for (const [proposalId, expected] of Object.entries(expectedProposals)) {

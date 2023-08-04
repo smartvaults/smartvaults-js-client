@@ -44,51 +44,85 @@ export class ProposalHandler extends EventKindHandler {
 
   protected async _handle<K extends number>(proposalEvents: Array<Event<K>>): Promise<Array<PublishedSpendingProposal | PublishedProofOfReserveProposal>> {
     const proposalIds = proposalEvents.map(proposal => proposal.id)
-    const proposalsStatusMap = new Map<string, ProposalStatus>()
-    for (const proposalId of proposalIds) {
-      const status = await this.checkPsbts(proposalId) ? ProposalStatus.Signed : ProposalStatus.Unsigned
-      proposalsStatusMap.set(proposalId, status)
-    }
-    const decryptedProposals: any[] = []
-    const rawEvents: Array<Event<K>> = []
+    if (!proposalIds.length) return []
+    const statusPromises = proposalIds.map(proposalId =>
+      this.checkPsbts(proposalId).then(status => ({ proposalId, status: status ? ProposalStatus.Signed : ProposalStatus.Unsigned }))
+    );
+
     const policiesIds = proposalEvents.map(proposal => getTagValues(proposal, TagType.Event)[0])
-    const sharedKeyAuthenticators = await this.getSharedKeysById(policiesIds)
-    const signers = await this.getOwnedSigners()
+
+    const [statusResults, sharedKeyAuthenticators, signers] = await Promise.all([
+      Promise.all(statusPromises),
+      this.getSharedKeysById(policiesIds),
+      this.getOwnedSigners()
+    ]);
+    const proposalsStatusMap = new Map(statusResults.map(res => [res.proposalId, res.status]));
+
+    const decryptedProposals: Array<PublishedSpendingProposal | PublishedProofOfReserveProposal> = []
+    const rawEvents: Array<Event<K>> = []
     const fingerprints: string[] = signers.map(signer => signer.fingerprint)
-    for (const proposalEvent of proposalEvents) {
+
+    const decryptPromises: Promise<any>[] = proposalEvents.map(async (proposalEvent) => {
       const storeValue: PublishedSpendingProposal | PublishedProofOfReserveProposal = this.store.get(proposalEvent.id, 'proposal_id')
-      if (storeValue && proposalsStatusMap.get(proposalEvent.id) !== storeValue.status) {
-        this.store.delete([storeValue])
-        const updatedProposal = { ...storeValue, status: proposalsStatusMap.get(proposalEvent.id) }
-        decryptedProposals.push(updatedProposal)
-        continue
+
+      if (storeValue) {
+        const proposalStatus = proposalsStatusMap.get(proposalEvent.id);
+
+        if (proposalStatus !== storeValue.status) {
+          this.store.delete([storeValue]);
+
+          const updatedProposal = {
+            ...storeValue,
+            status: proposalStatus,
+          };
+
+          return { decryptedProposal: updatedProposal, rawEvent: proposalEvent };
+        }
+        return { decryptedProposal: storeValue, rawEvent: proposalEvent };
       }
+
+
       const policyId = getTagValues(proposalEvent, TagType.Event)[0]
       const sharedKeyAuthenticator = sharedKeyAuthenticators.get(policyId)?.sharedKeyAuthenticator
-      if (!sharedKeyAuthenticator) continue
-      const decryptedProposalObj: SpendingProposal | ProofOfReserveProposal = await sharedKeyAuthenticator.decryptObj(proposalEvent.content)
-      const type = decryptedProposalObj[ProposalType.Spending] ? ProposalType.Spending : ProposalType.ProofOfReserve
-      const createdAt = fromNostrDate(proposalEvent.created_at)
-      const status = await this.checkPsbts(proposalEvent.id) ? ProposalStatus.Signed : ProposalStatus.Unsigned
-      const signerResult: string | null = this.searchSignerInDescriptor(fingerprints, decryptedProposalObj[type].descriptor)
-      const signer = signerResult ?? 'Unknown'
-      const psbt = decryptedProposalObj[type].psbt
-      const fee = this.bitcoinUtil.getFee(psbt)
-      const publishedProposal: PublishedSpendingProposal | PublishedProofOfReserveProposal = {
-        type,
-        status,
-        signer,
-        fee,
-        ...decryptedProposalObj[type],
-        createdAt,
-        policy_id: policyId,
-        proposal_id: proposalEvent.id
+
+      if (!sharedKeyAuthenticator) return null
+
+      return sharedKeyAuthenticator.decryptObj(proposalEvent.content).then((decryptedProposalObj: SpendingProposal | ProofOfReserveProposal) => {
+        const type = decryptedProposalObj[ProposalType.Spending] ? ProposalType.Spending : ProposalType.ProofOfReserve
+        const createdAt = fromNostrDate(proposalEvent.created_at)
+        const signerResult: string | null = this.searchSignerInDescriptor(fingerprints, decryptedProposalObj[type].descriptor)
+        const signer = signerResult ?? 'Unknown'
+        const psbt = decryptedProposalObj[type].psbt
+        const fee = this.bitcoinUtil.getFee(psbt)
+        const publishedProposal: PublishedSpendingProposal | PublishedProofOfReserveProposal = {
+          type,
+          status: proposalsStatusMap.get(proposalEvent.id) ?? ProposalStatus.Unsigned,
+          signer,
+          fee,
+          ...decryptedProposalObj[type],
+          createdAt,
+          policy_id: policyId,
+          proposal_id: proposalEvent.id
+        }
+        return { decryptedProposal: publishedProposal, rawEvent: proposalEvent }
+      });
+    })
+
+    const results = await Promise.allSettled(decryptPromises)
+
+    const validResults = results.reduce((acc, result) => {
+      if (result.status === "fulfilled" && result.value !== null) {
+        acc.push(result.value);
       }
-      decryptedProposals.push(publishedProposal)
-      rawEvents.push(proposalEvent)
-    }
+      return acc;
+    }, [] as { decryptedProposal: PublishedSpendingProposal | PublishedProofOfReserveProposal, rawEvent: Event<K> }[]);
+
+    decryptedProposals.push(...validResults.map(res => res!.decryptedProposal))
+    rawEvents.push(...validResults.map(res => res!.rawEvent))
+
     this.store.store(decryptedProposals)
     this.eventsStore.store(rawEvents)
+
     return decryptedProposals
   }
 

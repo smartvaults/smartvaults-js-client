@@ -57,44 +57,55 @@ export class PolicyHandler extends EventKindHandler {
     this.getApprovalsByPolicyId = getApprovalsByPolicyId
   }
 
-  protected async _handle<K extends number>(policyEvents: Array<Event<K>>): Promise<any[]> {
+  protected async _handle<K extends number>(policyEvents: Array<Event<K>>): Promise<Array<PublishedPolicy>> {
     let policyIds = policyEvents.map(policy => policy.id)
+    if (!policyIds.length) return []
     policyIds = this.store.missing(policyIds)
     const policyIdSharedKeyAuthenticatorMap = await this.getSharedKeysById(policyIds)
 
-    const policies: PublishedPolicy[] = []
-    const rawPolicyEvents: Array<Event<K>> = []
-    for (const policyEvent of policyEvents) {
+    const policyPromises = policyEvents.map(async policyEvent => {
       const {
         id: policyId
       } = policyEvent
+
       if (this.store.has(policyId)) {
-        policies.push(this.store.get(policyId))
-        rawPolicyEvents.push(policyEvent)
-        continue
+        return { policy: this.store.get(policyId), rawEvent: policyEvent }
       }
       const sharedKeyAuthenticator = policyIdSharedKeyAuthenticatorMap.get(policyId)?.sharedKeyAuthenticator
-      if (!sharedKeyAuthenticator) continue
+      if (!sharedKeyAuthenticator) return null
       const policyContent = await sharedKeyAuthenticator.decryptObj(policyEvent.content)
       let publishedPolicy: PublishedPolicy;
       try {
-          publishedPolicy = PublishedPolicy.fromPolicyAndEvent({
-            policyContent,
-            policyEvent,
-            bitcoinUtil: this.bitcoinUtil,
-            nostrPublicKeys: getTagValues(policyEvent, TagType.PubKey),
-            sharedKeyAuth: sharedKeyAuthenticator
-          })
+        publishedPolicy = PublishedPolicy.fromPolicyAndEvent({
+          policyContent,
+          policyEvent,
+          bitcoinUtil: this.bitcoinUtil,
+          nostrPublicKeys: getTagValues(policyEvent, TagType.PubKey),
+          sharedKeyAuth: sharedKeyAuthenticator
+        })
       } catch (e) {
-          console.error(`Error parsing policy ${policyId}: ${String(e)}`);
-          continue;
+        console.error(`Error parsing policy ${policyId}: ${String(e)}`);
+        return null
       }
-      policies.push(publishedPolicy);
-      rawPolicyEvents.push(policyEvent)
-    }
+      return { policy: publishedPolicy, rawEvent: policyEvent }
+    })
+
+    const results = await Promise.allSettled(policyPromises)
+
+    const validResults = results.reduce((acc, result) => {
+      if (result.status === "fulfilled" && result.value !== null) {
+        acc.push(result.value);
+      }
+      return acc;
+    }, [] as { policy: PublishedPolicy, rawEvent: Event<K> }[]);
+    const policies = validResults.map(res => res!.policy)
+    const rawPolicyEvents = validResults.map(res => res!.rawEvent)
+
     this.store.store(policies)
     this.eventsStore.store(rawPolicyEvents)
+
     return policies
+
   }
 
   private async getPolicyRelatedEvents(policyId: string): Promise<Map<CoinstrKind, any[]>> {

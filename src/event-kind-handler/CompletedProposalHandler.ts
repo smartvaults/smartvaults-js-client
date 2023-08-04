@@ -23,26 +23,27 @@ export class CompletedProposalHandler extends EventKindHandler {
 
   protected async _handle<K extends number>(completedProposalEvents: Array<Event<K>>): Promise<Array<PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal>> {
     const policiesIds = completedProposalEvents.map(proposal => getTagValues(proposal, TagType.Event)[1])
-    const sharedKeyAuthenticators = await this.getSharedKeysById(policiesIds)
+
     const completedProposalsIds = completedProposalEvents.map(proposal => proposal.id)
     const missingCompletedProposalsIds = this.store.missing(completedProposalsIds)
     const rawCompletedProposals: Array<Event<K>> = []
     if (missingCompletedProposalsIds.length === 0) {
       return this.store.getManyAsArray(completedProposalsIds)
     }
-    const completedProposals: Array<PublishedCompletedProofOfReserveProposal | PublishedCompletedSpendingProposal> = []
-    for (const completedProposalEvent of completedProposalEvents) {
+
+    const sharedKeyAuthenticators = await this.getSharedKeysById(policiesIds)
+    const completedProposalsPromises = completedProposalEvents.map(async (completedProposalEvent) => {
       const proposalId = getTagValues(completedProposalEvent, TagType.Event)[0]
       const completedProposalId = completedProposalEvent.id
       const storeValue = this.store.get(completedProposalId)
       if (storeValue) {
-        completedProposals.push(storeValue)
         rawCompletedProposals.push(completedProposalEvent)
-        continue
+        return storeValue
       }
       const policyId = getTagValues(completedProposalEvent, TagType.Event)[1]
       const sharedKeyAuthenticator = sharedKeyAuthenticators.get(policyId)?.sharedKeyAuthenticator
-      if (sharedKeyAuthenticator == null) continue
+      if (sharedKeyAuthenticator == null) return null
+
       const decryptedProposalObj: (CompletedProofOfReserveProposal | CompletedSpendingProposal) = await sharedKeyAuthenticator.decryptObj(completedProposalEvent.content)
       const type = decryptedProposalObj[ProposalType.Spending] ? ProposalType.Spending : ProposalType.ProofOfReserve
       let txId;
@@ -60,14 +61,23 @@ export class CompletedProposalHandler extends EventKindHandler {
         completion_date: fromNostrDate(completedProposalEvent.created_at),
         id: completedProposalEvent.id
       }
-      completedProposals.push(publishedCompleteProposal)
       rawCompletedProposals.push(completedProposalEvent)
-    }
+      return publishedCompleteProposal
+    });
+
+    const results = await Promise.allSettled(completedProposalsPromises);
+
+    const completedProposals = results.reduce((acc, result) => {
+      if (result.status === "fulfilled" && result.value !== null) {
+        acc.push(result.value);
+      }
+      return acc;
+    }, [] as Array<PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal>);
+
     this.store.store(completedProposals)
     this.eventsStore.store(rawCompletedProposals)
     return completedProposals
   }
-
 
 
   protected async _delete<K extends number>(ids: string[]): Promise<void> {
