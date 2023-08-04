@@ -45,17 +45,17 @@ export class ProposalHandler extends EventKindHandler {
   protected async _handle<K extends number>(proposalEvents: Array<Event<K>>): Promise<Array<PublishedSpendingProposal | PublishedProofOfReserveProposal>> {
     const proposalIds = proposalEvents.map(proposal => proposal.id)
     if (!proposalIds.length) return []
+    const policiesIds = proposalEvents.map(proposal => getTagValues(proposal, TagType.Event)[0])
+    const sharedKeyAuthenticators = await this.getSharedKeysById(policiesIds)
     const statusPromises = proposalIds.map(proposalId =>
       this.checkPsbts(proposalId).then(status => ({ proposalId, status: status ? ProposalStatus.Signed : ProposalStatus.Unsigned }))
     );
 
-    const policiesIds = proposalEvents.map(proposal => getTagValues(proposal, TagType.Event)[0])
-
-    const [statusResults, sharedKeyAuthenticators, signers] = await Promise.all([
+    const [statusResults, signers] = await Promise.all([
       Promise.all(statusPromises),
-      this.getSharedKeysById(policiesIds),
       this.getOwnedSigners()
     ]);
+
     const proposalsStatusMap = new Map(statusResults.map(res => [res.proposalId, res.status]));
 
     const decryptedProposals: Array<PublishedSpendingProposal | PublishedProofOfReserveProposal> = []
@@ -80,7 +80,6 @@ export class ProposalHandler extends EventKindHandler {
         }
         return { decryptedProposal: storeValue, rawEvent: proposalEvent };
       }
-
 
       const policyId = getTagValues(proposalEvent, TagType.Event)[0]
       const sharedKeyAuthenticator = sharedKeyAuthenticators.get(policyId)?.sharedKeyAuthenticator

@@ -59,11 +59,14 @@ export class PolicyHandler extends EventKindHandler {
 
   protected async _handle<K extends number>(policyEvents: Array<Event<K>>): Promise<Array<PublishedPolicy>> {
     let policyIds = policyEvents.map(policy => policy.id)
-    if (!policyIds.length) return []
-    policyIds = this.store.missing(policyIds)
-    const policyIdSharedKeyAuthenticatorMap = await this.getSharedKeysById(policyIds)
-
-    const policyPromises = policyEvents.map(async policyEvent => {
+    if (!policyIds?.length) return []
+    const missingPolicyIds = this.store.missing(policyIds)
+    if (missingPolicyIds?.length === 0) {
+      return this.store.getManyAsArray(policyIds)
+    }
+    const policyIdSharedKeyAuthenticatorMap = await this.getSharedKeysById(missingPolicyIds)
+    const missingPolicyEvents = policyEvents.filter(policyEvent => missingPolicyIds.includes(policyEvent.id))
+    const policyPromises = missingPolicyEvents.map(async policyEvent => {
       const {
         id: policyId
       } = policyEvent
@@ -100,10 +103,8 @@ export class PolicyHandler extends EventKindHandler {
     }, [] as { policy: PublishedPolicy, rawEvent: Event<K> }[]);
     const policies = validResults.map(res => res!.policy)
     const rawPolicyEvents = validResults.map(res => res!.rawEvent)
-
     this.store.store(policies)
     this.eventsStore.store(rawPolicyEvents)
-
     return policies
 
   }
@@ -192,7 +193,7 @@ export class PolicyHandler extends EventKindHandler {
             this.sharedKeysStore.delete(sharedKeysRelatedEvents)
           }
           const allRawEvents = [...rawSharedKeyAuthEvents, ...rawAutoredEvents, rawPolicyEvent]
-          if (allRawEvents.length) {
+          if (allRawEvents?.length) {
             rawPolicyRelatedEvents.push(...allRawEvents)
           }
         }
