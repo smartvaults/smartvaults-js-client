@@ -1,6 +1,6 @@
 import { Authenticator, DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { generatePrivateKey, Kind, Event, Filter, Sub } from 'nostr-tools'
-import { CoinstrKind, TagType, ProposalType, ProposalStatus, ApprovalStatus, StoreKind } from './enum'
+import { CoinstrKind, TagType, ProposalType, ProposalStatus, ApprovalStatus, StoreKind, AuthenticatorType } from './enum'
 import { NostrClient, PubPool, Store } from './service'
 import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished, nostrDate } from './util'
 import { BasicTrxDetails, BitcoinUtil, Contact, Policy, PublishedPolicy, TrxDetails } from './models'
@@ -187,25 +187,97 @@ export class Coinstr {
       sharedKeyAuth: sharedKeyAuthenticator
     })
 
+    const authenticatorName = this.authenticator.getName()
+    let sharedKeyEvents: Array<Event<CoinstrKind.SharedKey>>
+    if (authenticatorName === AuthenticatorType.WebExtension) {
+      sharedKeyEvents = await this.createSharedKeysSync(nostrPublicKeys, secretKey, policyEvent)
+    } else {
+      sharedKeyEvents = await this.createSharedKeysAsync(nostrPublicKeys, secretKey, policyEvent)
+    }
+
+    const publishedSharedKeyAuthenticators: Array<CoinstrTypes.SharedKeyAuthenticator> = sharedKeyEvents.map(sharedKeyEvent => {
+      const id = sharedKeyEvent.id
+      const creator = sharedKeyEvent.pubkey
+      const policyId = policyEvent.id
+      return { id, policyId, creator, sharedKeyAuthenticator }
+    })
+
+    const pub = this.nostrClient.publish(policyEvent)
+    await pub.onFirstOkOrCompleteFailure()
+    this.getStore(CoinstrKind.Policy).store(publishedPolicy)
+    this.getStore(CoinstrKind.SharedKey).store(publishedSharedKeyAuthenticators)
+    this.getStore(StoreKind.Events).store([policyEvent, ...sharedKeyEvents])
+    return publishedPolicy
+  }
+
+  private async createSharedKeysAsync(nostrPublicKeys: string[], secretKey: string, policyEvent: Event<CoinstrKind.Policy>): Promise<Array<Event<CoinstrKind.SharedKey>>> {
+    let promises = nostrPublicKeys.map(async pubkey => {
+      let content;
+      try {
+        content = await this.authenticator.encrypt(secretKey, pubkey);
+      } catch (err) {
+        console.error('Error while encrypting:', err);
+        throw err;
+      }
+      const rawSharedKeyEvent = await buildEvent({
+        kind: CoinstrKind.SharedKey,
+        content,
+        tags: [[TagType.Event, policyEvent.id], [TagType.PubKey, pubkey]],
+      },
+        this.authenticator)
+      const pub = this.nostrClient.publish(rawSharedKeyEvent)
+      const pubResult = await pub.onFirstOkOrCompleteFailure()
+      return { pubResult, rawSharedKeyEvent }
+    })
+    let results = await Promise.allSettled(promises)
+    const validResults = results.reduce((acc, result) => {
+      if (result.status === "fulfilled" && result.value !== null) {
+        acc.push(result.value);
+      } else if (result.status === "rejected") {
+        throw new Error(`Error while creating shared key: ${result.reason}`);
+      }
+      return acc;
+    }, [] as { pubResult: void, rawSharedKeyEvent: Event<CoinstrKind.SharedKey> }[]);
+    const sharedKeyEvents = validResults.map(res => res!.rawSharedKeyEvent)
+    return sharedKeyEvents
+  }
+
+  private async createSharedKeysSync(nostrPublicKeys: string[], secretKey: string, policyEvent: Event<CoinstrKind.Policy>): Promise<Array<Event<CoinstrKind.SharedKey>>> {
     const promises: Promise<void>[] = []
+    const sharedKeyEvents: Array<{ sharedKeyEvent: Event<CoinstrKind.SharedKey>, pubPromise: Promise<void> }> = []
 
     for (const pubkey of nostrPublicKeys) {
-      const content = await this.authenticator.encrypt(secretKey, pubkey)
+      let content;
+      try {
+        content = await this.authenticator.encrypt(secretKey, pubkey);
+      } catch (err) {
+        console.error('Error while encrypting:', err);
+        throw err;
+      }
       const sharedKeyEvent = await buildEvent({
         kind: CoinstrKind.SharedKey,
         content,
         tags: [[TagType.Event, policyEvent.id], [TagType.PubKey, pubkey]],
       },
         this.authenticator)
+
       const pub = this.nostrClient.publish(sharedKeyEvent)
       promises.push(pub.onFirstOkOrCompleteFailure())
+      sharedKeyEvents.push({ sharedKeyEvent, pubPromise: pub.onFirstOkOrCompleteFailure() })
     }
-    await Promise.all(promises)
 
-    const pub = this.nostrClient.publish(policyEvent)
-    await pub.onFirstOkOrCompleteFailure()
-    this.getStore(CoinstrKind.Policy).store(publishedPolicy)
-    return publishedPolicy
+    const results = await Promise.allSettled(promises)
+
+    const validResults = results.reduce((acc, result, index) => {
+      if (result.status === "fulfilled" && result.value !== null) {
+        acc.push(sharedKeyEvents[index].sharedKeyEvent)
+      } else if (result.status === "rejected") {
+        throw new Error(`Error while creating shared key: ${result.reason}`);
+      }
+      return acc;
+    }, [] as Event<CoinstrKind.SharedKey>[])
+
+    return validResults
   }
 
   /**

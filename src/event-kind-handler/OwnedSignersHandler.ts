@@ -4,7 +4,7 @@ import { type Store, type NostrClient } from '../service'
 import { buildEvent, fromNostrDate } from '../util'
 import { EventKindHandler } from './EventKindHandler'
 import { type Authenticator } from '@smontero/nostr-ual'
-import { TagType } from '../enum'
+import { TagType, AuthenticatorType } from '../enum'
 
 export class OwnedSignerHandler extends EventKindHandler {
   private readonly store: Store
@@ -20,6 +20,53 @@ export class OwnedSignerHandler extends EventKindHandler {
   }
 
   protected async _handle<K extends number>(ownedSignersEvents: Array<Event<K>>): Promise<PublishedOwnedSigner[]> {
+    if (this.authenticator.getName() === AuthenticatorType.WebExtension) {
+      return this.getSignersSync(ownedSignersEvents)
+    } else {
+      return this.getSignersAsync(ownedSignersEvents)
+    }
+  }
+
+  private async getSignersAsync<K extends number>(ownedSignersEvents: Array<Event<K>>): Promise<PublishedOwnedSigner[]> {
+    const signerPromises = ownedSignersEvents.map(signersEvent => {
+      const storeValue = this.store.get(signersEvent.id)
+      if (storeValue) {
+        return Promise.resolve({ signer: storeValue, rawEvent: signersEvent })
+      }
+
+      return this.authenticator.decryptObj(signersEvent.content, signersEvent.pubkey)
+        .then(baseDecryptedSigner => {
+          const signer: PublishedOwnedSigner = {
+            ...baseDecryptedSigner,
+            id: signersEvent.id,
+            ownerPubKey: signersEvent.pubkey,
+            createdAt: fromNostrDate(signersEvent.created_at)
+          }
+          return { signer, rawEvent: signersEvent };
+        })
+        .catch(_ => null);
+    })
+
+    const results = await Promise.allSettled(signerPromises)
+
+    const validResults = results.reduce((acc, result) => {
+      if (result.status === "fulfilled" && result.value !== null) {
+        acc.push(result.value);
+      }
+      return acc;
+    }, [] as { signer: PublishedOwnedSigner, rawEvent: Event<K> }[]);
+
+    const signers = validResults.map(res => res.signer);
+    const rawSignersEvents = validResults.map(res => res.rawEvent);
+
+    this.store.store(signers);
+    this.eventsStore.store(rawSignersEvents);
+
+    return signers;
+  }
+
+
+  private async getSignersSync<K extends number>(ownedSignersEvents: Array<Event<K>>): Promise<PublishedOwnedSigner[]> {
     const signers: PublishedOwnedSigner[] = []
     const rawSignersEvents: Array<Event<K>> = []
     for (const signersEvent of ownedSignersEvents) {
@@ -37,6 +84,7 @@ export class OwnedSignerHandler extends EventKindHandler {
     this.eventsStore.store(rawSignersEvents)
     return signers
   }
+
 
   protected async _delete<K extends number>(signersIds: string[]): Promise<void> {
     const pubKey = this.authenticator.getPublicKey()

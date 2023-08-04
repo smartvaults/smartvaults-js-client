@@ -112,6 +112,7 @@ describe('Coinstr', () => {
     })
 
     it('removeContacts', async () => {
+      await sleep(200)
       await coinstr.removeContacts([contact1.publicKey, contact2.publicKey])
       const contacts = await coinstr.getContacts()
       expect(contacts.length).toBe(1)

@@ -21,29 +21,27 @@ export class ApprovalsHandler extends EventKindHandler {
 
   }
 
-  protected async _handle<K extends number>(approvalEvents: Array<Event<K>>): Promise<PublishedApprovedProposal[]> {
+  protected async _handle<K extends number>(approvalEvents: Array<Event<K>>): Promise<Array<PublishedApprovedProposal>> {
     const policiesIds = approvalEvents.map(proposal => getTagValues(proposal, TagType.Event)[1])
-    const sharedKeys = await this.getSharedKeysById(policiesIds)
     const indexKey = 'approval_id'
-    const approvedPublishedProposals: PublishedApprovedProposal[] = []
-    const rawApprovalEvents: Array<Event<K>> = []
     const approvalIds = approvalEvents.map(approval => approval.id)
     if (!approvalIds.length) return []
     const missingApprovalIds = this.store.missing(approvalIds, indexKey)
     if (missingApprovalIds.length === 0) {
       return this.store.getManyAsArray(approvalIds, indexKey)
     }
-    for (const approvedProposalEvent of approvalEvents) {
+
+    const sharedKeys = await this.getSharedKeysById(policiesIds)
+    const approvalPromises = approvalEvents.map(async approvedProposalEvent => {
       const policyId = getTagValues(approvedProposalEvent, TagType.Event)[1]
       const proposalId = getTagValues(approvedProposalEvent, TagType.Event)[0]
       const approvalId = approvedProposalEvent.id
 
       if (this.store.has(approvalId, indexKey)) {
-        approvedPublishedProposals.push(this.store.get(approvalId, indexKey))
-        continue
+        return { approvedProposal: this.store.get(approvalId, indexKey), rawEvent: approvedProposalEvent }
       }
       const sharedKeyAuthenticator = sharedKeys.get(policyId)?.sharedKeyAuthenticator
-      if (!sharedKeyAuthenticator) continue
+      if (!sharedKeyAuthenticator) return null
       const decryptedProposalObj: BaseApprovedProposal = await sharedKeyAuthenticator.decryptObj(approvedProposalEvent.content)
       const type = decryptedProposalObj[ProposalType.Spending] ? ProposalType.Spending : ProposalType.ProofOfReserve
       const expirationDate = fromNostrDate(getTagValues(approvedProposalEvent, TagType.Expiration)[0])
@@ -59,12 +57,27 @@ export class ApprovalsHandler extends EventKindHandler {
         expiration_date: expirationDate,
         status: expirationDate < new Date() ? ApprovalStatus.Expired : ApprovalStatus.Active
       }
-      approvedPublishedProposals.push(publishedApprovedProposal)
-      rawApprovalEvents.push(approvedProposalEvent)
-    }
+      return { approvedProposal: publishedApprovedProposal, rawEvent: approvedProposalEvent }
+    })
+
+    const results = await Promise.allSettled(approvalPromises);
+
+    type ValidResultType = { approvedProposal: PublishedApprovedProposal, rawEvent: Event<K> };
+
+    const validResults: ValidResultType[] = results.reduce((acc: ValidResultType[], result) => {
+      if (result.status === "fulfilled" && result.value !== null) {
+        acc.push(result.value);
+      }
+      return acc;
+    }, [] as ValidResultType[]);
+
+    const approvedPublishedProposals = validResults.map(res => res!.approvedProposal)
+    const rawApprovalEvents = validResults.map(res => res!.rawEvent)
     this.store.store(approvedPublishedProposals)
     this.eventsStore.store(rawApprovalEvents)
+
     return approvedPublishedProposals
+
   }
 
   private _getOwnedApprovals(ids: string[]): Map<string, PublishedApprovedProposal[]> {
