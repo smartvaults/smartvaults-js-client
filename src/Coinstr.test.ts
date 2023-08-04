@@ -968,7 +968,6 @@ describe('Coinstr', () => {
 
     const checkApprovals = async (expectedSize: number, expectedProposals: Record<string, PublishedApprovedProposal[]>) => {
       const approvedProposals = await coinstr.getApprovals();
-      await coinstr.getApprovals()
       expect(approvedProposals.size).toBe(expectedSize);
 
       for (const [proposalId, expected] of Object.entries(expectedProposals)) {
