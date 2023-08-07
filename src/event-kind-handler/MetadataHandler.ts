@@ -11,8 +11,8 @@ export class MetadataHandler extends EventKindHandler {
   }
 
   protected async _handle<K extends number>(metadataEvents: Array<Event<K>>): Promise<Profile[]> {
+    if (metadataEvents.length === 0) return []
     const metadataIds = metadataEvents.map(metadata => metadata.id)
-    if (!metadataIds) return []
     const missingMetadataIds = this.store.missing(metadataIds)
     if (missingMetadataIds.length === 0) {
       return this.store.getManyAsArray(metadataIds).map(metadata => metadata.content)
