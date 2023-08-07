@@ -109,7 +109,7 @@ export class Coinstr {
 
   async getProfile(publicKey?: string): Promise<CoinstrTypes.Profile> {
     publicKey = publicKey || this.authenticator.getPublicKey()
-    const [profile] = await this.getProfiles([publicKey])
+    const [profile] = await this.getProfiles([publicKey]) || {}
     return profile
   }
 

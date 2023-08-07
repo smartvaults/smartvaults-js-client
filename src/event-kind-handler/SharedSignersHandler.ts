@@ -18,6 +18,7 @@ export class SharedSignerHandler extends EventKindHandler {
   }
 
   protected async _handle<K extends number>(sharedSignersEvents: Array<Event<K>>): Promise<PublishedSharedSigner[]> {
+    if (!sharedSignersEvents.length) return []
     if (this.authenticator.getName() === AuthenticatorType.WebExtension) {
       return this.getSharedSignersSync(sharedSignersEvents)
     } else {

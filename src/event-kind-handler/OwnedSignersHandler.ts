@@ -67,6 +67,7 @@ export class OwnedSignerHandler extends EventKindHandler {
 
 
   private async getSignersSync<K extends number>(ownedSignersEvents: Array<Event<K>>): Promise<PublishedOwnedSigner[]> {
+    if (!ownedSignersEvents.length) return []
     const signers: PublishedOwnedSigner[] = []
     const rawSignersEvents: Array<Event<K>> = []
     for (const signersEvent of ownedSignersEvents) {

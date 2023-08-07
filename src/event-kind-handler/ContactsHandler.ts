@@ -9,6 +9,7 @@ export class ContactsHandler extends EventKindHandler {
         super()
     }
     protected async _handle<K extends number>(contactsEvent: Array<Event<K>>): Promise<Contact[]> {
+        if (!contactsEvent.length) return []
         return getTagValues(contactsEvent[0], TagType.PubKey, (params) => Contact.fromParams(params))
     }
 }

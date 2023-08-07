@@ -22,8 +22,8 @@ export class CompletedProposalHandler extends EventKindHandler {
   }
 
   protected async _handle<K extends number>(completedProposalEvents: Array<Event<K>>): Promise<Array<PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal>> {
+    if (!completedProposalEvents.length) return []
     const policiesIds = completedProposalEvents.map(proposal => getTagValues(proposal, TagType.Event)[1])
-
     const completedProposalsIds = completedProposalEvents.map(proposal => proposal.id)
     const missingCompletedProposalsIds = this.store.missing(completedProposalsIds)
     const rawCompletedProposals: Array<Event<K>> = []
