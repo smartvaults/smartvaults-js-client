@@ -18,6 +18,7 @@ export class SharedKeyHandler extends EventKindHandler {
   }
 
   protected async _handle<K extends number>(sharedKeyEvents: Array<Event<K>>): Promise<SharedKeyAuthenticator[]> {
+    if (!sharedKeyEvents.length) return []
     if (this.authenticator.getName() === AuthenticatorType.WebExtension) {
       return this.getSharedKeysSync(sharedKeyEvents)
     } else {
