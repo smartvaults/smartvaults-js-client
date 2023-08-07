@@ -122,6 +122,18 @@ describe('Coinstr', () => {
         ]
       ))
     })
+
+    it('getProfiles if not metada should return empty array', async () => {
+      const newPubKey = new KeySet(1).mainKey().publicKey
+      const newAuthenticator = new DirectPrivateKeyAuthenticator(new KeySet(1).mainKey().privateKey)
+      coinstr.setAuthenticator(newAuthenticator)
+      await coinstr.upsertContacts([contact1, contact2, contact3])
+      await coinstr.getContactProfiles()
+      const profiles = await coinstr.getProfile(newPubKey)
+      expect(profiles).toEqual(undefined)
+      coinstr.setAuthenticator(authenticator)
+    })
+
   })
 
   describe('getPolicies', () => {
