@@ -124,8 +124,9 @@ describe('Coinstr', () => {
     })
 
     it('getProfile if not metadata should return undefined', async () => {
-      const newPubKey = new KeySet(1).mainKey().publicKey
-      const newAuthenticator = new DirectPrivateKeyAuthenticator(new KeySet(1).mainKey().privateKey)
+      const newKeySet = new KeySet(1)
+      const newPubKey = newKeySet.mainKey().publicKey
+      const newAuthenticator = new DirectPrivateKeyAuthenticator(newKeySet.mainKey().privateKey)
       coinstr.setAuthenticator(newAuthenticator)
       await coinstr.upsertContacts([contact1, contact2, contact3])
       await coinstr.getContactProfiles()
