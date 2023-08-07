@@ -123,7 +123,7 @@ describe('Coinstr', () => {
       ))
     })
 
-    it('getProfile if not metada should return undefined', async () => {
+    it('getProfile if not metadata should return undefined', async () => {
       const newPubKey = new KeySet(1).mainKey().publicKey
       const newAuthenticator = new DirectPrivateKeyAuthenticator(new KeySet(1).mainKey().privateKey)
       coinstr.setAuthenticator(newAuthenticator)
