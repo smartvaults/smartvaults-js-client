@@ -132,7 +132,6 @@ describe('Coinstr', () => {
       await coinstr.getContactProfiles()
       const profiles = await coinstr.getProfile(newPubKey)
       expect(profiles).toEqual(undefined)
-      coinstr.setAuthenticator(authenticator)
     })
 
     it('getContactsProfiles should return the contact even if a contact has no metadata', async () => {
@@ -155,6 +154,20 @@ describe('Coinstr', () => {
           { ...contact },
         ]
       ))
+    }
+    )
+
+    it('getContactProfiles should return empty array if a user has no contacts', async () => {
+      const newKeySet = new KeySet(1)
+      const newPubKey = newKeySet.mainKey().publicKey
+      const newAuthenticator = new DirectPrivateKeyAuthenticator(newKeySet.mainKey().privateKey)
+      coinstr.setAuthenticator(newAuthenticator)
+      const metadata = { ...getMetadata(1), publicKey: newPubKey }
+      await coinstr.setProfile(metadata)
+      const profiles = await coinstr.getContactProfiles()
+      const fetchedMetadata = await coinstr.getProfile(newPubKey)
+      expect(metadata).toEqual(fetchedMetadata)
+      expect(profiles).toEqual([])
       coinstr.setAuthenticator(authenticator)
     }
     )
