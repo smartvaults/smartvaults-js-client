@@ -4,10 +4,10 @@
   "description": "Coinstr javascript client",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc --build tsconfig.json",
+    "build": "npx tsc",
     "clean-build": "rm -rf dist && npm run build",
     "lint": "tslint -c tslint.json -p tsconfig.json",
-    "prepublish": "npm run clean-build",
+    "prepare": "npm run clean-build",
     "test": "jest"
   },
   "author": "",
