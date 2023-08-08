@@ -132,8 +132,45 @@ describe('Coinstr', () => {
       await coinstr.getContactProfiles()
       const profiles = await coinstr.getProfile(newPubKey)
       expect(profiles).toEqual(undefined)
-      coinstr.setAuthenticator(authenticator)
     })
+
+    it('getContactsProfiles should return the contact even if a contact has no metadata', async () => {
+      const newKeySet = new KeySet(1)
+      const altKeySet = new KeySet(1)
+
+      const altPubKey = altKeySet.mainKey().publicKey
+      const contact = new Contact({ publicKey: altPubKey, relay: "relay", petname: "pet" })
+      const newAuthenticator = new DirectPrivateKeyAuthenticator(newKeySet.mainKey().privateKey)
+      coinstr.setAuthenticator(newAuthenticator)
+      await coinstr.upsertContacts([contact1, contact2, contact3, contact])
+
+      const profiles = await coinstr.getContactProfiles()
+      expect(profiles.length).toBe(4)
+      expect(profiles).toEqual(expect.arrayContaining(
+        [
+          { ...contact1, ...profile1 },
+          { ...contact2, ...profile2 },
+          { ...contact3, ...profile3 },
+          { ...contact },
+        ]
+      ))
+    }
+    )
+
+    it('getContactProfiles should return empty array if a user has no contacts', async () => {
+      const newKeySet = new KeySet(1)
+      const newPubKey = newKeySet.mainKey().publicKey
+      const newAuthenticator = new DirectPrivateKeyAuthenticator(newKeySet.mainKey().privateKey)
+      coinstr.setAuthenticator(newAuthenticator)
+      const metadata = { ...getMetadata(1), publicKey: newPubKey }
+      await coinstr.setProfile(metadata)
+      const profiles = await coinstr.getContactProfiles()
+      const fetchedMetadata = await coinstr.getProfile(newPubKey)
+      expect(metadata).toEqual(fetchedMetadata)
+      expect(profiles).toEqual([])
+      coinstr.setAuthenticator(authenticator)
+    }
+    )
 
   })
 

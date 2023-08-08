@@ -123,11 +123,17 @@ export class Coinstr {
     return profiles
   }
 
-  async getContactProfiles(contacts?: Contact[]): Promise<CoinstrTypes.ContactProfile[]> {
-    contacts = contacts || await this.getContacts()
-    const contactsMap = Contact.toMap(contacts)
-    const profiles = await this.getProfiles([...contactsMap.keys()])
-    return profiles.map(p => ({ ...contactsMap.get(p.publicKey), ...p }))
+  async getContactProfiles(contacts?: Contact[]): Promise<Array<CoinstrTypes.ContactProfile | Contact>> {
+    contacts = contacts || await this.getContacts();
+    const contactsMap = Contact.toMap(contacts);
+    if (!contactsMap.size) return []
+    const profiles = await this.getProfiles([...contactsMap.keys()]);
+    return contacts.map(contact => {
+      const profile = profiles.find(p => p.publicKey === contact.publicKey);
+      return profile
+        ? { ...contact, ...profile }
+        : contact;
+    });
   }
 
   async getContacts(): Promise<Contact[]> {
