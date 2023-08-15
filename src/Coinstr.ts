@@ -1294,8 +1294,7 @@ export class Coinstr {
     if (!publishedSharedKeyAuthenticator) return {} as CoinstrTypes.PublishedLabel
     const sharedKeyAuthenticator = publishedSharedKeyAuthenticator?.sharedKeyAuthenticator
     const privateKey = publishedSharedKeyAuthenticator?.privateKey
-
-    const labelId = await this.generateIdentifier(label.data, privateKey)
+    const labelId = await this.generateIdentifier(Object.values(label.data)[0], privateKey)
     const content = await sharedKeyAuthenticator.encryptObj(label)
 
     const labelEvent = await buildEvent({
@@ -1347,6 +1346,30 @@ export class Coinstr {
     return store.getMany(labelIds, "label_id");
   }
 
+  async getLabeledUtxos(policy: PublishedPolicy): Promise<Array<CoinstrTypes.LabeledUtxo>> {
+    let labelsArray: CoinstrTypes.PublishedLabel[] = []
+    const labels = (await this.getLabelsByPolicyId(policy.id)).get(policy.id);
+    if (labels) {
+      labelsArray = Array.isArray(labels) ? labels : [labels];
+    }
+
+    const maybeLabeledUtxos: CoinstrTypes.LabeledUtxo[] = [];
+    const utxos = await policy.getUtxos();
+
+    for (let utxo of utxos) {
+      const utxoLabel = labelsArray.find(label => {
+        const labelValue = Object.values(label.label.data)[0];
+        return labelValue === utxo.address || labelValue === utxo.utxo.outpoint;
+      });
+
+      if (utxoLabel) {
+        maybeLabeledUtxos.push({ ...utxo, labelText: utxoLabel.label.text, labelId: utxoLabel.label_id });
+      } else {
+        maybeLabeledUtxos.push(utxo);
+      }
+    }
+
+    return maybeLabeledUtxos;
+  }
 
 }
-

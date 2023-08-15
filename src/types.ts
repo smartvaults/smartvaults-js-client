@@ -1,5 +1,5 @@
 import { ProposalType } from './enum';
-import { BasePolicy, PublishedPolicy } from './models'
+import { BasePolicy, PublishedPolicy, Utxo } from './models'
 import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 
 export type BaseSharedSigner = {
@@ -190,12 +190,21 @@ export type MySharedSigner = {
 }
 
 export type Label = {
-  data: string
+  data: LabelData
   text: string
+}
+
+export type LabelData = {
+  [key: string]: string
 }
 
 export type PublishedLabel = Published & {
   label: Label
   label_id: string
   policy_id: string
+}
+
+export type LabeledUtxo = Utxo & {
+  labelText?: string
+  labelId?: string
 }
