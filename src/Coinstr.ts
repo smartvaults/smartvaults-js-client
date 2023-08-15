@@ -1295,7 +1295,7 @@ export class Coinstr {
     const sharedKeyAuthenticator = publishedSharedKeyAuthenticator?.sharedKeyAuthenticator
     const privateKey = publishedSharedKeyAuthenticator?.privateKey
 
-    const labelId = await this.generateIdentifier((label.data).toString(), privateKey)
+    const labelId = await this.generateIdentifier(label.data, privateKey)
     const content = await sharedKeyAuthenticator.encryptObj(label)
 
     const labelEvent = await buildEvent({
