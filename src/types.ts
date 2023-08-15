@@ -179,6 +179,7 @@ export type SharedKeyAuthenticator = {
   policyId: string
   creator: string
   sharedKeyAuthenticator: DirectPrivateKeyAuthenticator
+  private: string
 }
 
 export type MySharedSigner = {
@@ -186,4 +187,15 @@ export type MySharedSigner = {
   signerId: string
   sharedWith: string
   sharedDate: Date
+}
+
+export type Label = {
+  data: string
+  text: string
+}
+
+export type PublishedLabel = Published & {
+  label: Label
+  label_id: string
+  policy_id: string
 }

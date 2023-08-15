@@ -6,4 +6,5 @@ export enum CoinstrKind {
   CompletedProposal = 9292,
   Signers = 9294,
   SharedSigners = 9295,
+  Labels = 32121,
 }

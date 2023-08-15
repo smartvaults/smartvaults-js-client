@@ -42,6 +42,7 @@ export class Coinstr {
     this.stores.set(Kind.Metadata, Store.createSingleIndexStore("id"))
     this.stores.set(StoreKind.Events, Store.createSingleIndexStore("id"))
     this.stores.set(StoreKind.MySharedSigners, Store.createMultiIndexStore(["id", "signerId"], "id"))
+    this.stores.set(CoinstrKind.Labels, Store.createMultiIndexStore(["id", "policy_id", "label_id"], "id"))
   }
   initEventKindHandlerFactory() {
     this.eventKindHandlerFactor = new EventKindHandlerFactory(this)
@@ -205,7 +206,7 @@ export class Coinstr {
       const id = sharedKeyEvent.id
       const creator = sharedKeyEvent.pubkey
       const policyId = policyEvent.id
-      return { id, policyId, creator, sharedKeyAuthenticator }
+      return { id, policyId, creator, sharedKeyAuthenticator, private: secretKey }
     })
 
     const pub = this.nostrClient.publish(policyEvent)
@@ -750,6 +751,12 @@ export class Coinstr {
       .pubkeys(this.authenticator.getPublicKey())
   }
 
+  private buildLabelsFilter() {
+    return filterBuilder()
+      .kinds(CoinstrKind.Labels)
+      .pubkeys(this.authenticator.getPublicKey())
+  }
+
   private async getProposalEvent(proposal_id: any) {
     const proposalsFilter = filterBuilder()
       .kinds(CoinstrKind.Proposal)
@@ -1266,6 +1273,80 @@ export class Coinstr {
     return publishedCompletedProposal
 
   }
+
+  private async sha256(str: string): Promise<string> {
+    const buffer = new TextEncoder().encode(str);
+    const digest = await crypto.subtle.digest('SHA-256', buffer);
+    return Array.from(new Uint8Array(digest)).map(x => x.toString(16).padStart(2, '0')).join('');
+  }
+
+  async generateIdentifier(labelType: string, sharedKey: string): Promise<string> {
+    const data = labelType
+    const unhashedIdentifier = `${sharedKey}:${data}`
+    const hashedIdentifier = await this.sha256(unhashedIdentifier)
+    return hashedIdentifier.substring(0, 32)
+  }
+
+  async saveLabel(policyId: string, label: CoinstrTypes.Label): Promise<CoinstrTypes.PublishedLabel> {
+    const policyEvent = await this.getPolicyEvent(policyId)
+    const policyMembers = policyEvent.tags
+
+    const publishedSharedKeyAuthenticator: any = (await this.getSharedKeysById([policyId])).get(policyId)
+    const sharedKeyAuthenticator = publishedSharedKeyAuthenticator?.sharedKeyAuthenticator
+    const privateKey = publishedSharedKeyAuthenticator?.privateKey
+
+    const labelId = await this.generateIdentifier(label.data, privateKey)
+    const content = await sharedKeyAuthenticator.encryptObj(label)
+
+    const labelEvent = await buildEvent({
+      kind: CoinstrKind.Labels,
+      content,
+      tags: [...policyMembers, [TagType.Identifier, labelId], [TagType.Event, policyId]],
+    },
+      sharedKeyAuthenticator)
+
+    const pub = this.nostrClient.publish(labelEvent)
+    await pub.onFirstOkOrCompleteFailure()
+
+    const publishedLabel: CoinstrTypes.PublishedLabel = {
+      label,
+      label_id: labelId,
+      policy_id: policyId,
+      createdAt: fromNostrDate(labelEvent.created_at),
+      id: labelEvent.id,
+    }
+
+    return publishedLabel
+  }
+
+  private async _getLabels(filter: Filter<CoinstrKind.Labels>[]): Promise<CoinstrTypes.PublishedLabel[]> {
+    const labelEvents = await this.nostrClient.list(filter)
+    const labelHandler = this.eventKindHandlerFactor.getHandler(CoinstrKind.Labels)
+    return labelHandler.handle(labelEvents)
+  }
+
+  async getLabels(paginationOpts: PaginationOpts = {}): Promise<CoinstrTypes.PublishedLabel[]> {
+    const labelsFilter = this.buildLabelsFilter().pagination(paginationOpts).toFilters()
+    const labels = await this._getLabels(labelsFilter)
+    return labels
+  }
+
+  async getLabelsByPolicyId(policy_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, CoinstrTypes.PublishedLabel | Array<CoinstrTypes.PublishedLabel>>> {
+    const policyIds = Array.isArray(policy_ids) ? policy_ids : [policy_ids]
+    const store = this.getStore(CoinstrKind.Labels);
+    const labelsFilter = this.buildLabelsFilter().events(policyIds).pagination(paginationOpts).toFilters();
+    await this._getLabels(labelsFilter);
+    return store.getMany(policyIds, "policy_id");
+  }
+
+  async getLabelById(label_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, CoinstrTypes.PublishedLabel>> {
+    const labelIds = Array.isArray(label_ids) ? label_ids : [label_ids]
+    const store = this.getStore(CoinstrKind.Labels);
+    const labelsFilter = this.buildLabelsFilter().ids(labelIds).pagination(paginationOpts).toFilters();
+    await this._getLabels(labelsFilter);
+    return store.getMany(labelIds, "label_id");
+  }
+
 
 }
 
