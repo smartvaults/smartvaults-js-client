@@ -179,7 +179,7 @@ export type SharedKeyAuthenticator = {
   policyId: string
   creator: string
   sharedKeyAuthenticator: DirectPrivateKeyAuthenticator
-  private: string
+  privateKey: string
 }
 
 export type MySharedSigner = {

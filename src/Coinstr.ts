@@ -206,7 +206,7 @@ export class Coinstr {
       const id = sharedKeyEvent.id
       const creator = sharedKeyEvent.pubkey
       const policyId = policyEvent.id
-      return { id, policyId, creator, sharedKeyAuthenticator, private: secretKey }
+      return { id, policyId, creator, sharedKeyAuthenticator, privateKey: secretKey }
     })
 
     const pub = this.nostrClient.publish(policyEvent)
@@ -1280,9 +1280,8 @@ export class Coinstr {
     return Array.from(new Uint8Array(digest)).map(x => x.toString(16).padStart(2, '0')).join('');
   }
 
-  async generateIdentifier(labelType: string, sharedKey: string): Promise<string> {
-    const data = labelType
-    const unhashedIdentifier = `${sharedKey}:${data}`
+  async generateIdentifier(labelData: string, sharedKey: string): Promise<string> {
+    const unhashedIdentifier = `${sharedKey}:${labelData}`
     const hashedIdentifier = await this.sha256(unhashedIdentifier)
     return hashedIdentifier.substring(0, 32)
   }
@@ -1291,11 +1290,12 @@ export class Coinstr {
     const policyEvent = await this.getPolicyEvent(policyId)
     const policyMembers = policyEvent.tags
 
-    const publishedSharedKeyAuthenticator: any = (await this.getSharedKeysById([policyId])).get(policyId)
+    const publishedSharedKeyAuthenticator: CoinstrTypes.SharedKeyAuthenticator | undefined = (await this.getSharedKeysById([policyId])).get(policyId)
+    if (!publishedSharedKeyAuthenticator) return {} as CoinstrTypes.PublishedLabel
     const sharedKeyAuthenticator = publishedSharedKeyAuthenticator?.sharedKeyAuthenticator
     const privateKey = publishedSharedKeyAuthenticator?.privateKey
 
-    const labelId = await this.generateIdentifier(label.data, privateKey)
+    const labelId = await this.generateIdentifier((label.data).toString(), privateKey)
     const content = await sharedKeyAuthenticator.encryptObj(label)
 
     const labelEvent = await buildEvent({
