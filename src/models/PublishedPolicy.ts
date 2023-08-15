@@ -1,7 +1,7 @@
 import { Authenticator } from '@smontero/nostr-ual'
 import { Event } from 'nostr-tools'
 import { Balance } from './Balance'
-import { Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails } from './types'
+import { Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails, Utxo } from './types'
 import { BitcoinUtil, Wallet } from './interfaces'
 import { TimeUtil, fromNostrDate, toPublished } from '../util'
 
@@ -100,14 +100,16 @@ export class PublishedPolicy {
     address,
     amount,
     feeRate,
-    policyPath
+    policyPath,
+    utxos,
   }: {
     address: string,
     amount: string,
     feeRate: string,
-    policyPath?: Map<string, Array<number>>
+    policyPath?: Map<string, Array<number>>,
+    utxos?: Array<string>
   }): Promise<Trx> {
-    return (await this.synced()).build_trx(address, amount, feeRate, policyPath)
+    return (await this.synced()).build_trx(address, amount, feeRate, policyPath, utxos)
   }
 
   async finalizeTrx(psbts: string[], broadcast: boolean): Promise<FinalizeTrxResponse> {
@@ -122,6 +124,10 @@ export class PublishedPolicy {
   async getTrx(txid: string): Promise<TrxDetails> {
     const trx = await (await this.synced()).get_trx(txid)
     return this.decorateTrxDetails(trx)
+  }
+
+  async getUtxos(): Promise<Array<Utxo>> {
+    return (await this.synced()).get_utxos()
   }
 
   private decorateTrxDetails(trxDetails: any): any {

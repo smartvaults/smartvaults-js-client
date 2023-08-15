@@ -73,3 +73,20 @@ export type FinalizeTrxResponse = {
   trx: any
   psbt: string
 }
+
+export type UtxoTxOut = {
+  script_pubkey: string,
+  value: number
+}
+
+export type LocalUtxo = {
+  outpoint: string,
+  txout: UtxoTxOut,
+  is_spent: boolean,
+  keychain: string
+}
+
+export type Utxo = {
+  address: string,
+  utxo: LocalUtxo
+}
