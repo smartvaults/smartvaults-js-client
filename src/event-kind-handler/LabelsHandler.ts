@@ -48,12 +48,14 @@ export class LabelsHandler extends EventKindHandler {
             const sharedKeyAuthenticator = policyIdSharedKeyAuthenticatorMap.get(policyId)?.sharedKeyAuthenticator
             if (!sharedKeyAuthenticator) return null
             const label: Label = await sharedKeyAuthenticator.decryptObj(labelEvent.content)
+            const unhashed = Object.values(label.data)[0]
             const publishedLabel: PublishedLabel = {
                 id: labelEventId,
                 label_id: labelId,
                 policy_id: policyId,
                 label,
-                createdAt: fromNostrDate(labelEvent.created_at)
+                createdAt: fromNostrDate(labelEvent.created_at),
+                unhashed
             }
 
             return { label: publishedLabel, rawEvent: labelEvent }

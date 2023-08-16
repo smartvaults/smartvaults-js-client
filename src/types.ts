@@ -202,6 +202,7 @@ export type PublishedLabel = Published & {
   label: Label
   label_id: string
   policy_id: string
+  unhashed: string
 }
 
 export type LabeledUtxo = Utxo & {

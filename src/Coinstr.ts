@@ -3,7 +3,7 @@ import { generatePrivateKey, Kind, Event, Filter, Sub } from 'nostr-tools'
 import { CoinstrKind, TagType, ProposalType, ProposalStatus, ApprovalStatus, StoreKind, AuthenticatorType } from './enum'
 import { NostrClient, PubPool, Store } from './service'
 import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished, nostrDate } from './util'
-import { BasicTrxDetails, BitcoinUtil, Contact, Policy, PublishedPolicy, TrxDetails } from './models'
+import { BasicTrxDetails, BitcoinUtil, Contact, Policy, PublishedPolicy, TrxDetails, type Utxo } from './models'
 import * as CoinstrTypes from './types'
 import { EventKindHandlerFactory } from './event-kind-handler'
 
@@ -42,7 +42,7 @@ export class Coinstr {
     this.stores.set(Kind.Metadata, Store.createSingleIndexStore("id"))
     this.stores.set(StoreKind.Events, Store.createSingleIndexStore("id"))
     this.stores.set(StoreKind.MySharedSigners, Store.createMultiIndexStore(["id", "signerId"], "id"))
-    this.stores.set(CoinstrKind.Labels, Store.createMultiIndexStore(["id", "policy_id", "label_id"], "id"))
+    this.stores.set(CoinstrKind.Labels, Store.createMultiIndexStore(["id", "policy_id", "label_id", "unhashed"], "id"))
   }
   initEventKindHandlerFactory() {
     this.eventKindHandlerFactor = new EventKindHandlerFactory(this)
@@ -1313,6 +1313,7 @@ export class Coinstr {
       policy_id: policyId,
       createdAt: fromNostrDate(labelEvent.created_at),
       id: labelEvent.id,
+      unhashed: Object.values(label.data)[0]
     }
 
     return publishedLabel
@@ -1347,27 +1348,26 @@ export class Coinstr {
   }
 
   async getLabeledUtxos(policy: PublishedPolicy): Promise<Array<CoinstrTypes.LabeledUtxo>> {
-    let labelsArray: CoinstrTypes.PublishedLabel[] = []
-    const labels = (await this.getLabelsByPolicyId(policy.id)).get(policy.id);
-    if (labels) {
-      labelsArray = Array.isArray(labels) ? labels : [labels];
+    let utxos: Array<Utxo> = [];
+    try {
+      [utxos] = await Promise.all([
+        policy.getUtxos(),
+        this.getLabelsByPolicyId(policy.id)
+      ]);
+    } catch (error) {
+      console.error("An error occurred:", error);
+      return [];
     }
+    const labelStore = this.getStore(CoinstrKind.Labels);
+    const indexKey = "unhashed";
 
-    const maybeLabeledUtxos: CoinstrTypes.LabeledUtxo[] = [];
-    const utxos = await policy.getUtxos();
-
-    for (let utxo of utxos) {
-      const utxoLabel = labelsArray.find(label => {
-        const labelValue = Object.values(label.label.data)[0];
-        return labelValue === utxo.address || labelValue === utxo.utxo.outpoint;
-      });
-
-      if (utxoLabel) {
-        maybeLabeledUtxos.push({ ...utxo, labelText: utxoLabel.label.text, labelId: utxoLabel.label_id });
-      } else {
-        maybeLabeledUtxos.push(utxo);
+    const maybeLabeledUtxos: Array<CoinstrTypes.LabeledUtxo> = utxos.map(utxo => {
+      const label: CoinstrTypes.PublishedLabel | undefined = labelStore.get(utxo.address, indexKey) || labelStore.get(utxo.utxo.outpoint, indexKey);
+      if (label) {
+        return { ...utxo, labelText: label.label.text, labelId: label.label_id };
       }
-    }
+      return utxo;
+    });
 
     return maybeLabeledUtxos;
   }
