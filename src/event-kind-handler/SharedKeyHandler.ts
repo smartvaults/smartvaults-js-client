@@ -41,7 +41,7 @@ export class SharedKeyHandler extends EventKindHandler {
       const sharedKeyAuthenticator = new DirectPrivateKeyAuthenticator(sharedKey)
       const id = sharedKeyEvent.id
       const creator = sharedKeyEvent.pubkey
-      sharedKeyAuthenticators.push({ id, policyId, creator, sharedKeyAuthenticator })
+      sharedKeyAuthenticators.push({ id, policyId, creator, sharedKeyAuthenticator, privateKey: sharedKey })
       rawSharedKeyAuthEvents.push(sharedKeyEvent)
     }
     this.store.store(sharedKeyAuthenticators)

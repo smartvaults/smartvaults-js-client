@@ -11,6 +11,7 @@ import { OwnedSignerHandler } from "./OwnedSignersHandler";
 import { MetadataHandler } from "./MetadataHandler";
 import { ContactsHandler } from "./ContactsHandler";
 import { EventDeletionHandler } from "./EventDeletionHandler";
+import { LabelsHandler } from "./LabelsHandler";
 import { Kind } from "nostr-tools";
 export class EventKindHandlerFactory {
   private coinstr: Coinstr
@@ -71,6 +72,9 @@ export class EventKindHandlerFactory {
           break
         case Kind.EventDeletion:
           this.handlers.set(eventKind, new EventDeletionHandler(stores))
+          break
+        case CoinstrKind.Labels:
+          this.handlers.set(eventKind, new LabelsHandler(stores.get(eventKind)!, eventsStore, getSharedKeysById))
           break
         default:
           throw new Error(`There is no handler for event kind: ${eventKind}`)

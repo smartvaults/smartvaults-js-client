@@ -1136,6 +1136,25 @@ describe('Coinstr', () => {
     }
     );
 
+    it('getLabels work', async () => {
+      const label = await coinstr.saveLabel(spendProposal1.policy_id, { data: { 'address': 'address1' }, text: 'text' })
+      const fetchedLabel = await coinstr.getLabels()
+      expect(fetchedLabel.length).toBe(1)
+      expect(fetchedLabel[0]).toEqual(label)
+      const label2 = await coinstr.saveLabel(spendProposal1.policy_id, { data: { 'address': 'address2' }, text: 'text2' })
+      const labelsByPolicyId = await coinstr.getLabelsByPolicyId([spendProposal1.policy_id])
+      expect(labelsByPolicyId.size).toBe(1)
+      expect(labelsByPolicyId.get(spendProposal1.policy_id)).toEqual([label, label2])
+      await sleep(300)
+      const label3 = await coinstr.saveLabel(spendProposal1.policy_id, { data: { 'address': 'address1' }, text: 'text3' })
+      const fetchedLabels2 = await coinstr.getLabels()
+      expect(fetchedLabels2.length).toBe(2)
+      expect(fetchedLabels2).toEqual([label3, label2])
+      const labelByLabelId = await coinstr.getLabelById(label3.label_id)
+      expect(labelByLabelId.get(label3.label_id)).toEqual(label3)
+    }
+    )
+
   });
 
   function newCoinstr(keys: Keys): Coinstr {
