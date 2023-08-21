@@ -148,6 +148,22 @@ export class Coinstr {
     return this.eventKindHandlerFactor.getHandler(Kind.Contacts).handle([contactsEvent])
   }
 
+  async getRecommendedContacts(): Promise<string[]> {
+    try {
+      const [haveSharedASigner, contactList] = await Promise.all([
+        this.getSharedSigners(),
+        this.getContacts()
+      ]);
+      const contactsMap = Contact.toMap(contactList);
+      return haveSharedASigner
+        .filter(signer => signer.ownerPubKey && !contactsMap.has(signer.ownerPubKey))
+        .map(signer => signer.ownerPubKey!);
+    } catch (error) {
+      console.error("Error in getRecommendedContacts:", error);
+      return [];
+    }
+  }
+
   /**
    *
    * Method to handle the policy creation
