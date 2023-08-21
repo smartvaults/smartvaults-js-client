@@ -152,6 +152,7 @@ export class Coinstr {
         this.getSharedSigners(),
         this.getContacts()
       ]);
+      if (!rawSharedSigners.length) return [];
       const contactsMap = Contact.toMap(contactList);
       const haveSharedASigner = new Set(rawSharedSigners.map(signer => signer.ownerPubKey!));
       const recommendedPubkeys = [...haveSharedASigner].filter(pubkey => !contactsMap.has(pubkey));
