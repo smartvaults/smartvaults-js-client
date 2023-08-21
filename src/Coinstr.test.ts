@@ -172,6 +172,33 @@ describe('Coinstr', () => {
     }
     )
 
+    it('getRecommendedContacts works', async () => {
+      let recommended = await coinstr.getRecommendedContacts()
+      expect(recommended.length).toBe(0)
+      const newKeySet = new KeySet(1)
+      const newPubKey = newKeySet.mainKey().publicKey
+      const newAuthenticator = new DirectPrivateKeyAuthenticator(newKeySet.mainKey().privateKey)
+      coinstr.setAuthenticator(newAuthenticator)
+      const signer = await saveSharedSignerPayload(coinstr, 1)
+      const signer2 = await saveSharedSignerPayload(coinstr, 2)
+      await coinstr.saveSharedSigner(signer, keySet1.mainKey().publicKey)
+      await coinstr.saveSharedSigner(signer2, keySet1.mainKey().publicKey)
+      coinstr.setAuthenticator(authenticator)
+      recommended = await coinstr.getRecommendedContacts()
+      expect(recommended.length).toBe(1)
+      expect(recommended).toEqual([newPubKey])
+      coinstr.setAuthenticator(newAuthenticator)
+      const metadata = { ...getMetadata(1), publicKey: newPubKey }
+      const profile = await coinstr.setProfile(metadata)
+      coinstr.setAuthenticator(authenticator)
+      recommended = await coinstr.getRecommendedContacts()
+      expect(recommended.length).toBe(1)
+      expect(recommended).toEqual([profile])
+      await coinstr.upsertContacts(new Contact({ publicKey: newPubKey, relay: "relay", petname: "pet" }))
+      recommended = await coinstr.getRecommendedContacts()
+      expect(recommended.length).toBe(0)
+    }
+    )
   })
 
   describe('getPolicies', () => {

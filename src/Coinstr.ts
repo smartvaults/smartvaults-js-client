@@ -126,14 +126,12 @@ export class Coinstr {
 
   async getContactProfiles(contacts?: Contact[]): Promise<Array<CoinstrTypes.ContactProfile | Contact>> {
     contacts = contacts || await this.getContacts();
-    const contactsMap = Contact.toMap(contacts);
-    if (!contactsMap.size) return []
-    const profiles = await this.getProfiles([...contactsMap.keys()]);
+    if (!contacts.length) return []
+    const profiles = await this.getProfiles(contacts.map(c => c.publicKey));
+    const profileMap = new Map(profiles.map(profile => [profile.publicKey, profile]));
     return contacts.map(contact => {
-      const profile = profiles.find(p => p.publicKey === contact.publicKey);
-      return profile
-        ? { ...contact, ...profile }
-        : contact;
+      const profile = profileMap.get(contact.publicKey);
+      return profile ? { ...contact, ...profile } : contact;
     });
   }
 
@@ -149,6 +147,26 @@ export class Coinstr {
     return this.eventKindHandlerFactor.getHandler(Kind.Contacts).handle([contactsEvent])
   }
 
+  async getRecommendedContacts(): Promise<Array<CoinstrTypes.Profile | string>> {
+    try {
+      const [rawSharedSigners, contactList] = await Promise.all([
+        this.getSharedSigners(),
+        this.getContacts()
+      ]);
+      if (!rawSharedSigners.length) return [];
+      const contactsMap = Contact.toMap(contactList);
+      const haveSharedASigner = new Set(rawSharedSigners.map(signer => signer.ownerPubKey!));
+      const recommendedPubkeys = [...haveSharedASigner].filter(pubkey => !contactsMap.has(pubkey));
+      const maybeProfiles = await this.getProfiles(recommendedPubkeys);
+      const profileMap = new Map(maybeProfiles.map(profile => [profile.publicKey, profile]));
+
+      return recommendedPubkeys.map(pubkey => profileMap.get(pubkey) || pubkey);
+
+    } catch (error) {
+      console.error("Error in getRecommendedContacts:", error);
+      return [];
+    }
+  }
   /**
    *
    * Method to handle the policy creation
