@@ -584,7 +584,7 @@ export class Coinstr {
 
   }
 
-  private async _getSharedSigners(filter: Filter<CoinstrKind.SharedSigners>[]): Promise<CoinstrTypes.PublishedOwnedSigner[]> {
+  private async _getSharedSigners(filter: Filter<CoinstrKind.SharedSigners>[]): Promise<CoinstrTypes.PublishedSharedSigner[]> {
     const signersEvents = await this.nostrClient.list(filter)
     const sharedSignerHandler = this.eventKindHandlerFactor.getHandler(CoinstrKind.SharedSigners)
     return sharedSignerHandler.handle(signersEvents)
@@ -601,7 +601,7 @@ export class Coinstr {
    * 
    * @async
    */
-  async getSharedSigners(publicKeys?: string | string[]): Promise<CoinstrTypes.PublishedOwnedSigner[]> {
+  getSharedSigners = async (publicKeys?: string | string[]): Promise<CoinstrTypes.PublishedSharedSigner[]> => {
     const keysToFilter = Array.isArray(publicKeys) ? publicKeys : (publicKeys ? [publicKeys] : []);
     const sharedSignersFilter = this.buildSharedSignersFilter();
     if (keysToFilter.length > 0) {

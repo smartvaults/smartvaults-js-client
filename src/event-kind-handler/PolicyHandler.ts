@@ -10,10 +10,10 @@ import { EventKindHandler } from './EventKindHandler'
 import { type BitcoinUtil, PublishedPolicy } from '../models'
 import {
   type PublishedCompletedSpendingProposal, type PublishedCompletedProofOfReserveProposal, type PublishedSpendingProposal, type PublishedProofOfReserveProposal,
-  type PublishedApprovedProposal, type SharedKeyAuthenticator
+  type PublishedApprovedProposal, type SharedKeyAuthenticator, type PublishedSharedSigner, type PublishedOwnedSigner
 } from '../types'
 import { type Authenticator } from '@smontero/nostr-ual'
-
+import { generateUiMetadata } from '../util/GenerateUiMetadata'
 export class PolicyHandler extends EventKindHandler {
   private readonly store: Store
   private readonly eventsStore: Store
@@ -32,6 +32,8 @@ export class PolicyHandler extends EventKindHandler {
 
   private readonly getApprovalsByPolicyId: (policy_ids: string[] | string | string) => Promise<Map<string, (PublishedApprovedProposal)
     | Array<PublishedApprovedProposal>>>
+  private readonly getSharedSigners: (publicKeys?: string | string[]) => Promise<PublishedSharedSigner[]>
+  private readonly getOwnedSigners: () => Promise<PublishedOwnedSigner[]>
   constructor(store: Store, eventsStore: Store, completedProposalsStore: Store, proposalsStore: Store, approvalsStore: Store, sharedKeysStore: Store, nostrClient: NostrClient, bitcoinUtil: BitcoinUtil, authenticator: Authenticator,
     getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>,
     getCompletedProposalsByPolicyId: (policyId: string) => Promise<Map<string, (PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal)
@@ -39,7 +41,9 @@ export class PolicyHandler extends EventKindHandler {
     getProposalsByPolicyId: (policyId: string) => Promise<Map<string, (PublishedSpendingProposal | PublishedProofOfReserveProposal)
       | Array<PublishedSpendingProposal | PublishedProofOfReserveProposal>>>,
     getApprovalsByPolicyId: (policy_ids: string[] | string | string) => Promise<Map<string, (PublishedApprovedProposal)
-      | Array<PublishedApprovedProposal>>>
+      | Array<PublishedApprovedProposal>>>,
+    getSharedSigners: (publicKeys?: string | string[]) => Promise<PublishedSharedSigner[]>,
+    getOwnedSigners: () => Promise<PublishedOwnedSigner[]>
   ) {
     super()
     this.store = store
@@ -55,6 +59,8 @@ export class PolicyHandler extends EventKindHandler {
     this.getCompletedProposalsByPolicyId = getCompletedProposalsByPolicyId
     this.getProposalsByPolicyId = getProposalsByPolicyId
     this.getApprovalsByPolicyId = getApprovalsByPolicyId
+    this.getSharedSigners = getSharedSigners
+    this.getOwnedSigners = getOwnedSigners
   }
 
   protected async _handle<K extends number>(policyEvents: Array<Event<K>>): Promise<Array<PublishedPolicy>> {
@@ -76,14 +82,22 @@ export class PolicyHandler extends EventKindHandler {
       }
       const sharedKeyAuthenticator = policyIdSharedKeyAuthenticatorMap.get(policyId)?.sharedKeyAuthenticator
       if (!sharedKeyAuthenticator) return null
-      const policyContent = await sharedKeyAuthenticator.decryptObj(policyEvent.content)
+      let policyContent = await sharedKeyAuthenticator.decryptObj(policyEvent.content)
+      const nostrPublicKeys = getTagValues(policyEvent, TagType.PubKey)
+      if (!policyContent.uiMetadata) {
+        const ownedSigners = await this.getOwnedSigners()
+        policyContent.uiMetadata = generateUiMetadata(policyContent.descriptor, ownedSigners)
+        const signers = await this.getSharedSigners(nostrPublicKeys)
+        const uniqueSigners = this.removeDuplicates(signers)
+        policyContent.uiMetadata.keys = uniqueSigners.map(signer => ({ pubkey: signer.ownerPubKey, fingerprint: signer.fingerprint, descriptor: signer.descriptor }))
+      }
       let publishedPolicy: PublishedPolicy;
       try {
         publishedPolicy = PublishedPolicy.fromPolicyAndEvent({
           policyContent,
           policyEvent,
           bitcoinUtil: this.bitcoinUtil,
-          nostrPublicKeys: getTagValues(policyEvent, TagType.PubKey),
+          nostrPublicKeys,
           sharedKeyAuth: sharedKeyAuthenticator
         })
       } catch (e) {
@@ -120,6 +134,21 @@ export class PolicyHandler extends EventKindHandler {
     map.set(CoinstrKind.Proposal, proposals)
     map.set(CoinstrKind.SharedKey, sharedKeys)
     return map
+  }
+
+  private removeDuplicates(arr: any[]): any[] {
+    return arr.reduce((accumulator: any[], current: any) => {
+      const isDuplicate = accumulator.some(item =>
+        item.pubkey === current.pubkey &&
+        item.fingerprint === current.fingerprint &&
+        item.descriptor === current.descriptor
+      );
+
+      if (!isDuplicate) {
+        accumulator.push(current);
+      }
+      return accumulator;
+    }, []);
   }
 
   protected async _delete<K extends number>(ids: string[]): Promise<any> {
