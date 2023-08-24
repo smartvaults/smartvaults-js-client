@@ -7,31 +7,32 @@ describe('generateUiMetadata', () => {
     let descHold;
     let descInheritance;
     let descSocialRecovey;
+    let descOneOfFour;
     beforeAll(() => {
         descOneOfTwo = "tr([7c997e72/86'/1'/784923']tpubDDTGvzeqbVUeCApGdB84rXDoQeqvZWmeLyNcUVHs34e913aCNBmj3tsGdXTt5Sn3o7RWcBsRsjUyoSB2ih2krVxe64FjX3C52yzEh7U5Qoh/0/*,pk([5f2bef9b/86'/1'/784923']tpubDDtLZM2VKqgSFAWQ4omDqJHHoQWQ151tpN7V8ZyEEKkNJhZpUbyDapfYK5grw2gpwhsyRudSyX9XeU8h3oSvDjnRxLPvYhBqQJTYr2hSmzi/0/*))#xrc02p3q"
         descTwoOfTwo = "tr(f3fc46a122697daeae57d3f2bb08d4dfe37df98423adcc0b65b6b0fc0242b2d1,multi_a(2,[5f2bef9b/86'/1'/784923']tpubDDtLZM2VKqgSFAWQ4omDqJHHoQWQ151tpN7V8ZyEEKkNJhZpUbyDapfYK5grw2gpwhsyRudSyX9XeU8h3oSvDjnRxLPvYhBqQJTYr2hSmzi/0/*,[7c997e72/86'/1'/784923']tpubDDTGvzeqbVUeCApGdB84rXDoQeqvZWmeLyNcUVHs34e913aCNBmj3tsGdXTt5Sn3o7RWcBsRsjUyoSB2ih2krVxe64FjX3C52yzEh7U5Qoh/0/*))#yrnlu28f"
         descHold = "tr(c67c515bb4a81bde965ab9a808cf0afdb1e5657e55224ed2bb1a3df94ff322da,and_v(v:pk([7c997e72/86'/1'/784923']tpubDDTGvzeqbVUeCApGdB84rXDoQeqvZWmeLyNcUVHs34e913aCNBmj3tsGdXTt5Sn3o7RWcBsRsjUyoSB2ih2krVxe64FjX3C52yzEh7U5Qoh/0/*),after(10000)))#0tl9q7kp"
         descInheritance = "tr([7c997e72/86'/1'/784923']tpubDDTGvzeqbVUeCApGdB84rXDoQeqvZWmeLyNcUVHs34e913aCNBmj3tsGdXTt5Sn3o7RWcBsRsjUyoSB2ih2krVxe64FjX3C52yzEh7U5Qoh/0/*,and_v(v:multi_a(2,[87131a00/86'/1'/784923']tpubDDEaK5JwGiGDTRkML9YKh8AF4rHPhkpnXzVjVMDBtzayJpnsWKeiFPxtiyYeGHQj8pnjsei7N98winwZ3ivGoVVKArZVMsEYGig73XVqbSX/0/*,[5f2bef9b/86'/1'/784923']tpubDDtLZM2VKqgSFAWQ4omDqJHHoQWQ151tpN7V8ZyEEKkNJhZpUbyDapfYK5grw2gpwhsyRudSyX9XeU8h3oSvDjnRxLPvYhBqQJTYr2hSmzi/0/*),older(6)))#9ejpy98q"
         descSocialRecovey = "tr([7c997e72/86'/1'/784923']tpubDDTGvzeqbVUeCApGdB84rXDoQeqvZWmeLyNcUVHs34e913aCNBmj3tsGdXTt5Sn3o7RWcBsRsjUyoSB2ih2krVxe64FjX3C52yzEh7U5Qoh/0/*,and_v(v:multi_a(1,[5f2bef9b/86'/1'/784923']tpubDDtLZM2VKqgSFAWQ4omDqJHHoQWQ151tpN7V8ZyEEKkNJhZpUbyDapfYK5grw2gpwhsyRudSyX9XeU8h3oSvDjnRxLPvYhBqQJTYr2hSmzi/0/*,[87131a00/86'/1'/784923']tpubDDEaK5JwGiGDTRkML9YKh8AF4rHPhkpnXzVjVMDBtzayJpnsWKeiFPxtiyYeGHQj8pnjsei7N98winwZ3ivGoVVKArZVMsEYGig73XVqbSX/0/*),after(10000)))#8cmhwt8u"
+        descOneOfFour = "tr([5f2bef9b/86'/1'/784923']tpubDDtLZM2VKqgSFAWQ4omDqJHHoQWQ151tpN7V8ZyEEKkNJhZpUbyDapfYK5grw2gpwhsyRudSyX9XeU8h3oSvDjnRxLPvYhBqQJTYr2hSmzi/0/*,{pk([20cfcb40/86'/1'/784923']tpubDD8mi8kBUTVCNimabA5aWDwzu72hnWGjiX18dnXu8EsYZebx12a9sLT5BeSshcAoSfiZ8bXLBNz7X6xtGS6D6r2r1pMgmZGMYRLqUur6dxv/0/*),{pk([e157a520/86'/1'/784923']tpubDCCYFYCyDkxo1xAzDpoFNdtGcjD5BPLZbEJswjJmwqp67Weqd2C7fg6Jy1SBjgn3wYnKyUtoYKXG4VdQczjqb6FJnqHe3NmFdgy8vNBSty4/0/*),pk([7c997e72/86'/1'/784923']tpubDDTGvzeqbVUeCApGdB84rXDoQeqvZWmeLyNcUVHs34e913aCNBmj3tsGdXTt5Sn3o7RWcBsRsjUyoSB2ih2krVxe64FjX3C52yzEh7U5Qoh/0/*)}})#63z6y3q6"
     }
     )
 
     describe('toMiniscript', () => {
 
         it('toMiniscript works', async () => {
-
-
             const miniscriptOneOfTwo = "thresh(1,pk([7c997e72/86'/1'/784923']tpubDDTGvzeqbVUeCApGdB84rXDoQeqvZWmeLyNcUVHs34e913aCNBmj3tsGdXTt5Sn3o7RWcBsRsjUyoSB2ih2krVxe64FjX3C52yzEh7U5Qoh/0/*),pk([5f2bef9b/86'/1'/784923']tpubDDtLZM2VKqgSFAWQ4omDqJHHoQWQ151tpN7V8ZyEEKkNJhZpUbyDapfYK5grw2gpwhsyRudSyX9XeU8h3oSvDjnRxLPvYhBqQJTYr2hSmzi/0/*))"
             const miniscriptTwoOfTwO = "thresh(2,pk([5f2bef9b/86'/1'/784923']tpubDDtLZM2VKqgSFAWQ4omDqJHHoQWQ151tpN7V8ZyEEKkNJhZpUbyDapfYK5grw2gpwhsyRudSyX9XeU8h3oSvDjnRxLPvYhBqQJTYr2hSmzi/0/*),pk([7c997e72/86'/1'/784923']tpubDDTGvzeqbVUeCApGdB84rXDoQeqvZWmeLyNcUVHs34e913aCNBmj3tsGdXTt5Sn3o7RWcBsRsjUyoSB2ih2krVxe64FjX3C52yzEh7U5Qoh/0/*))"
             const miniscriptHold = "and(pk([7c997e72/86'/1'/784923']tpubDDTGvzeqbVUeCApGdB84rXDoQeqvZWmeLyNcUVHs34e913aCNBmj3tsGdXTt5Sn3o7RWcBsRsjUyoSB2ih2krVxe64FjX3C52yzEh7U5Qoh/0/*),after(10000))"
             const miniscriptInheritance = "or(pk([7c997e72/86'/1'/784923']tpubDDTGvzeqbVUeCApGdB84rXDoQeqvZWmeLyNcUVHs34e913aCNBmj3tsGdXTt5Sn3o7RWcBsRsjUyoSB2ih2krVxe64FjX3C52yzEh7U5Qoh/0/*),and(thresh(2,pk([87131a00/86'/1'/784923']tpubDDEaK5JwGiGDTRkML9YKh8AF4rHPhkpnXzVjVMDBtzayJpnsWKeiFPxtiyYeGHQj8pnjsei7N98winwZ3ivGoVVKArZVMsEYGig73XVqbSX/0/*),pk([5f2bef9b/86'/1'/784923']tpubDDtLZM2VKqgSFAWQ4omDqJHHoQWQ151tpN7V8ZyEEKkNJhZpUbyDapfYK5grw2gpwhsyRudSyX9XeU8h3oSvDjnRxLPvYhBqQJTYr2hSmzi/0/*)),older(6)))"
             const miniscriptSocialRecovery = "or(pk([7c997e72/86'/1'/784923']tpubDDTGvzeqbVUeCApGdB84rXDoQeqvZWmeLyNcUVHs34e913aCNBmj3tsGdXTt5Sn3o7RWcBsRsjUyoSB2ih2krVxe64FjX3C52yzEh7U5Qoh/0/*),and(thresh(1,pk([5f2bef9b/86'/1'/784923']tpubDDtLZM2VKqgSFAWQ4omDqJHHoQWQ151tpN7V8ZyEEKkNJhZpUbyDapfYK5grw2gpwhsyRudSyX9XeU8h3oSvDjnRxLPvYhBqQJTYr2hSmzi/0/*),pk([87131a00/86'/1'/784923']tpubDDEaK5JwGiGDTRkML9YKh8AF4rHPhkpnXzVjVMDBtzayJpnsWKeiFPxtiyYeGHQj8pnjsei7N98winwZ3ivGoVVKArZVMsEYGig73XVqbSX/0/*)),after(10000)))"
-
+            const miniscriptOneOfFour = "thresh(1,pk([5f2bef9b/86'/1'/784923']tpubDDtLZM2VKqgSFAWQ4omDqJHHoQWQ151tpN7V8ZyEEKkNJhZpUbyDapfYK5grw2gpwhsyRudSyX9XeU8h3oSvDjnRxLPvYhBqQJTYr2hSmzi/0/*),pk([20cfcb40/86'/1'/784923']tpubDD8mi8kBUTVCNimabA5aWDwzu72hnWGjiX18dnXu8EsYZebx12a9sLT5BeSshcAoSfiZ8bXLBNz7X6xtGS6D6r2r1pMgmZGMYRLqUur6dxv/0/*),pk([e157a520/86'/1'/784923']tpubDCCYFYCyDkxo1xAzDpoFNdtGcjD5BPLZbEJswjJmwqp67Weqd2C7fg6Jy1SBjgn3wYnKyUtoYKXG4VdQczjqb6FJnqHe3NmFdgy8vNBSty4/0/*),pk([7c997e72/86'/1'/784923']tpubDDTGvzeqbVUeCApGdB84rXDoQeqvZWmeLyNcUVHs34e913aCNBmj3tsGdXTt5Sn3o7RWcBsRsjUyoSB2ih2krVxe64FjX3C52yzEh7U5Qoh/0/*))"
             expect(toMiniscript(descOneOfTwo)).toEqual(miniscriptOneOfTwo)
             expect(toMiniscript(descTwoOfTwo)).toEqual(miniscriptTwoOfTwO)
             expect(toMiniscript(descHold)).toEqual(miniscriptHold)
             expect(toMiniscript(descInheritance)).toEqual(miniscriptInheritance)
             expect(toMiniscript(descSocialRecovey)).toEqual(miniscriptSocialRecovery)
+            expect(toMiniscript(descOneOfFour)).toEqual(miniscriptOneOfFour)
         }
         )
 

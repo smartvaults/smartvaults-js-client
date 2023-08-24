@@ -197,17 +197,45 @@ export function toMiniscript(descriptor: string): string | null {
     }
 
     if (primaryKey.startsWith('[')) {
-        if (trContent.startsWith('pk(')) {
-            trContent = `thresh(1,pk(${primaryKey}),${trContent})`;
-        } else {
-            trContent = `or(pk(${primaryKey}),${trContent})`;
-        }
+        trContent = transformNested(trContent, primaryKey);
     } else {
         trContent = trContent.replace(new RegExp(primaryKey, 'g'), `pk(${primaryKey})`);
     }
 
     return trContent;
 }
+
+function flattenContent(content: string): string {
+    while (content.includes('{') && content.includes('}')) {
+        const nestedStart = content.lastIndexOf('{');
+        const nestedEnd = content.indexOf('}', nestedStart);
+        const beforeNested = content.slice(0, nestedStart);
+        const nestedContent = content.slice(nestedStart + 1, nestedEnd);
+        const afterNested = content.slice(nestedEnd + 1);
+        content = `${beforeNested}${nestedContent}${afterNested}`;
+    }
+    return content;
+}
+
+function transformNested(content: string, primaryKey: string): string {
+    content = flattenContent(content);
+
+    const pkRegex = /pk\(([^)]+)\)/g;
+    let match;
+    const allPks: string[] = [];
+    while ((match = pkRegex.exec(content)) !== null) {
+        allPks.push(match[1]);
+    }
+
+    if (content.startsWith('pk(')) {
+        return `thresh(1,pk(${primaryKey}),${allPks.map(pk => `pk(${pk})`).join(',')})`;
+    } else if (content.includes('pk(') && !content.includes('and(') && !content.includes('or(')) {
+        return `thresh(1,pk(${primaryKey}),${allPks.map(pk => `pk(${pk})`).join(',')})`;
+    } else {
+        return `or(pk(${primaryKey}),${content})`;
+    }
+}
+
 
 function transformMultiA(content: string): string {
     return content.replace(/multi_a\((\d+),([^)]+)\)/g, (_, threshold, keys) => {
@@ -227,8 +255,9 @@ function transformAndV(content: string): string {
 
 
 export function generateUiMetadata(inputString: string, ownedSigners: Array<PublishedOwnedSigner>): UIMetadata | null {
+    console.log('INPUT STRING', inputString)
     const policyCode = toMiniscript(inputString);
-
+    console.log('POLICY CODE', policyCode)
     if (!policyCode) {
         console.error("Failed to generate policy code from input string.");
         return null;
@@ -241,7 +270,7 @@ export function generateUiMetadata(inputString: string, ownedSigners: Array<Publ
         console.error("Error generating JSON content:", e);
         return null;
     }
-
+    console.log('JSON CONTENT', jsonContent)
     return {
         json: JSON.parse(jsonContent),
         policyCode: policyCode,
