@@ -129,7 +129,7 @@ describe('PublishedPolicy', () => {
 
   describe('buildTrx', () => {
 
-    it('should correctly call the build_trx method of the wallet instance without policy path and utxos', async () => {
+    it('should correctly call the build_trx method of the wallet instance without policy path, utxos and frozen_utxos', async () => {
       wallet.sync.mockResolvedValue()
       const expected = { amount: 1000, psbt: "psbt1" }
       wallet.build_trx.mockResolvedValue(expected)
@@ -140,26 +140,28 @@ describe('PublishedPolicy', () => {
       })
       expect(expected).toEqual(actual)
       expect(wallet.sync).toBeCalledTimes(1)
-      expect(wallet.build_trx).toHaveBeenNthCalledWith(1, "address", "1000", "low", undefined, undefined)
+      expect(wallet.build_trx).toHaveBeenNthCalledWith(1, "address", "1000", "low", undefined, undefined, undefined)
     })
 
-    it('should correctly call the build_trx method of the wallet instance with policy path and utxos', async () => {
+    it('should correctly call the build_trx method of the wallet instance with policy path, utxos and frozen utxos', async () => {
       wallet.sync.mockResolvedValue()
       const expected = { amount: 3000, psbt: "psbt2" }
       wallet.build_trx.mockResolvedValue(expected)
       let policyPath = new Map<string, Array<number>>()
       policyPath.set("83aswe", [1])
       let utxos = ["05dce7f5440ded30bd55359d9e4f65de34fefaaef5fb16ac4cfaf72375fd204d:1", "123ce7f5440ded30bd55359d9e4f65de34fefaaef5fb16ac4cfaf72375fd204d:2"]
+      let frozenUtxos = ["15dce7f5440ded30bd55359d9e4f65de34fefaaef5fb16ac4cfaf72375fd204g:3"]
       let actual = await policy.buildTrx({
         address: "address1",
         amount: "3000",
         feeRate: "high",
         policyPath,
-        utxos
+        utxos,
+        frozenUtxos
       })
       expect(expected).toEqual(actual)
       expect(wallet.sync).toBeCalledTimes(1)
-      expect(wallet.build_trx).toHaveBeenNthCalledWith(1, "address1", "3000", "high", policyPath, utxos)
+      expect(wallet.build_trx).toHaveBeenNthCalledWith(1, "address1", "3000", "high", policyPath, utxos, frozenUtxos)
     })
   })
 
