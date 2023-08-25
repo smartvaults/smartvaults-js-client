@@ -155,8 +155,8 @@ function parseExpression(exp: string, ownedSigners: Array<PublishedOwnedSigner>)
     } else return { type: "unknown", id: "unknown" };
 }
 
-function generateJson(inputString: string, ownedSigners: Array<PublishedOwnedSigner>): string {
-    const initialBlock = parseExpression(inputString, ownedSigners);
+export function generateBlocklyJson(miniscript: string, ownedSigners: Array<PublishedOwnedSigner>): string {
+    const initialBlock = parseExpression(miniscript, ownedSigners);
 
     const result: { blocks: { languageVersion: number, blocks: Block[] } } = {
         blocks: {
@@ -268,7 +268,7 @@ export function generateUiMetadata(inputString: string, ownedSigners: Array<Publ
 
     let jsonContent: any;
     try {
-        jsonContent = generateJson(policyCode, ownedSigners);
+        jsonContent = generateBlocklyJson(policyCode, ownedSigners);
     } catch (e) {
         console.error("Error generating JSON content:", e);
         return null;
