@@ -17,6 +17,7 @@ export class PublishedPolicy {
   sharedKeyAuth: Authenticator
   nostrPublicKeys: string[]
   lastSyncTime?: Date
+  generatedUiMetadata?: UIMetadata
   private wallet: Wallet
   private syncTimeGap: number
   private syncPromise?: Promise<void>
@@ -89,8 +90,8 @@ export class PublishedPolicy {
   }
 
   async getUiMetadata(): Promise<UIMetadata | null> {
-     if (this.uiMetadata) {
-      return this.uiMetadata
+     if (this.generatedUiMetadata) {
+      return this.generatedUiMetadata
      }
     const filter = this.wallet.network() === 'testnet' ? 'tpub' : 'xpub'
     const ownedSigners = await this.getOwnedSigners()
@@ -104,7 +105,7 @@ export class PublishedPolicy {
     const filteredSharedSigners = sharedSigners.filter(signer => signer.descriptor.includes(filter))
     const uniqueSigners = this.removeDuplicates(filteredSharedSigners)
     uiMetadata.keys = uniqueSigners.map(signer => ({ pubkey: signer.ownerPubKey, fingerprint: signer.fingerprint, descriptor: signer.descriptor }))
-    this.uiMetadata = uiMetadata
+    this.generatedUiMetadata = uiMetadata
     return uiMetadata
   }
 
