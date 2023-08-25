@@ -209,7 +209,10 @@ export class Coinstr {
       bitcoinUtil: this.bitcoinUtil,
       nostrPublicKeys,
       sharedKeyAuth: sharedKeyAuthenticator
-    })
+    },
+      this.getSharedSigners,
+      this.getOwnedSigners
+    )
 
     const authenticatorName = this.authenticator.getName()
     let sharedKeyEvents: Array<Event<CoinstrKind.SharedKey>>

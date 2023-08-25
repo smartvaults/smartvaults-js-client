@@ -10,10 +10,16 @@ type Block = {
     next?: any;
 };
 
-type UIMetadata = {
+type Keys = {
+    pubkey: string;
+    fingerprint: string;
+    descriptor: string;
+}
+
+export type UIMetadata = {
     json: any,
     policyCode: string,
-    keys: any[]
+    keys: Array<Keys>
 };
 
 function generateId(): string {
@@ -53,8 +59,7 @@ function splitArgs(exp: string): string[] {
     return args;
 }
 
-function parseExpression(exp: string, ownedSigner: Array<PublishedOwnedSigner>): Block {
-    const signer = ownedSigner[0]!;
+function parseExpression(exp: string, ownedSigners: Array<PublishedOwnedSigner>): Block {
     if (exp.startsWith("pk(")) {
         const keyMatch = exp.match(/\[.*?\//);
         const keyContent = keyMatch ? keyMatch[0].slice(0, -1) : "";
@@ -64,7 +69,7 @@ function parseExpression(exp: string, ownedSigner: Array<PublishedOwnedSigner>):
             inputs: {
                 "Key": {
                     block: {
-                        type: keyContent.includes(signer.fingerprint) ? "my_key" : "key",
+                        type: ownedSigners.some(({ fingerprint }) => keyContent.includes(fingerprint)) ? "my_key" : "key",
                         id: generateId(),
                         fields: {
                             "Key": exp.split("pk(")[1].slice(0, -1)
@@ -83,7 +88,7 @@ function parseExpression(exp: string, ownedSigner: Array<PublishedOwnedSigner>):
         let currentBlock: Block | null = null;
 
         for (const statement of statements) {
-            const block = parseExpression(statement, ownedSigner);
+            const block = parseExpression(statement, ownedSigners);
             if (nextBlock) {
                 nextBlock.next = { block };
             }
@@ -140,10 +145,10 @@ function parseExpression(exp: string, ownedSigner: Array<PublishedOwnedSigner>):
             },
             inputs: {
                 "A": {
-                    block: parseExpression(content[0], ownedSigner)
+                    block: parseExpression(content[0], ownedSigners)
                 },
                 "B": {
-                    block: parseExpression(content[1], ownedSigner)
+                    block: parseExpression(content[1], ownedSigners)
                 }
             }
         };
@@ -255,9 +260,7 @@ function transformAndV(content: string): string {
 
 
 export function generateUiMetadata(inputString: string, ownedSigners: Array<PublishedOwnedSigner>): UIMetadata | null {
-    console.log('INPUT STRING', inputString)
     const policyCode = toMiniscript(inputString);
-    console.log('POLICY CODE', policyCode)
     if (!policyCode) {
         console.error("Failed to generate policy code from input string.");
         return null;
@@ -270,7 +273,6 @@ export function generateUiMetadata(inputString: string, ownedSigners: Array<Publ
         console.error("Error generating JSON content:", e);
         return null;
     }
-    console.log('JSON CONTENT', jsonContent)
     return {
         json: JSON.parse(jsonContent),
         policyCode: policyCode,

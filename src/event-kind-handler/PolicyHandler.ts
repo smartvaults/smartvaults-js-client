@@ -13,7 +13,6 @@ import {
   type PublishedApprovedProposal, type SharedKeyAuthenticator, type PublishedSharedSigner, type PublishedOwnedSigner
 } from '../types'
 import { type Authenticator } from '@smontero/nostr-ual'
-import { generateUiMetadata } from '../util/GenerateUiMetadata'
 export class PolicyHandler extends EventKindHandler {
   private readonly store: Store
   private readonly eventsStore: Store
@@ -82,15 +81,8 @@ export class PolicyHandler extends EventKindHandler {
       }
       const sharedKeyAuthenticator = policyIdSharedKeyAuthenticatorMap.get(policyId)?.sharedKeyAuthenticator
       if (!sharedKeyAuthenticator) return null
-      let policyContent = await sharedKeyAuthenticator.decryptObj(policyEvent.content)
+      const policyContent = await sharedKeyAuthenticator.decryptObj(policyEvent.content)
       const nostrPublicKeys = getTagValues(policyEvent, TagType.PubKey)
-      if (!policyContent.uiMetadata) {
-        const ownedSigners = await this.getOwnedSigners()
-        policyContent.uiMetadata = generateUiMetadata(policyContent.descriptor, ownedSigners)
-        const signers = await this.getSharedSigners(nostrPublicKeys)
-        const uniqueSigners = this.removeDuplicates(signers)
-        policyContent.uiMetadata.keys = uniqueSigners.map(signer => ({ pubkey: signer.ownerPubKey, fingerprint: signer.fingerprint, descriptor: signer.descriptor }))
-      }
       let publishedPolicy: PublishedPolicy;
       try {
         publishedPolicy = PublishedPolicy.fromPolicyAndEvent({
@@ -99,7 +91,10 @@ export class PolicyHandler extends EventKindHandler {
           bitcoinUtil: this.bitcoinUtil,
           nostrPublicKeys,
           sharedKeyAuth: sharedKeyAuthenticator
-        })
+        },
+          this.getSharedSigners,
+          this.getOwnedSigners
+        )
       } catch (e) {
         console.error(`Error parsing policy ${policyId}: ${String(e)}`);
         return null
@@ -136,20 +131,6 @@ export class PolicyHandler extends EventKindHandler {
     return map
   }
 
-  private removeDuplicates(arr: any[]): any[] {
-    return arr.reduce((accumulator: any[], current: any) => {
-      const isDuplicate = accumulator.some(item =>
-        item.pubkey === current.pubkey &&
-        item.fingerprint === current.fingerprint &&
-        item.descriptor === current.descriptor
-      );
-
-      if (!isDuplicate) {
-        accumulator.push(current);
-      }
-      return accumulator;
-    }, []);
-  }
 
   protected async _delete<K extends number>(ids: string[]): Promise<any> {
     const policies: PublishedPolicy[] = []

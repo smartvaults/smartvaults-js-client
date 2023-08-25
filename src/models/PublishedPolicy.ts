@@ -4,7 +4,8 @@ import { Balance } from './Balance'
 import { Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails } from './types'
 import { BitcoinUtil, Wallet } from './interfaces'
 import { TimeUtil, fromNostrDate, toPublished } from '../util'
-
+import { generateUiMetadata, type UIMetadata } from '../util/GenerateUiMetadata'
+import { PublishedOwnedSigner, PublishedSharedSigner } from '../types'
 
 export class PublishedPolicy {
   id: string
@@ -19,6 +20,8 @@ export class PublishedPolicy {
   private wallet: Wallet
   private syncTimeGap: number
   private syncPromise?: Promise<void>
+  private getSharedSigners: (publicKeys?: string | string[]) => Promise<PublishedSharedSigner[]>
+  private getOwnedSigners: () => Promise<PublishedOwnedSigner[]>
 
 
   static fromPolicyAndEvent<K extends number>({
@@ -26,7 +29,7 @@ export class PublishedPolicy {
     policyEvent,
     bitcoinUtil,
     nostrPublicKeys,
-    sharedKeyAuth
+    sharedKeyAuth,
   }:
     {
       policyContent: Policy,
@@ -34,12 +37,19 @@ export class PublishedPolicy {
       bitcoinUtil: BitcoinUtil,
       nostrPublicKeys: string[],
       sharedKeyAuth: Authenticator
-    }): PublishedPolicy {
+    },
+    getSharedSigners: (publicKeys?: string | string[]) => Promise<PublishedSharedSigner[]>,
+    getOwnedSigners: () => Promise<PublishedOwnedSigner[]>
+  )
+
+    : PublishedPolicy {
     return new PublishedPolicy(
       toPublished(policyContent, policyEvent),
       bitcoinUtil,
       nostrPublicKeys,
-      sharedKeyAuth
+      sharedKeyAuth,
+      getSharedSigners,
+      getOwnedSigners
     )
   }
 
@@ -60,7 +70,10 @@ export class PublishedPolicy {
   },
     bitcoinUtil: BitcoinUtil,
     nostrPublicKeys: string[],
-    sharedKeyAuth: Authenticator) {
+    sharedKeyAuth: Authenticator,
+    getSharedSigners: (publicKeys?: string | string[]) => Promise<PublishedSharedSigner[]>,
+    getOwnedSigners: () => Promise<PublishedOwnedSigner[]>
+  ) {
     this.id = id
     this.name = name
     this.description = description
@@ -71,6 +84,28 @@ export class PublishedPolicy {
     this.syncTimeGap = bitcoinUtil.walletSyncTimeGap
     this.sharedKeyAuth = sharedKeyAuth
     this.wallet = bitcoinUtil.createWallet(descriptor)
+    this.getSharedSigners = getSharedSigners
+    this.getOwnedSigners = getOwnedSigners
+  }
+
+  async getUiMetadata(network: string = 'testnet'): Promise<UIMetadata | null> {
+     if (this.uiMetadata) {
+      return this.uiMetadata
+     }
+    const filter = network === 'testnet' ? 'tpub' : 'xpub'
+    const ownedSigners = await this.getOwnedSigners()
+    const filteredOwnedSigners = ownedSigners.filter(signer => signer.descriptor.includes(filter))
+    let uiMetadata = generateUiMetadata(this.descriptor, filteredOwnedSigners)
+    if (!uiMetadata) {
+      console.error('Could not generate UI metadata')
+      return null
+    }
+    const sharedSigners = await this.getSharedSigners(this.nostrPublicKeys)
+    const filteredSharedSigners = sharedSigners.filter(signer => signer.descriptor.includes(filter))
+    const uniqueSigners = this.removeDuplicates(filteredSharedSigners)
+    uiMetadata.keys = uniqueSigners.map(signer => ({ pubkey: signer.ownerPubKey, fingerprint: signer.fingerprint, descriptor: signer.descriptor }))
+    this.uiMetadata = uiMetadata
+    return uiMetadata
   }
 
   sync(): Promise<void> {
@@ -141,5 +176,20 @@ export class PublishedPolicy {
 
   private requiresSync(): boolean {
     return !this.lastSyncTime || this.lastSyncTime < TimeUtil.addMinutes(-1 * this.syncTimeGap)
+  }
+
+  private removeDuplicates(arr: any[]): any[] {
+    return arr.reduce((accumulator: any[], current: any) => {
+      const isDuplicate = accumulator.some(item =>
+        item.pubkey === current.pubkey &&
+        item.fingerprint === current.fingerprint &&
+        item.descriptor === current.descriptor
+      );
+
+      if (!isDuplicate) {
+        accumulator.push(current);
+      }
+      return accumulator;
+    }, []);
   }
 }

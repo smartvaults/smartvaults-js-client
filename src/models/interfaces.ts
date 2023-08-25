@@ -42,6 +42,8 @@ export interface Wallet {
   get_trxs(): Array<UndecoratedBasicTrxDetails>;
 
   get_trx(txid: string): Promise<UndecoratedTrxDetails>;
+
+  network(): string;
 }
 
 
