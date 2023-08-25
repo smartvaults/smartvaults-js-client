@@ -56,5 +56,6 @@ export interface BitcoinUtil {
   canFinalizePsbt(psbts: string[]): boolean
   getTrxId(trx: any): string
   getFee(psbt: string): number
+  getPsbtUtxos(psbt: string): Array<string>
 }
 

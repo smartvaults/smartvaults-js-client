@@ -142,9 +142,10 @@ export class PublishedPolicy {
     amount: string,
     feeRate: string,
     policyPath?: Map<string, Array<number>>,
-    utxos?: Array<string>
+    utxos?: Array<string>,
+    frozenUtxos?: Array<string>
   }): Promise<Trx> {
-    return (await this.synced()).build_trx(address, amount, feeRate, policyPath, utxos)
+    return (await this.synced()).build_trx(address, amount, feeRate, policyPath, utxos, frozenUtxos)
   }
 
   async finalizeTrx(psbts: string[], broadcast: boolean): Promise<FinalizeTrxResponse> {
