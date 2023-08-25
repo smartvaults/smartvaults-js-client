@@ -10,10 +10,9 @@ import { EventKindHandler } from './EventKindHandler'
 import { type BitcoinUtil, PublishedPolicy } from '../models'
 import {
   type PublishedCompletedSpendingProposal, type PublishedCompletedProofOfReserveProposal, type PublishedSpendingProposal, type PublishedProofOfReserveProposal,
-  type PublishedApprovedProposal, type SharedKeyAuthenticator
+  type PublishedApprovedProposal, type SharedKeyAuthenticator, type PublishedSharedSigner, type PublishedOwnedSigner
 } from '../types'
 import { type Authenticator } from '@smontero/nostr-ual'
-
 export class PolicyHandler extends EventKindHandler {
   private readonly store: Store
   private readonly eventsStore: Store
@@ -32,6 +31,8 @@ export class PolicyHandler extends EventKindHandler {
 
   private readonly getApprovalsByPolicyId: (policy_ids: string[] | string | string) => Promise<Map<string, (PublishedApprovedProposal)
     | Array<PublishedApprovedProposal>>>
+  private readonly getSharedSigners: (publicKeys?: string | string[]) => Promise<PublishedSharedSigner[]>
+  private readonly getOwnedSigners: () => Promise<PublishedOwnedSigner[]>
   constructor(store: Store, eventsStore: Store, completedProposalsStore: Store, proposalsStore: Store, approvalsStore: Store, sharedKeysStore: Store, nostrClient: NostrClient, bitcoinUtil: BitcoinUtil, authenticator: Authenticator,
     getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>,
     getCompletedProposalsByPolicyId: (policyId: string) => Promise<Map<string, (PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal)
@@ -39,7 +40,9 @@ export class PolicyHandler extends EventKindHandler {
     getProposalsByPolicyId: (policyId: string) => Promise<Map<string, (PublishedSpendingProposal | PublishedProofOfReserveProposal)
       | Array<PublishedSpendingProposal | PublishedProofOfReserveProposal>>>,
     getApprovalsByPolicyId: (policy_ids: string[] | string | string) => Promise<Map<string, (PublishedApprovedProposal)
-      | Array<PublishedApprovedProposal>>>
+      | Array<PublishedApprovedProposal>>>,
+    getSharedSigners: (publicKeys?: string | string[]) => Promise<PublishedSharedSigner[]>,
+    getOwnedSigners: () => Promise<PublishedOwnedSigner[]>
   ) {
     super()
     this.store = store
@@ -55,6 +58,8 @@ export class PolicyHandler extends EventKindHandler {
     this.getCompletedProposalsByPolicyId = getCompletedProposalsByPolicyId
     this.getProposalsByPolicyId = getProposalsByPolicyId
     this.getApprovalsByPolicyId = getApprovalsByPolicyId
+    this.getSharedSigners = getSharedSigners
+    this.getOwnedSigners = getOwnedSigners
   }
 
   protected async _handle<K extends number>(policyEvents: Array<Event<K>>): Promise<Array<PublishedPolicy>> {
@@ -77,15 +82,19 @@ export class PolicyHandler extends EventKindHandler {
       const sharedKeyAuthenticator = policyIdSharedKeyAuthenticatorMap.get(policyId)?.sharedKeyAuthenticator
       if (!sharedKeyAuthenticator) return null
       const policyContent = await sharedKeyAuthenticator.decryptObj(policyEvent.content)
+      const nostrPublicKeys = getTagValues(policyEvent, TagType.PubKey)
       let publishedPolicy: PublishedPolicy;
       try {
         publishedPolicy = PublishedPolicy.fromPolicyAndEvent({
           policyContent,
           policyEvent,
           bitcoinUtil: this.bitcoinUtil,
-          nostrPublicKeys: getTagValues(policyEvent, TagType.PubKey),
+          nostrPublicKeys,
           sharedKeyAuth: sharedKeyAuthenticator
-        })
+        },
+          this.getSharedSigners,
+          this.getOwnedSigners
+        )
       } catch (e) {
         console.error(`Error parsing policy ${policyId}: ${String(e)}`);
         return null
@@ -121,6 +130,7 @@ export class PolicyHandler extends EventKindHandler {
     map.set(CoinstrKind.SharedKey, sharedKeys)
     return map
   }
+
 
   protected async _delete<K extends number>(ids: string[]): Promise<any> {
     const policies: PublishedPolicy[] = []
