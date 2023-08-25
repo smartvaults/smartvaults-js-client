@@ -137,6 +137,7 @@ export class PublishedPolicy {
     feeRate,
     policyPath,
     utxos,
+    frozenUtxos
   }: {
     address: string,
     amount: string,
