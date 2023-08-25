@@ -26,7 +26,7 @@ export interface Wallet {
   * @param {Map<string,Array<number>>} policy_path
   * @returns {Promise<any>}
   */
-  build_trx(address: string, amount: string, fee_rate: string, policy_path?: Map<string, Array<number>>, utxos?: Array<string>): Promise<Trx>;
+  build_trx(address: string, amount: string, fee_rate: string, policy_path?: Map<string, Array<number>>, utxos?: Array<string>, frozen_utxos?: Array<string>): Promise<Trx>;
 
   /**
   * @returns {Map<string, any>}
