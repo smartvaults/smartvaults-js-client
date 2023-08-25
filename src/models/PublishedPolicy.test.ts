@@ -8,6 +8,7 @@ import { CoinstrKind } from '../enum'
 import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { Keys } from '../service'
 import { fromNostrDate } from '../util'
+import { Coinstr } from '../Coinstr'
 
 describe('PublishedPolicy', () => {
   let policyContent: Policy
@@ -19,6 +20,7 @@ describe('PublishedPolicy', () => {
   let policy: PublishedPolicy
 
   beforeEach(() => {
+    const coinstr = mock<Coinstr>()
     policyContent = {
       description: "desc",
       descriptor: "descriptor",
@@ -45,8 +47,11 @@ describe('PublishedPolicy', () => {
       policyEvent,
       bitcoinUtil,
       nostrPublicKeys,
-      sharedKeyAuth
-    })
+      sharedKeyAuth,
+    },
+    coinstr.getSharedSigners,
+    coinstr.getOwnedSigners
+    )
   })
 
   describe('fromPolicyAndEvent', () => {
