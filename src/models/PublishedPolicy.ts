@@ -89,10 +89,10 @@ export class PublishedPolicy {
   }
 
   async getUiMetadata(): Promise<UIMetadata | null> {
-    //  if (this.uiMetadata) {
-    //   return this.uiMetadata
-    //  }
-    const filter = 'testnet' === 'testnet' ? 'tpub' : 'xpub'
+     if (this.uiMetadata) {
+      return this.uiMetadata
+     }
+    const filter = this.wallet.network() === 'testnet' ? 'tpub' : 'xpub'
     const ownedSigners = await this.getOwnedSigners()
     const filteredOwnedSigners = ownedSigners.filter(signer => signer.descriptor.includes(filter))
     let uiMetadata = generateUiMetadata(this.descriptor, filteredOwnedSigners)
