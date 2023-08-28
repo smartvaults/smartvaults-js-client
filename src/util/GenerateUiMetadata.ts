@@ -10,7 +10,7 @@ type Block = {
     next?: any;
 };
 
-type Keys = {
+export type Key = {
     pubkey: string;
     fingerprint: string;
     descriptor: string;
@@ -19,7 +19,7 @@ type Keys = {
 export type UIMetadata = {
     json: any,
     policyCode: string,
-    keys: Array<Keys>
+    keys: Array<Key>
 };
 
 function generateId(): string {
@@ -160,7 +160,7 @@ function parseExpression(exp: string, ownedSigners: Array<PublishedOwnedSigner>)
     }
 }
 
-export function generateBlocklyJson(miniscript: string, ownedSigners: Array<PublishedOwnedSigner>): string {
+export function generateBlocklyJson(miniscript: string, ownedSigners: Array<PublishedOwnedSigner>): any {
     let json: any;
     try {
         const initialBlock = parseExpression(miniscript, ownedSigners);

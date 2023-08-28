@@ -1,7 +1,7 @@
 export type BasePolicy = {
   name: string;
   description: string;
-  uiMetadata?: any;
+  miniscript?: string;
 };
 
 export type Policy = BasePolicy & {
