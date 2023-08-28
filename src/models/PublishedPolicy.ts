@@ -89,18 +89,14 @@ export class PublishedPolicy {
     this.getOwnedSigners = getOwnedSigners
   }
 
-  async getUiMetadata(): Promise<UIMetadata | null> {
-     if (this.generatedUiMetadata) {
+  async getUiMetadata(): Promise<UIMetadata> {
+    if (this.generatedUiMetadata) {
       return this.generatedUiMetadata
-     }
+    }
     const filter = this.wallet.network() === 'testnet' ? 'tpub' : 'xpub'
     const ownedSigners = await this.getOwnedSigners()
     const filteredOwnedSigners = ownedSigners.filter(signer => signer.descriptor.includes(filter))
     let uiMetadata = generateUiMetadata(this.descriptor, filteredOwnedSigners)
-    if (!uiMetadata) {
-      console.error('Could not generate UI metadata')
-      return null
-    }
     const sharedSigners = await this.getSharedSigners(this.nostrPublicKeys)
     const filteredSharedSigners = sharedSigners.filter(signer => signer.descriptor.includes(filter))
     const uniqueSigners = this.removeDuplicates(filteredSharedSigners)
