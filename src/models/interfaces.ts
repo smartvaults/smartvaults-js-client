@@ -52,6 +52,7 @@ export interface Wallet {
 export interface BitcoinUtil {
   walletSyncTimeGap: number //minutes that have to pass after the last sync, to require another sync when performing an operation
   toDescriptor(miniscript: string): string
+  toMiniscript(descriptor: string): string
   createWallet(descriptor): Wallet
   canFinalizePsbt(psbts: string[]): boolean
   getTrxId(trx: any): string
