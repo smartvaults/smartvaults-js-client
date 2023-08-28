@@ -4,7 +4,7 @@ import { Balance } from './Balance'
 import { Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails, Utxo } from './types'
 import { BitcoinUtil, Wallet } from './interfaces'
 import { TimeUtil, fromNostrDate, toPublished } from '../util'
-import { generateUiMetadata, type UIMetadata } from '../util/GenerateUiMetadata'
+import { generateUiMetadata, generateBlocklyJson, UIMetadata, Key } from '../util/GenerateUiMetadata'
 import { PublishedOwnedSigner, PublishedSharedSigner } from '../types'
 
 export class PublishedPolicy {
@@ -12,11 +12,12 @@ export class PublishedPolicy {
   name: string
   description: string
   descriptor: string
-  uiMetadata?: any
+  miniscript?: string
   createdAt: Date
   sharedKeyAuth: Authenticator
   nostrPublicKeys: string[]
   lastSyncTime?: Date
+  generatedUiMetadata?: UIMetadata
   private wallet: Wallet
   private syncTimeGap: number
   private syncPromise?: Promise<void>
@@ -58,14 +59,14 @@ export class PublishedPolicy {
     name,
     description,
     descriptor,
-    uiMetadata,
+    miniscript,
     createdAt,
   }: {
     id: string
     name: string
     description: string
     descriptor: string
-    uiMetadata?: any
+    miniscript?: string
     createdAt: Date
   },
     bitcoinUtil: BitcoinUtil,
@@ -78,7 +79,7 @@ export class PublishedPolicy {
     this.name = name
     this.description = description
     this.descriptor = descriptor
-    this.uiMetadata = uiMetadata
+    this.miniscript = miniscript
     this.createdAt = createdAt
     this.nostrPublicKeys = nostrPublicKeys
     this.syncTimeGap = bitcoinUtil.walletSyncTimeGap
@@ -88,24 +89,54 @@ export class PublishedPolicy {
     this.getOwnedSigners = getOwnedSigners
   }
 
-  async getUiMetadata(): Promise<UIMetadata | null> {
-     if (this.uiMetadata) {
-      return this.uiMetadata
-     }
-    const filter = this.wallet.network() === 'testnet' ? 'tpub' : 'xpub'
-    const ownedSigners = await this.getOwnedSigners()
-    const filteredOwnedSigners = ownedSigners.filter(signer => signer.descriptor.includes(filter))
-    let uiMetadata = generateUiMetadata(this.descriptor, filteredOwnedSigners)
-    if (!uiMetadata) {
-      console.error('Could not generate UI metadata')
-      return null
+  async getUiMetadata(): Promise<UIMetadata> {
+    if (this.generatedUiMetadata) {
+      return this.generatedUiMetadata;
     }
-    const sharedSigners = await this.getSharedSigners(this.nostrPublicKeys)
-    const filteredSharedSigners = sharedSigners.filter(signer => signer.descriptor.includes(filter))
-    const uniqueSigners = this.removeDuplicates(filteredSharedSigners)
-    uiMetadata.keys = uniqueSigners.map(signer => ({ pubkey: signer.ownerPubKey, fingerprint: signer.fingerprint, descriptor: signer.descriptor }))
-    this.uiMetadata = uiMetadata
-    return uiMetadata
+
+    const filter = this.getFilter();
+    const filteredOwnedSigners = this.filterSigners(await this.getOwnedSigners(), filter) as Array<PublishedOwnedSigner>;
+    const filteredSharedSigners = this.filterSigners(await this.getSharedSigners(this.nostrPublicKeys), filter) as Array<PublishedSharedSigner>;
+    const uniqueSigners = this.removeDuplicates(filteredSharedSigners);
+    const keys = this.getKeys(uniqueSigners);
+
+    if (this.miniscript) {
+      return this.getUiMetadataFromMiniscript(filteredOwnedSigners, keys);
+    } else {
+      return this.getUiMetadataFromDescriptor(filteredOwnedSigners, keys);
+    }
+  }
+
+  private getFilter(): string {
+    return this.wallet.network() === 'testnet' ? 'tpub' : 'xpub';
+  }
+
+  private filterSigners(signers: Array<PublishedOwnedSigner> | Array<PublishedSharedSigner>, filter: string): Array<PublishedOwnedSigner> | Array<PublishedSharedSigner> {
+    return signers.filter(signer => signer.descriptor.includes(filter));
+  }
+
+  private getKeys(signers: Array<PublishedSharedSigner>): Array<Key> {
+    return signers.map(signer => ({
+      pubkey: signer.ownerPubKey!,
+      fingerprint: signer.fingerprint,
+      descriptor: signer.descriptor
+    }));
+  }
+
+  private getUiMetadataFromMiniscript(ownedSigners: Array<PublishedOwnedSigner>, keys: Array<Key>): UIMetadata {
+    if (!this.miniscript) throw new Error('Miniscript is not defined');
+    const json = generateBlocklyJson(this.miniscript, ownedSigners);
+    const policyCode = this.miniscript;
+    const uiMetadata = { json, policyCode, keys };
+    this.generatedUiMetadata = uiMetadata;
+    return uiMetadata;
+  }
+
+  private getUiMetadataFromDescriptor(ownedSigners: Array<PublishedOwnedSigner>, keys: Array<Key>): UIMetadata {
+    const uiMetadata = generateUiMetadata(this.descriptor, ownedSigners);
+    uiMetadata.keys = keys;
+    this.generatedUiMetadata = uiMetadata;
+    return uiMetadata;
   }
 
   sync(): Promise<void> {

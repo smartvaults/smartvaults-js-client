@@ -173,7 +173,6 @@ export class Coinstr {
    * @param {String} name
    * @param {String} description
    * @param {String} miniscript
-   * @param {Object} uiMetadata
    * @param {String} pubKey
    * @returns
    */
@@ -181,7 +180,6 @@ export class Coinstr {
     name,
     description,
     miniscript,
-    uiMetadata,
     nostrPublicKeys,
     createdAt
   }: CoinstrTypes.SavePolicyPayload): Promise<PublishedPolicy> {
@@ -192,7 +190,7 @@ export class Coinstr {
       name,
       description,
       descriptor,
-      uiMetadata
+      miniscript
     }
 
     const tags = nostrPublicKeys.map(pubkey => [TagType.PubKey, pubkey])

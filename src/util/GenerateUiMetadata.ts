@@ -10,7 +10,7 @@ type Block = {
     next?: any;
 };
 
-type Keys = {
+export type Key = {
     pubkey: string;
     fingerprint: string;
     descriptor: string;
@@ -19,7 +19,7 @@ type Keys = {
 export type UIMetadata = {
     json: any,
     policyCode: string,
-    keys: Array<Keys>
+    keys: Array<Key>
 };
 
 function generateId(): string {
@@ -60,153 +60,165 @@ function splitArgs(exp: string): string[] {
 }
 
 function parseExpression(exp: string, ownedSigners: Array<PublishedOwnedSigner>): Block {
-    if (exp.startsWith("pk(")) {
-        const keyMatch = exp.match(/\[.*?\//);
-        const keyContent = keyMatch ? keyMatch[0].slice(0, -1) : "";
-        return {
-            type: "pk",
-            id: generateId(),
-            inputs: {
-                "Key": {
-                    block: {
-                        type: ownedSigners.some(({ fingerprint }) => keyContent.includes(fingerprint)) ? "my_key" : "key",
-                        id: generateId(),
-                        fields: {
-                            "Key": exp.split("pk(")[1].slice(0, -1)
+    try {
+        if (exp.startsWith("pk(")) {
+            const keyMatch = exp.match(/\[.*?\//);
+            const keyContent = keyMatch ? keyMatch[0].slice(0, -1) : "";
+            return {
+                type: "pk",
+                id: generateId(),
+                inputs: {
+                    "Key": {
+                        block: {
+                            type: ownedSigners.some(({ fingerprint }) => keyContent.includes(fingerprint)) ? "my_key" : "key",
+                            id: generateId(),
+                            fields: {
+                                "Key": exp.split("pk(")[1].slice(0, -1)
+                            }
                         }
                     }
                 }
-            }
-        };
-    } else if (exp.startsWith("thresh(")) {
-        const keyMatch = exp.match(/\d+/)
-        const threshold = parseInt(keyMatch ? keyMatch[0] : "");
-        const content = splitArgs(exp.slice("thresh(".length, -1));
+            };
+        } else if (exp.startsWith("thresh(")) {
+            const keyMatch = exp.match(/\d+/)
+            const threshold = parseInt(keyMatch ? keyMatch[0] : "");
+            const content = splitArgs(exp.slice("thresh(".length, -1));
 
-        const statements = content.slice(1); // Omit the threshold value
-        let nextBlock: Block | null = null;
-        let currentBlock: Block | null = null;
+            const statements = content.slice(1); // Omit the threshold value
+            let nextBlock: Block | null = null;
+            let currentBlock: Block | null = null;
 
-        for (const statement of statements) {
-            const block = parseExpression(statement, ownedSigners);
-            if (nextBlock) {
-                nextBlock.next = { block };
-            }
-            if (!currentBlock) {
-                currentBlock = block;
-            }
-            nextBlock = block;
-        }
-
-        return {
-            type: "thresh",
-            id: generateId(),
-            fields: {
-                "Threshold": threshold,
-                "SPACE": " "
-            },
-            inputs: {
-                "Statements": {
-                    block: currentBlock
+            for (const statement of statements) {
+                const block = parseExpression(statement, ownedSigners);
+                if (nextBlock) {
+                    nextBlock.next = { block };
                 }
-            }
-        };
-    } else if (exp.startsWith("older(")) {
-        const value = parseInt(exp.slice("older(".length, -1));
-        return {
-            type: "older",
-            id: generateId(),
-            fields: {
-                "value": value
-            }
-        };
-    } else if (exp.startsWith("after(")) {
-        const value = parseInt(exp.slice("after(".length, -1));
-        return {
-            type: "after",
-            id: generateId(),
-            fields: {
-                "value": value
-            }
-        };
-    }
-    else if (exp.startsWith("or(") || exp.startsWith("and(")) {
-        const type = exp.startsWith("or(") ? "or" : "and";
-        const content = splitArgs(exp.slice(type.length + 1, -1));
-
-
-        return {
-            type: type,
-            id: generateId(),
-            fields: {
-                "A_weight": 1,
-                "SPACE": " ",
-                "B_weight": 1
-            },
-            inputs: {
-                "A": {
-                    block: parseExpression(content[0], ownedSigners)
-                },
-                "B": {
-                    block: parseExpression(content[1], ownedSigners)
+                if (!currentBlock) {
+                    currentBlock = block;
                 }
+                nextBlock = block;
             }
-        };
-    } else return { type: "unknown", id: "unknown" };
-}
 
-export function generateBlocklyJson(miniscript: string, ownedSigners: Array<PublishedOwnedSigner>): string {
-    const initialBlock = parseExpression(miniscript, ownedSigners);
-
-    const result: { blocks: { languageVersion: number, blocks: Block[] } } = {
-        blocks: {
-            languageVersion: 0,
-            blocks: [{
-                type: "begin",
+            return {
+                type: "thresh",
                 id: generateId(),
-                x: 293,
-                y: 10,
-                fields: { "SPACE": " " },
-                next: {
-                    block: initialBlock
+                fields: {
+                    "Threshold": threshold,
+                    "SPACE": " "
+                },
+                inputs: {
+                    "Statements": {
+                        block: currentBlock
+                    }
                 }
-            }]
+            };
+        } else if (exp.startsWith("older(")) {
+            const value = parseInt(exp.slice("older(".length, -1));
+            return {
+                type: "older",
+                id: generateId(),
+                fields: {
+                    "value": value
+                }
+            };
+        } else if (exp.startsWith("after(")) {
+            const value = parseInt(exp.slice("after(".length, -1));
+            return {
+                type: "after",
+                id: generateId(),
+                fields: {
+                    "value": value
+                }
+            };
         }
-    };
+        else if (exp.startsWith("or(") || exp.startsWith("and(")) {
+            const type = exp.startsWith("or(") ? "or" : "and";
+            const content = splitArgs(exp.slice(type.length + 1, -1));
 
-    return JSON.stringify(result, null, 4);
+
+            return {
+                type: type,
+                id: generateId(),
+                fields: {
+                    "A_weight": 1,
+                    "SPACE": " ",
+                    "B_weight": 1
+                },
+                inputs: {
+                    "A": {
+                        block: parseExpression(content[0], ownedSigners)
+                    },
+                    "B": {
+                        block: parseExpression(content[1], ownedSigners)
+                    }
+                }
+            };
+        } else throw new Error(`Unknown miniscript expression: ${exp}`);
+    }
+    catch (e) {
+        throw new Error(`Error parsing miniscript: ${e}`);
+    }
 }
 
-export function toMiniscript(descriptor: string): string | null {
+export function generateBlocklyJson(miniscript: string, ownedSigners: Array<PublishedOwnedSigner>): any {
+    let json: any;
+    try {
+        const initialBlock = parseExpression(miniscript, ownedSigners);
+
+        const result: { blocks: { languageVersion: number, blocks: Block[] } } = {
+            blocks: {
+                languageVersion: 0,
+                blocks: [{
+                    type: "begin",
+                    id: generateId(),
+                    x: 293,
+                    y: 10,
+                    fields: { "SPACE": " " },
+                    next: {
+                        block: initialBlock
+                    }
+                }]
+            }
+        };
+        json = JSON.parse(JSON.stringify(result, null, 4));
+    } catch (e) {
+        throw new Error(`Error generating Blockly's JSON ${e}`);
+    }
+    return json
+}
+
+export function toMiniscript(descriptor: string): string {
     const trRegex = /^tr\(([^,]+),(.+)\)(?:#.*)?$/;
     const match = descriptor.match(trRegex);
 
-    if (!match) return null;
+    if (!match) throw new Error("Invalid descriptor");
 
     const primaryKey = match[1];
     let trContent = match[2];
     let prevContent = "";
 
-    while (prevContent !== trContent) {
-        prevContent = trContent;
+    try {
+        while (prevContent !== trContent) {
+            prevContent = trContent;
 
-        if (trContent.includes('multi_a(')) {
-            trContent = transformMultiA(trContent);
+            if (trContent.includes('multi_a(')) {
+                trContent = transformMultiA(trContent);
+            }
+            if (trContent.includes('and_v(v:pk(')) {
+                trContent = trContent.replace('v:pk(', 'pk(').replace('and_v(', 'and(');
+            }
+            if (trContent.includes('and_v(')) {
+                trContent = transformAndV(trContent);
+            }
         }
-        if (trContent.includes('and_v(v:pk(')) {
-            trContent = trContent.replace('v:pk(', 'pk(').replace('and_v(', 'and(');
+        if (primaryKey.startsWith('[')) {
+            trContent = transformNested(trContent, primaryKey);
+        } else {
+            trContent = trContent.replace(new RegExp(primaryKey, 'g'), `pk(${primaryKey})`);
         }
-        if (trContent.includes('and_v(')) {
-            trContent = transformAndV(trContent);
-        }
+    } catch (e) {
+        throw new Error(`Error transforming descriptor: ${e}`);
     }
-
-    if (primaryKey.startsWith('[')) {
-        trContent = transformNested(trContent, primaryKey);
-    } else {
-        trContent = trContent.replace(new RegExp(primaryKey, 'g'), `pk(${primaryKey})`);
-    }
-
     return trContent;
 }
 
@@ -259,22 +271,11 @@ function transformAndV(content: string): string {
 }
 
 
-export function generateUiMetadata(inputString: string, ownedSigners: Array<PublishedOwnedSigner>): UIMetadata | null {
+export function generateUiMetadata(inputString: string, ownedSigners: Array<PublishedOwnedSigner>): UIMetadata {
     const policyCode = toMiniscript(inputString);
-    if (!policyCode) {
-        console.error("Failed to generate policy code from input string.");
-        return null;
-    }
-
-    let jsonContent: any;
-    try {
-        jsonContent = generateBlocklyJson(policyCode, ownedSigners);
-    } catch (e) {
-        console.error("Error generating JSON content:", e);
-        return null;
-    }
+    const jsonContent = generateBlocklyJson(policyCode, ownedSigners);
     return {
-        json: JSON.parse(jsonContent),
+        json: jsonContent,
         policyCode: policyCode,
         keys: []
     };

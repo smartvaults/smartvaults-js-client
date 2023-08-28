@@ -25,7 +25,7 @@ describe('PublishedPolicy', () => {
       description: "desc",
       descriptor: "descriptor",
       name: "name1",
-      uiMetadata: { p1: 'p1' }
+      miniscript: 'miniscript'
     }
 
     policyEvent = {
@@ -49,8 +49,8 @@ describe('PublishedPolicy', () => {
       nostrPublicKeys,
       sharedKeyAuth,
     },
-    coinstr.getSharedSigners,
-    coinstr.getOwnedSigners
+      coinstr.getSharedSigners,
+      coinstr.getOwnedSigners
     )
   })
 
@@ -62,7 +62,7 @@ describe('PublishedPolicy', () => {
       expect(policy.name).toBe(policyContent.name)
       expect(policy.description).toBe(policyContent.description)
       expect(policy.descriptor).toBe(policyContent.descriptor)
-      expect(policy.uiMetadata).toEqual(policyContent.uiMetadata)
+      expect(policy.miniscript).toEqual(policyContent.miniscript)
       expect(policy.createdAt).toEqual(fromNostrDate(policyEvent.created_at))
       expect(policy.sharedKeyAuth).toEqual(sharedKeyAuth)
       expect(policy.nostrPublicKeys).toEqual(nostrPublicKeys)

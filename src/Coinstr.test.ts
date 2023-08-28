@@ -1199,7 +1199,7 @@ function assertPublishedPolicy(actual: PublishedPolicy, expected: PublishedPolic
   expect(actual.name).toBe(expected.name)
   expect(actual.description).toBe(expected.description)
   expect(actual.descriptor).toBe(expected.descriptor)
-  expect(actual.uiMetadata).toEqual(expected.uiMetadata)
+  expect(actual.miniscript).toEqual(expected.miniscript)
   expect(actual.createdAt).toEqual(expected.createdAt)
   expect(actual.nostrPublicKeys).toEqual(expected.nostrPublicKeys)
   expect(actual.sharedKeyAuth).toBeDefined()
@@ -1211,7 +1211,7 @@ function assertSubscriptionPolicyPayload(kind: number, actual: any, savePayload:
   expect(actual).toBeInstanceOf(PublishedPolicy)
   expect(actual.name).toBe(savePayload.name)
   expect(actual.description).toBe(savePayload.description)
-  expect(actual.uiMetadata).toEqual(savePayload.uiMetadata)
+  expect(actual.miniscript).toEqual(savePayload.miniscript)
   expect(actual.nostrPublicKeys).toEqual(savePayload.nostrPublicKeys)
   expect(actual.sharedKeyAuth).toBeDefined()
 
@@ -1278,7 +1278,6 @@ function getSavePolicyPayload(id: number, nostrPublicKeys: string[], secondsShif
     name: `policy${id}`,
     description: `policy desc ${id}`,
     miniscript: `miniscript ${id}`,
-    uiMetadata: { p: `property${id}` },
     nostrPublicKeys,
     createdAt
   }
