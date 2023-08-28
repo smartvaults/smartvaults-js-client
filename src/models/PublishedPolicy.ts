@@ -4,7 +4,7 @@ import { Balance } from './Balance'
 import { Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails } from './types'
 import { BitcoinUtil, Wallet } from './interfaces'
 import { TimeUtil, fromNostrDate, toPublished } from '../util'
-import { generateUiMetadata, generateBlocklyJson, type UIMetadata, Key } from '../util/GenerateUiMetadata'
+import { generateUiMetadata, generateBlocklyJson, UIMetadata, Key } from '../util/GenerateUiMetadata'
 import { PublishedOwnedSigner, PublishedSharedSigner } from '../types'
 
 export class PublishedPolicy {
