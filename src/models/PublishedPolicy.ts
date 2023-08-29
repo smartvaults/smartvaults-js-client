@@ -97,7 +97,7 @@ export class PublishedPolicy {
     const filter = this.getFilter();
     const filteredOwnedSigners = this.filterSigners(await this.getOwnedSigners(), filter) as Array<PublishedOwnedSigner>;
     const filteredSharedSigners = this.filterSigners(await this.getSharedSigners(this.nostrPublicKeys), filter) as Array<PublishedSharedSigner>;
-    const uniqueSigners = this.removeDuplicates(filteredSharedSigners);
+    const uniqueSigners = this.removeDuplicates([...filteredSharedSigners, ...filteredOwnedSigners]);
     const keys = this.getKeys(uniqueSigners);
 
     if (this.miniscript) {
@@ -116,11 +116,12 @@ export class PublishedPolicy {
   }
 
   private getKeys(signers: Array<PublishedSharedSigner>): Array<Key> {
-    return signers.map(signer => ({
+    const filteredSigners = this.nostrPublicKeys.length > 0 ? signers.filter(signer => this.nostrPublicKeys.includes(signer.ownerPubKey!)) : signers;
+    return filteredSigners.map(signer => ({
       pubkey: signer.ownerPubKey!,
       fingerprint: signer.fingerprint,
       descriptor: signer.descriptor
-    }));
+    }))
   }
 
   private getUiMetadataFromMiniscript(ownedSigners: Array<PublishedOwnedSigner>, keys: Array<Key>): UIMetadata {
