@@ -25,7 +25,6 @@ describe('PublishedPolicy', () => {
       description: "desc",
       descriptor: "descriptor",
       name: "name1",
-      miniscript: 'miniscript'
     }
 
     policyEvent = {

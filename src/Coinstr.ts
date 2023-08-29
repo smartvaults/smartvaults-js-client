@@ -188,8 +188,7 @@ export class Coinstr {
     let policyContent: Policy = {
       name,
       description,
-      descriptor,
-      miniscript
+      descriptor
     }
 
     const tags = nostrPublicKeys.map(pubkey => [TagType.PubKey, pubkey])
