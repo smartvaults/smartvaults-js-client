@@ -1,6 +1,6 @@
 {
   "name": "@smontero/coinstr-js-client",
-  "version": "0.0.24",
+  "version": "0.0.25",
   "description": "Coinstr javascript client",
   "main": "dist/index.js",
   "scripts": {
