@@ -227,10 +227,10 @@ export function generateBlocklyJson(miniscript: string, ownedSigners: Array<Publ
     return json
 }
 
-export function generateUiMetadata(descriptor: string, ownedSigners: Array<PublishedOwnedSigner>, toMiniscriptBU: (descriptor: string) => string): UIMetadata {
+export function generateUiMetadata(descriptor: string, ownedSigners: Array<PublishedOwnedSigner>, toMiniscript: (descriptor: string) => string): UIMetadata {
     let policyCode: string;
     try {
-        policyCode = toMiniscriptBU(descriptor);
+        policyCode = toMiniscript(descriptor);
     } catch (e) {
         throw new Error(`Error transforming descriptor: ${e}`);
     }
