@@ -133,8 +133,38 @@ function parseExpression(exp: string, ownedSigners: Array<PublishedOwnedSigner>)
         }
         else if (exp.startsWith("or(") || exp.startsWith("and(")) {
             const type = exp.startsWith("or(") ? "or" : "and";
-            const content = splitArgs(exp.slice(type.length + 1, -1));
-
+            let content = splitArgs(exp.slice(type.length + 1, -1));
+            if (content[0].startsWith("pk(") && !content[0].startsWith("pk([")) {
+                return parseExpression(content[1], ownedSigners);
+            }
+            const maybeAllPublicKeys = content.every(
+                c =>
+                    c.startsWith("pk(") ||
+                    (c.startsWith(type) && splitArgs(c.slice(type.length + 1, -1)).every(
+                        c2 => c2.startsWith("pk(")
+                    )
+                    )
+            );
+            if (maybeAllPublicKeys && type === "or") {
+                const maybeNeedsFlatten = content.indexOf(content.find(c => c.startsWith(type)) || "");
+                if (maybeNeedsFlatten !== -1) {
+                    content[maybeNeedsFlatten] = content[maybeNeedsFlatten].slice(type.length + 1, -1);
+                }
+                return parseExpression(`thresh(1,${content.join(',')})`, ownedSigners);
+            }
+            if (maybeAllPublicKeys && type === "and") {
+                const maybeNeedsFlatten = content.indexOf(content.find(c => c.startsWith(type)) || "");
+                if (maybeNeedsFlatten !== -1) {
+                    content[maybeNeedsFlatten] = content[maybeNeedsFlatten].slice(type.length + 1, -1);
+                }
+                return parseExpression(`thresh(${content.length},${content.join(',')})`, ownedSigners);
+            }
+            if (content.length > 2) {
+                const threshold = type === "or" ? 1 : content.length - 1;
+                const lastCondition = content.pop()!;
+                content[0] = `thresh(${threshold},${content.join(',')})`;
+                content[1] = lastCondition;
+            }
             const weightPattern = /(\d+)@/g;
             let weights: number[] = [];
             let match;
@@ -197,92 +227,13 @@ export function generateBlocklyJson(miniscript: string, ownedSigners: Array<Publ
     return json
 }
 
-export function toMiniscript(descriptor: string): string {
-    const trRegex = /^tr\(([^,]+),(.+)\)(?:#.*)?$/;
-    const match = descriptor.match(trRegex);
-
-    if (!match) throw new Error("Invalid descriptor");
-
-    const primaryKey = match[1];
-    let trContent = match[2];
-    let prevContent = "";
-
+export function generateUiMetadata(descriptor: string, ownedSigners: Array<PublishedOwnedSigner>, toMiniscript: (descriptor: string) => string): UIMetadata {
+    let policyCode: string;
     try {
-        while (prevContent !== trContent) {
-            prevContent = trContent;
-
-            if (trContent.includes('multi_a(')) {
-                trContent = transformMultiA(trContent);
-            }
-            if (trContent.includes('and_v(v:pk(')) {
-                trContent = trContent.replace('v:pk(', 'pk(').replace('and_v(', 'and(');
-            }
-            if (trContent.includes('and_v(')) {
-                trContent = transformAndV(trContent);
-            }
-        }
-        if (primaryKey.startsWith('[')) {
-            trContent = transformNested(trContent, primaryKey);
-        } else {
-            trContent = trContent.replace(new RegExp(primaryKey, 'g'), `pk(${primaryKey})`);
-        }
+        policyCode = toMiniscript(descriptor);
     } catch (e) {
         throw new Error(`Error transforming descriptor: ${e}`);
     }
-    return trContent;
-}
-
-function flattenContent(content: string): string {
-    while (content.includes('{') && content.includes('}')) {
-        const nestedStart = content.lastIndexOf('{');
-        const nestedEnd = content.indexOf('}', nestedStart);
-        const beforeNested = content.slice(0, nestedStart);
-        const nestedContent = content.slice(nestedStart + 1, nestedEnd);
-        const afterNested = content.slice(nestedEnd + 1);
-        content = `${beforeNested}${nestedContent}${afterNested}`;
-    }
-    return content;
-}
-
-function transformNested(content: string, primaryKey: string): string {
-    content = flattenContent(content);
-
-    const pkRegex = /pk\(([^)]+)\)/g;
-    let match;
-    const allPks: string[] = [];
-    while ((match = pkRegex.exec(content)) !== null) {
-        allPks.push(match[1]);
-    }
-
-    if (content.startsWith('pk(')) {
-        return `thresh(1,pk(${primaryKey}),${allPks.map(pk => `pk(${pk})`).join(',')})`;
-    } else if (content.includes('pk(') && !content.includes('and(') && !content.includes('or(')) {
-        return `thresh(1,pk(${primaryKey}),${allPks.map(pk => `pk(${pk})`).join(',')})`;
-    } else {
-        return `or(pk(${primaryKey}),${content})`;
-    }
-}
-
-
-function transformMultiA(content: string): string {
-    return content.replace(/multi_a\((\d+),([^)]+)\)/g, (_, threshold, keys) => {
-        const keyList = keys.split(',').map(k => 'pk(' + k.trim() + ')').join(',');
-        return `thresh(${threshold},${keyList})`;
-    });
-}
-
-function transformAndV(content: string): string {
-    return content.replace(/and_v\((v:)?([^,]+),([^)]+)\)/g, (_, __, firstCondition, secondCondition) => {
-        if (firstCondition.includes('multi_a(')) {
-            firstCondition = transformMultiA(firstCondition);
-        }
-        return `and(${firstCondition},${secondCondition})`;
-    });
-}
-
-
-export function generateUiMetadata(inputString: string, ownedSigners: Array<PublishedOwnedSigner>): UIMetadata {
-    const policyCode = toMiniscript(inputString);
     const jsonContent = generateBlocklyJson(policyCode, ownedSigners);
     return {
         json: jsonContent,

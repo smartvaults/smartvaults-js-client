@@ -1,7 +1,6 @@
 export type BasePolicy = {
   name: string;
   description: string;
-  miniscript?: string;
 };
 
 export type Policy = BasePolicy & {
