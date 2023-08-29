@@ -4,7 +4,7 @@ import { Balance } from './Balance'
 import { Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails } from './types'
 import { BitcoinUtil, Wallet } from './interfaces'
 import { TimeUtil, fromNostrDate, toPublished } from '../util'
-import { generateUiMetadata, generateBlocklyJson, UIMetadata, Key } from '../util/GenerateUiMetadata'
+import { generateUiMetadata, UIMetadata, Key } from '../util/GenerateUiMetadata'
 import { PublishedOwnedSigner, PublishedSharedSigner } from '../types'
 
 export class PublishedPolicy {
@@ -12,7 +12,6 @@ export class PublishedPolicy {
   name: string
   description: string
   descriptor: string
-  miniscript?: string
   createdAt: Date
   sharedKeyAuth: Authenticator
   nostrPublicKeys: string[]
@@ -23,6 +22,7 @@ export class PublishedPolicy {
   private syncPromise?: Promise<void>
   private getSharedSigners: (publicKeys?: string | string[]) => Promise<PublishedSharedSigner[]>
   private getOwnedSigners: () => Promise<PublishedOwnedSigner[]>
+  private toMiniscript: (descriptor: string) => string
 
 
   static fromPolicyAndEvent<K extends number>({
@@ -59,14 +59,12 @@ export class PublishedPolicy {
     name,
     description,
     descriptor,
-    miniscript,
     createdAt,
   }: {
     id: string
     name: string
     description: string
     descriptor: string
-    miniscript?: string
     createdAt: Date
   },
     bitcoinUtil: BitcoinUtil,
@@ -79,7 +77,6 @@ export class PublishedPolicy {
     this.name = name
     this.description = description
     this.descriptor = descriptor
-    this.miniscript = miniscript
     this.createdAt = createdAt
     this.nostrPublicKeys = nostrPublicKeys
     this.syncTimeGap = bitcoinUtil.walletSyncTimeGap
@@ -87,24 +84,20 @@ export class PublishedPolicy {
     this.wallet = bitcoinUtil.createWallet(descriptor)
     this.getSharedSigners = getSharedSigners
     this.getOwnedSigners = getOwnedSigners
+    this.toMiniscript = bitcoinUtil.toMiniscript
   }
 
   async getUiMetadata(): Promise<UIMetadata> {
     if (this.generatedUiMetadata) {
       return this.generatedUiMetadata;
     }
-
     const filter = this.getFilter();
     const filteredOwnedSigners = this.filterSigners(await this.getOwnedSigners(), filter) as Array<PublishedOwnedSigner>;
     const filteredSharedSigners = this.filterSigners(await this.getSharedSigners(this.nostrPublicKeys), filter) as Array<PublishedSharedSigner>;
     const uniqueSigners = this.removeDuplicates([...filteredSharedSigners, ...filteredOwnedSigners]);
     const keys = this.getKeys(uniqueSigners);
 
-    if (this.miniscript) {
-      return this.getUiMetadataFromMiniscript(filteredOwnedSigners, keys);
-    } else {
-      return this.getUiMetadataFromDescriptor(filteredOwnedSigners, keys);
-    }
+    return this.getUiMetadataFromDescriptor(filteredOwnedSigners, keys);
   }
 
   private getFilter(): string {
@@ -124,17 +117,8 @@ export class PublishedPolicy {
     }))
   }
 
-  private getUiMetadataFromMiniscript(ownedSigners: Array<PublishedOwnedSigner>, keys: Array<Key>): UIMetadata {
-    if (!this.miniscript) throw new Error('Miniscript is not defined');
-    const json = generateBlocklyJson(this.miniscript, ownedSigners);
-    const policyCode = this.miniscript;
-    const uiMetadata = { json, policyCode, keys };
-    this.generatedUiMetadata = uiMetadata;
-    return uiMetadata;
-  }
-
   private getUiMetadataFromDescriptor(ownedSigners: Array<PublishedOwnedSigner>, keys: Array<Key>): UIMetadata {
-    const uiMetadata = generateUiMetadata(this.descriptor, ownedSigners);
+    const uiMetadata = generateUiMetadata(this.descriptor, ownedSigners, this.toMiniscript);
     uiMetadata.keys = keys;
     this.generatedUiMetadata = uiMetadata;
     return uiMetadata;

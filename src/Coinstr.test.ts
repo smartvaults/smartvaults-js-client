@@ -321,7 +321,7 @@ describe('Coinstr', () => {
     })
 
     it('should receive policy events', async () => {
-      expect.assertions(14)
+      expect.assertions(12)
       let counter: number = 0
       let savePolicyPayload1 = getSavePolicyPayload(1, keySet.getPublicKeys(), 2)
       let savePolicyPayload2 = getSavePolicyPayload(2, keySet.getPublicKeys(), 3)
@@ -504,7 +504,7 @@ describe('Coinstr', () => {
 
     it('should receive many events', async () => {
       let counter: number = 0
-      expect.assertions(24)
+      expect.assertions(23)
       let savePolicyPayload1 = getSavePolicyPayload(1, keySet.getPublicKeys(), 2)
       let pubkey = coinstr.authenticator.getPublicKey()
       let saveOwnedSignerPayload1 = saveOwnedSignerPayload(1, pubkey)
@@ -1180,7 +1180,6 @@ function assertPublishedPolicy(actual: PublishedPolicy, expected: PublishedPolic
   expect(actual.name).toBe(expected.name)
   expect(actual.description).toBe(expected.description)
   expect(actual.descriptor).toBe(expected.descriptor)
-  expect(actual.miniscript).toEqual(expected.miniscript)
   expect(actual.createdAt).toEqual(expected.createdAt)
   expect(actual.nostrPublicKeys).toEqual(expected.nostrPublicKeys)
   expect(actual.sharedKeyAuth).toBeDefined()
@@ -1192,7 +1191,6 @@ function assertSubscriptionPolicyPayload(kind: number, actual: any, savePayload:
   expect(actual).toBeInstanceOf(PublishedPolicy)
   expect(actual.name).toBe(savePayload.name)
   expect(actual.description).toBe(savePayload.description)
-  expect(actual.miniscript).toEqual(savePayload.miniscript)
   expect(actual.nostrPublicKeys).toEqual(savePayload.nostrPublicKeys)
   expect(actual.sharedKeyAuth).toBeDefined()
 
