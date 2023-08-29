@@ -135,21 +135,31 @@ function parseExpression(exp: string, ownedSigners: Array<PublishedOwnedSigner>)
             const type = exp.startsWith("or(") ? "or" : "and";
             const content = splitArgs(exp.slice(type.length + 1, -1));
 
+            const weightPattern = /(\d+)@/g;
+            let weights: number[] = [];
+            let match;
+            while ((match = weightPattern.exec(content.join(','))) !== null) {
+                weights.push(parseInt(match[1]));
+            }
+
+            const a_weight = weights.length > 0 ? weights[0] : 1;
+            const b_weight = weights.length > 1 ? weights[1] : 1;
+
 
             return {
                 type: type,
                 id: generateId(),
                 fields: {
-                    "A_weight": 1,
+                    "A_weight": a_weight,
                     "SPACE": " ",
-                    "B_weight": 1
+                    "B_weight": b_weight,
                 },
                 inputs: {
                     "A": {
-                        block: parseExpression(content[0], ownedSigners)
+                        block: parseExpression(content[0].replace(/\d+@/g, ""), ownedSigners)
                     },
                     "B": {
-                        block: parseExpression(content[1], ownedSigners)
+                        block: parseExpression(content[1].replace(/\d+@/g, ""), ownedSigners)
                     }
                 }
             };
