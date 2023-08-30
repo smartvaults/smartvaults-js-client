@@ -11,7 +11,7 @@ type Block = {
 };
 
 export type Key = {
-    pubkey: string;
+    pubkey?: string;
     fingerprint: string;
     descriptor: string;
 }
@@ -68,11 +68,11 @@ function extractFingerprint(input: string): string | null {
     return null;
 }
 
-function parseExpression(exp: string, ownedSigners: Array<PublishedOwnedSigner>, keys: any[]): [Block, any[]] {
+function parseExpression(exp: string, ownedSigners: Array<PublishedOwnedSigner>, keys: Array<Key>): [Block, Array<Key>] {
     try {
         if (exp.startsWith("pk(")) {
             const key: string = exp.split("pk(")[1].slice(0, -1);
-            const fingerprint = extractFingerprint(key);
+            const fingerprint = extractFingerprint(key) || "";
             keys.push({ fingerprint, descriptor: key });
             return [{
                 type: "pk",
@@ -210,9 +210,9 @@ function parseExpression(exp: string, ownedSigners: Array<PublishedOwnedSigner>,
     }
 }
 
-export function generateBlocklyJson(miniscript: string, ownedSigners: Array<PublishedOwnedSigner>): any {
+export function generateBlocklyJson(miniscript: string, ownedSigners: Array<PublishedOwnedSigner>): [any, Array<Key>] {
     let json: any;
-    let keys: any[] = [];
+    let keys: Array<Key> = [];
     try {
         const [initialBlock, key] = parseExpression(miniscript, ownedSigners, []);
 
