@@ -11,7 +11,7 @@ type Block = {
 };
 
 export type Key = {
-    pubkey: string;
+    pubkey?: string;
     fingerprint: string;
     descriptor: string;
 }
@@ -59,26 +59,36 @@ function splitArgs(exp: string): string[] {
     return args;
 }
 
-function parseExpression(exp: string, ownedSigners: Array<PublishedOwnedSigner>): Block {
+function extractFingerprint(input: string): string | null {
+    const match = input.match(/\[(\w+)/);
+
+    if (match && match[1]) {
+        return match[1];
+    }
+    return null;
+}
+
+function parseExpression(exp: string, ownedSigners: Array<PublishedOwnedSigner>, keys: Array<Key>): [Block, Array<Key>] {
     try {
         if (exp.startsWith("pk(")) {
-            const keyMatch = exp.match(/\[.*?\//);
-            const keyContent = keyMatch ? keyMatch[0].slice(0, -1) : "";
-            return {
+            const key: string = exp.split("pk(")[1].slice(0, -1);
+            const fingerprint = extractFingerprint(key) || "";
+            keys.push({ fingerprint, descriptor: key });
+            return [{
                 type: "pk",
                 id: generateId(),
                 inputs: {
                     "Key": {
                         block: {
-                            type: ownedSigners.some(({ fingerprint }) => keyContent.includes(fingerprint)) ? "my_key" : "key",
+                            type: ownedSigners.some(({ fingerprint }) => key.includes(fingerprint)) ? "my_key" : "key",
                             id: generateId(),
                             fields: {
-                                "Key": exp.split("pk(")[1].slice(0, -1)
+                                "Key": key
                             }
                         }
                     }
                 }
-            };
+            }, keys];
         } else if (exp.startsWith("thresh(")) {
             const keyMatch = exp.match(/\d+/)
             const threshold = parseInt(keyMatch ? keyMatch[0] : "");
@@ -89,7 +99,7 @@ function parseExpression(exp: string, ownedSigners: Array<PublishedOwnedSigner>)
             let currentBlock: Block | null = null;
 
             for (const statement of statements) {
-                const block = parseExpression(statement, ownedSigners);
+                const block = parseExpression(statement, ownedSigners, keys)[0];
                 if (nextBlock) {
                     nextBlock.next = { block };
                 }
@@ -99,7 +109,7 @@ function parseExpression(exp: string, ownedSigners: Array<PublishedOwnedSigner>)
                 nextBlock = block;
             }
 
-            return {
+            return [{
                 type: "thresh",
                 id: generateId(),
                 fields: {
@@ -111,31 +121,31 @@ function parseExpression(exp: string, ownedSigners: Array<PublishedOwnedSigner>)
                         block: currentBlock
                     }
                 }
-            };
+            }, keys];
         } else if (exp.startsWith("older(")) {
             const value = parseInt(exp.slice("older(".length, -1));
-            return {
+            return [{
                 type: "older",
                 id: generateId(),
                 fields: {
                     "value": value
                 }
-            };
+            }, keys];
         } else if (exp.startsWith("after(")) {
             const value = parseInt(exp.slice("after(".length, -1));
-            return {
+            return [{
                 type: "after",
                 id: generateId(),
                 fields: {
                     "value": value
                 }
-            };
+            }, keys];
         }
         else if (exp.startsWith("or(") || exp.startsWith("and(")) {
             const type = exp.startsWith("or(") ? "or" : "and";
             let content = splitArgs(exp.slice(type.length + 1, -1));
             if (content[0].startsWith("pk(") && !content[0].startsWith("pk([")) {
-                return parseExpression(content[1], ownedSigners);
+                return parseExpression(content[1], ownedSigners, keys);
             }
             const maybeAllPublicKeys = content.every(
                 c =>
@@ -150,14 +160,14 @@ function parseExpression(exp: string, ownedSigners: Array<PublishedOwnedSigner>)
                 if (maybeNeedsFlatten !== -1) {
                     content[maybeNeedsFlatten] = content[maybeNeedsFlatten].slice(type.length + 1, -1);
                 }
-                return parseExpression(`thresh(1,${content.join(',')})`, ownedSigners);
+                return parseExpression(`thresh(1,${content.join(',')})`, ownedSigners, keys);
             }
             if (maybeAllPublicKeys && type === "and") {
                 const maybeNeedsFlatten = content.indexOf(content.find(c => c.startsWith(type)) || "");
                 if (maybeNeedsFlatten !== -1) {
                     content[maybeNeedsFlatten] = content[maybeNeedsFlatten].slice(type.length + 1, -1);
                 }
-                return parseExpression(`thresh(${content.length},${content.join(',')})`, ownedSigners);
+                return parseExpression(`thresh(${content.length},${content.join(',')})`, ownedSigners, keys);
             }
             if (content.length > 2) {
                 const threshold = type === "or" ? 1 : content.length - 1;
@@ -176,7 +186,7 @@ function parseExpression(exp: string, ownedSigners: Array<PublishedOwnedSigner>)
             const b_weight = weights.length > 1 ? weights[1] : 1;
 
 
-            return {
+            return [{
                 type: type,
                 id: generateId(),
                 fields: {
@@ -186,13 +196,13 @@ function parseExpression(exp: string, ownedSigners: Array<PublishedOwnedSigner>)
                 },
                 inputs: {
                     "A": {
-                        block: parseExpression(content[0].replace(/\d+@/g, ""), ownedSigners)
+                        block: parseExpression(content[0].replace(/\d+@/g, ""), ownedSigners, keys)[0]
                     },
                     "B": {
-                        block: parseExpression(content[1].replace(/\d+@/g, ""), ownedSigners)
+                        block: parseExpression(content[1].replace(/\d+@/g, ""), ownedSigners, keys)[0]
                     }
                 }
-            };
+            }, keys];
         } else throw new Error(`Unknown miniscript expression: ${exp}`);
     }
     catch (e) {
@@ -200,10 +210,11 @@ function parseExpression(exp: string, ownedSigners: Array<PublishedOwnedSigner>)
     }
 }
 
-export function generateBlocklyJson(miniscript: string, ownedSigners: Array<PublishedOwnedSigner>): any {
+export function generateBlocklyJson(miniscript: string, ownedSigners: Array<PublishedOwnedSigner>): [any, Array<Key>] {
     let json: any;
+    let keys: Array<Key> = [];
     try {
-        const initialBlock = parseExpression(miniscript, ownedSigners);
+        const [initialBlock, key] = parseExpression(miniscript, ownedSigners, []);
 
         const result: { blocks: { languageVersion: number, blocks: Block[] } } = {
             blocks: {
@@ -221,10 +232,11 @@ export function generateBlocklyJson(miniscript: string, ownedSigners: Array<Publ
             }
         };
         json = JSON.parse(JSON.stringify(result, null, 4));
+        keys = key
     } catch (e) {
         throw new Error(`Error generating Blockly's JSON ${e}`);
     }
-    return json
+    return [json, keys];
 }
 
 export function generateUiMetadata(descriptor: string, ownedSigners: Array<PublishedOwnedSigner>, toMiniscript: (descriptor: string) => string): UIMetadata {
@@ -234,10 +246,10 @@ export function generateUiMetadata(descriptor: string, ownedSigners: Array<Publi
     } catch (e) {
         throw new Error(`Error transforming descriptor: ${e}`);
     }
-    const jsonContent = generateBlocklyJson(policyCode, ownedSigners);
+    const [jsonContent, keys] = generateBlocklyJson(policyCode, ownedSigners);
     return {
         json: jsonContent,
         policyCode: policyCode,
-        keys: []
+        keys,
     };
 }
