@@ -118,8 +118,17 @@ export class PublishedPolicy {
   }
 
   private getUiMetadataFromDescriptor(ownedSigners: Array<PublishedOwnedSigner>, keys: Array<Key>): UIMetadata {
-    const uiMetadata = generateUiMetadata(this.descriptor, ownedSigners, this.toMiniscript);
-    uiMetadata.keys = keys;
+    let uiMetadata = generateUiMetadata(this.descriptor, ownedSigners, this.toMiniscript);
+    const keysWithOutPubkeys = uiMetadata.keys
+    const keysWithPubkeys = keysWithOutPubkeys.map(key => {
+      const keyWithPubkey = keys.find(k => k.fingerprint === key.fingerprint)
+      if (keyWithPubkey) {
+        return { ...key, pubkey: keyWithPubkey.pubkey }
+      }
+      return key
+    }
+    )
+    uiMetadata.keys = keysWithPubkeys
     this.generatedUiMetadata = uiMetadata;
     return uiMetadata;
   }
