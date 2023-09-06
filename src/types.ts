@@ -208,4 +208,5 @@ export type PublishedLabel = Published & {
 export type LabeledUtxo = Utxo & {
   labelText?: string
   labelId?: string
+  frozen: boolean
 }

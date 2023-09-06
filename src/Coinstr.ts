@@ -403,13 +403,23 @@ export class Coinstr {
     policyPath
   }: CoinstrTypes.SpendProposalPayload): Promise<CoinstrTypes.PublishedSpendingProposal> {
 
-    let { amount, psbt } = await policy.buildTrx({
-      address: to_address,
-      amount: amountDescriptor,
-      feeRate: feeRatePriority,
-      policyPath
-    })
+    const frozenUtxos = await this.getFrozenUtxosOutpoints(policy)
 
+    let amount: number;
+    let psbt: string;
+    try {
+      const trx = await policy.buildTrx({
+        address: to_address,
+        amount: amountDescriptor,
+        feeRate: feeRatePriority,
+        policyPath,
+        frozenUtxos
+      })
+      amount = trx.amount
+      psbt = trx.psbt
+    } catch (err) {
+      throw new Error(`Error while building transaction: ${err}`)
+    }
     let {
       descriptor,
       nostrPublicKeys,
@@ -1378,16 +1388,27 @@ export class Coinstr {
     }
     const labelStore = this.getStore(CoinstrKind.Labels);
     const indexKey = "unhashed";
+    const froozenUtxos = await this.getFrozenUtxosOutpoints(policy);
 
     const maybeLabeledUtxos: Array<CoinstrTypes.LabeledUtxo> = utxos.map(utxo => {
       const label: CoinstrTypes.PublishedLabel | undefined = labelStore.get(utxo.address, indexKey) || labelStore.get(utxo.utxo.outpoint, indexKey);
+      const frozen = froozenUtxos.includes(utxo.utxo.outpoint) ? true : false;
       if (label) {
-        return { ...utxo, labelText: label.label.text, labelId: label.label_id };
+        return { ...utxo, labelText: label.label.text, labelId: label.label_id, frozen };
       }
-      return utxo;
+      return { ...utxo, frozen };
     });
 
     return maybeLabeledUtxos;
   }
 
+  async getFrozenUtxosOutpoints(policy: PublishedPolicy): Promise<string[]> {
+    const policyId = policy.id;
+    const proposalStore = this.getStore(CoinstrKind.Proposal);
+    await this.getProposalsByPolicyId(policyId);
+    const proposals = proposalStore.getManyAsArray([policyId], "policy_id");
+    const psbts: string[] = proposals.map((proposal: CoinstrTypes.PublishedSpendingProposal) => proposal.psbt);
+    const utxos = psbts.flatMap((psbt: string) => this.bitcoinUtil.getPsbtUtxos(psbt));
+    return utxos;
+  }
 }
