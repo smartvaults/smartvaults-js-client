@@ -54,6 +54,7 @@ export type SpendProposalPayload = {
   feeRatePriority: string,
   createdAt?: Date,
   policyPath?: Map<string, Array<number>>
+  utxos?: Array<string>
 }
 
 export type Metadata = {

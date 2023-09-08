@@ -3,7 +3,7 @@ import { generatePrivateKey, Kind, Event, Filter, Sub } from 'nostr-tools'
 import { CoinstrKind, TagType, ProposalType, ProposalStatus, ApprovalStatus, StoreKind, AuthenticatorType } from './enum'
 import { NostrClient, PubPool, Store } from './service'
 import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished, nostrDate } from './util'
-import { BasicTrxDetails, BitcoinUtil, Contact, Policy, PublishedPolicy, TrxDetails, type Utxo } from './models'
+import { BasicTrxDetails, BitcoinUtil, Contact, Policy, PublishedPolicy, TrxDetails } from './models'
 import * as CoinstrTypes from './types'
 import { EventKindHandlerFactory } from './event-kind-handler'
 
@@ -209,7 +209,10 @@ export class Coinstr {
       sharedKeyAuth: sharedKeyAuthenticator
     },
       this.getSharedSigners,
-      this.getOwnedSigners
+      this.getOwnedSigners,
+      this.getProposalsByPolicyId,
+      this.getLabelsByPolicyId,
+      this.getStore(CoinstrKind.Labels),
     )
 
     const authenticatorName = this.authenticator.getName()
@@ -400,10 +403,11 @@ export class Coinstr {
     description,
     amountDescriptor,
     feeRatePriority,
-    policyPath
+    policyPath,
+    utxos
   }: CoinstrTypes.SpendProposalPayload): Promise<CoinstrTypes.PublishedSpendingProposal> {
 
-    const frozenUtxos = await this.getFrozenUtxosOutpoints(policy)
+    const frozenUtxos = await policy.getFrozenUtxosOutpoints()
 
     let amount: number;
     let psbt: string;
@@ -413,7 +417,8 @@ export class Coinstr {
         amount: amountDescriptor,
         feeRate: feeRatePriority,
         policyPath,
-        frozenUtxos
+        utxos,
+        frozenUtxos,
       })
       amount = trx.amount
       psbt = trx.psbt
@@ -1359,7 +1364,7 @@ export class Coinstr {
     return labels
   }
 
-  async getLabelsByPolicyId(policy_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, CoinstrTypes.PublishedLabel | Array<CoinstrTypes.PublishedLabel>>> {
+  getLabelsByPolicyId = async (policy_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, CoinstrTypes.PublishedLabel | Array<CoinstrTypes.PublishedLabel>>> => {
     const policyIds = Array.isArray(policy_ids) ? policy_ids : [policy_ids]
     const store = this.getStore(CoinstrKind.Labels);
     const labelsFilter = this.buildLabelsFilter().events(policyIds).pagination(paginationOpts).toFilters();
@@ -1375,40 +1380,4 @@ export class Coinstr {
     return store.getMany(labelIds, "label_id");
   }
 
-  async getLabeledUtxos(policy: PublishedPolicy): Promise<Array<CoinstrTypes.LabeledUtxo>> {
-    let utxos: Array<Utxo> = [];
-    try {
-      [utxos] = await Promise.all([
-        policy.getUtxos(),
-        this.getLabelsByPolicyId(policy.id)
-      ]);
-    } catch (error) {
-      console.error("An error occurred:", error);
-      return [];
-    }
-    const labelStore = this.getStore(CoinstrKind.Labels);
-    const indexKey = "unhashed";
-    const froozenUtxos = await this.getFrozenUtxosOutpoints(policy);
-
-    const maybeLabeledUtxos: Array<CoinstrTypes.LabeledUtxo> = utxos.map(utxo => {
-      const label: CoinstrTypes.PublishedLabel | undefined = labelStore.get(utxo.address, indexKey) || labelStore.get(utxo.utxo.outpoint, indexKey);
-      const frozen = froozenUtxos.includes(utxo.utxo.outpoint) ? true : false;
-      if (label) {
-        return { ...utxo, labelText: label.label.text, labelId: label.label_id, frozen };
-      }
-      return { ...utxo, frozen };
-    });
-
-    return maybeLabeledUtxos;
-  }
-
-  async getFrozenUtxosOutpoints(policy: PublishedPolicy): Promise<string[]> {
-    const policyId = policy.id;
-    const proposalStore = this.getStore(CoinstrKind.Proposal);
-    await this.getProposalsByPolicyId(policyId);
-    const proposals = proposalStore.getManyAsArray([policyId], "policy_id");
-    const psbts: string[] = proposals.map((proposal: CoinstrTypes.PublishedSpendingProposal) => proposal.psbt);
-    const utxos = psbts.flatMap((psbt: string) => this.bitcoinUtil.getPsbtUtxos(psbt));
-    return utxos;
-  }
 }

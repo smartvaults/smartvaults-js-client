@@ -4,13 +4,13 @@ import {
 } from 'nostr-tools'
 
 import { TagType, CoinstrKind } from '../enum'
-import { getTagValues, buildEvent } from '../util'
+import { getTagValues, buildEvent, PaginationOpts } from '../util'
 import { type NostrClient, type Store } from '../service'
 import { EventKindHandler } from './EventKindHandler'
 import { type BitcoinUtil, PublishedPolicy } from '../models'
 import {
   type PublishedCompletedSpendingProposal, type PublishedCompletedProofOfReserveProposal, type PublishedSpendingProposal, type PublishedProofOfReserveProposal,
-  type PublishedApprovedProposal, type SharedKeyAuthenticator, type PublishedSharedSigner, type PublishedOwnedSigner
+  type PublishedApprovedProposal, type SharedKeyAuthenticator, type PublishedSharedSigner, type PublishedOwnedSigner, PublishedLabel
 } from '../types'
 import { type Authenticator } from '@smontero/nostr-ual'
 export class PolicyHandler extends EventKindHandler {
@@ -20,29 +20,32 @@ export class PolicyHandler extends EventKindHandler {
   private readonly proposalsStore: Store
   private readonly approvalsStore: Store
   private readonly sharedKeysStore: Store
+  private readonly LabelStore: Store
   private readonly nostrClient: NostrClient
   private readonly bitcoinUtil: BitcoinUtil
   private readonly authenticator: Authenticator
   private readonly getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>
   private readonly getCompletedProposalsByPolicyId: (policyId: string) => Promise<Map<string, (PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal)
     | Array<PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal>>>
-  private readonly getProposalsByPolicyId: (policyId: string) => Promise<Map<string, (PublishedSpendingProposal | PublishedProofOfReserveProposal)
+  private readonly getProposalsByPolicyId: (policyId: string[] | string) => Promise<Map<string, (PublishedSpendingProposal | PublishedProofOfReserveProposal)
     | Array<PublishedSpendingProposal | PublishedProofOfReserveProposal>>>
 
   private readonly getApprovalsByPolicyId: (policy_ids: string[] | string | string) => Promise<Map<string, (PublishedApprovedProposal)
     | Array<PublishedApprovedProposal>>>
   private readonly getSharedSigners: (publicKeys?: string | string[]) => Promise<PublishedSharedSigner[]>
   private readonly getOwnedSigners: () => Promise<PublishedOwnedSigner[]>
-  constructor(store: Store, eventsStore: Store, completedProposalsStore: Store, proposalsStore: Store, approvalsStore: Store, sharedKeysStore: Store, nostrClient: NostrClient, bitcoinUtil: BitcoinUtil, authenticator: Authenticator,
+  private readonly getLabelsByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, PublishedLabel | Array<PublishedLabel>>>
+  constructor(store: Store, eventsStore: Store, completedProposalsStore: Store, proposalsStore: Store, approvalsStore: Store, sharedKeysStore: Store, labelStore: Store, nostrClient: NostrClient, bitcoinUtil: BitcoinUtil, authenticator: Authenticator,
     getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>,
     getCompletedProposalsByPolicyId: (policyId: string) => Promise<Map<string, (PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal)
       | Array<PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal>>>,
-    getProposalsByPolicyId: (policyId: string) => Promise<Map<string, (PublishedSpendingProposal | PublishedProofOfReserveProposal)
+    getProposalsByPolicyId: (policyId: string[] | string) => Promise<Map<string, (PublishedSpendingProposal | PublishedProofOfReserveProposal)
       | Array<PublishedSpendingProposal | PublishedProofOfReserveProposal>>>,
     getApprovalsByPolicyId: (policy_ids: string[] | string | string) => Promise<Map<string, (PublishedApprovedProposal)
       | Array<PublishedApprovedProposal>>>,
     getSharedSigners: (publicKeys?: string | string[]) => Promise<PublishedSharedSigner[]>,
-    getOwnedSigners: () => Promise<PublishedOwnedSigner[]>
+    getOwnedSigners: () => Promise<PublishedOwnedSigner[]>,
+    getLabelsByPolicyId: (policy_ids: string[] | string, paginationOpts?: PaginationOpts) => Promise<Map<string, PublishedLabel | Array<PublishedLabel>>>,
   ) {
     super()
     this.store = store
@@ -51,6 +54,7 @@ export class PolicyHandler extends EventKindHandler {
     this.proposalsStore = proposalsStore
     this.approvalsStore = approvalsStore
     this.sharedKeysStore = sharedKeysStore
+    this.LabelStore = labelStore
     this.nostrClient = nostrClient
     this.bitcoinUtil = bitcoinUtil
     this.authenticator = authenticator
@@ -60,6 +64,7 @@ export class PolicyHandler extends EventKindHandler {
     this.getApprovalsByPolicyId = getApprovalsByPolicyId
     this.getSharedSigners = getSharedSigners
     this.getOwnedSigners = getOwnedSigners
+    this.getLabelsByPolicyId = getLabelsByPolicyId
   }
 
   protected async _handle<K extends number>(policyEvents: Array<Event<K>>): Promise<Array<PublishedPolicy>> {
@@ -93,7 +98,10 @@ export class PolicyHandler extends EventKindHandler {
           sharedKeyAuth: sharedKeyAuthenticator
         },
           this.getSharedSigners,
-          this.getOwnedSigners
+          this.getOwnedSigners,
+          this.getProposalsByPolicyId,
+          this.getLabelsByPolicyId,
+          this.LabelStore
         )
       } catch (e) {
         console.error(`Error parsing policy ${policyId}: ${String(e)}`);
