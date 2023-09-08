@@ -34,11 +34,13 @@ export type UndecoratedBasicTrxDetails = {
   received: number,
   sent: number,
   fee: number,
+  unconfirmed_last_seen?: number,
   confirmation_time?: UndecoratedBasicConfirmationTime
 }
 
 export type BasicTrxDetails = UndecoratedBasicTrxDetails & {
   confirmation_time?: BasicConfirmationTime
+  unconfirmedLastSeenAt?: Date,
   net: number
 }
 

@@ -181,7 +181,7 @@ describe('PublishedPolicy', () => {
 
     it('should correctly call the get_trxs method of the wallet instance and decorate the trx details', async () => {
       wallet.sync.mockResolvedValue()
-      wallet.get_trxs.mockReturnValue([{
+      wallet.get_trxs.mockResolvedValue([{
         txid: "05dce7f5440ded30bd55359d9e4f65de34fefaaef5fb16ac4cfaf72375fd204d",
         received: 2695,
         sent: 4000,
@@ -196,6 +196,7 @@ describe('PublishedPolicy', () => {
         received: 4000,
         sent: 0,
         fee: 153,
+        unconfirmed_last_seen: 1689279110
       }])
       const expected = [{
         txid: "05dce7f5440ded30bd55359d9e4f65de34fefaaef5fb16ac4cfaf72375fd204d",
@@ -214,7 +215,9 @@ describe('PublishedPolicy', () => {
         received: 4000,
         sent: 0,
         fee: 153,
-        net: 4000
+        net: 4000,
+        unconfirmed_last_seen: 1689279110,
+        unconfirmedLastSeenAt: new Date(1689279110 * 1000)
       }]
       let actual = await policy.getTrxs()
       expect(expected).toEqual(actual)

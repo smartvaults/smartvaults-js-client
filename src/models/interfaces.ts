@@ -39,7 +39,7 @@ export interface Wallet {
 
   finalize_trx(psbts: string[], broadcast: boolean): Promise<FinalizeTrxResponse>;
 
-  get_trxs(): Array<UndecoratedBasicTrxDetails>;
+  get_trxs(): Promise<Array<UndecoratedBasicTrxDetails>>;
 
   get_trx(txid: string): Promise<UndecoratedTrxDetails>;
 

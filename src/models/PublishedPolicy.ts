@@ -179,7 +179,7 @@ export class PublishedPolicy {
   }
 
   async getTrxs(): Promise<Array<BasicTrxDetails>> {
-    const trxs = (await this.synced()).get_trxs()
+    const trxs = await (await this.synced()).get_trxs()
     return trxs.map(this.decorateTrxDetails)
   }
 
@@ -196,6 +196,9 @@ export class PublishedPolicy {
     trxDetails.net = trxDetails.received - trxDetails.sent
     if (trxDetails.confirmation_time) {
       trxDetails.confirmation_time.confirmedAt = fromNostrDate(trxDetails.confirmation_time.timestamp)
+    }
+    if (trxDetails.unconfirmed_last_seen != null) {
+      trxDetails.unconfirmedLastSeenAt = fromNostrDate(trxDetails.unconfirmed_last_seen)
     }
     return trxDetails
   }
