@@ -27,7 +27,6 @@ export class PublishedPolicy {
   private getProposalsByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, (PublishedSpendingProposal | PublishedProofOfReserveProposal) | Array<PublishedSpendingProposal | PublishedProofOfReserveProposal>>>
   private getLabelsByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, PublishedLabel | Array<PublishedLabel>>>
   private labelStore: Store
-  private getPsbtUtxos: (psbt: string) => Array<string>
 
   static fromPolicyAndEvent<K extends number>({
     policyContent,
@@ -102,7 +101,6 @@ export class PublishedPolicy {
     this.getProposalsByPolicyId = getProposalsByPolicyId
     this.getLabelsByPolicyId = getLabelsByPolicyId
     this.labelStore = labelStore
-    this.getPsbtUtxos = bitcoinUtil.getPsbtUtxos
   }
 
   async getUiMetadata(): Promise<UIMetadata> {
@@ -240,9 +238,22 @@ export class PublishedPolicy {
     const policyId = this.id;
     const proposal = (await this.getProposalsByPolicyId(policyId, {})).get(policyId) as Array<PublishedSpendingProposal> || [];
     const proposals = Array.isArray(proposal) ? proposal : [proposal];
-    const psbts: string[] = proposals.map((proposal: PublishedSpendingProposal) => proposal.psbt);
-    const utxos = psbts.flatMap((psbt: string) => this.getPsbtUtxos(psbt));
+    const maybeConcatUtxos = proposals.map(proposal => proposal.utxo);
+    const utxos = maybeConcatUtxos.flatMap(utxo => utxo.split('-'));
     return utxos;
+  }
+
+  async getUtxosOutpoints(): Promise<string[]> {
+    const utxos = await this.getUtxos() || [];
+    const utxosOutpoints = utxos.map(utxo => utxo.utxo.outpoint);
+    return utxosOutpoints;
+  }
+
+  async getFrozenBalance(): Promise<number> {
+    const utxos = await this.getLabeledUtxos();
+    const frozenUtxos = utxos.filter(utxo => utxo.frozen);
+    const frozenBalance = frozenUtxos.reduce((accumulator, current) => accumulator + current.utxo.txout.value, 0);
+    return frozenBalance;
   }
 
   private decorateTrxDetails(trxDetails: any): any {

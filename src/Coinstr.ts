@@ -33,7 +33,7 @@ export class Coinstr {
   initStores() {
     this.stores = new Map()
     this.stores.set(CoinstrKind.Policy, Store.createSingleIndexStore("id"))
-    this.stores.set(CoinstrKind.Proposal, Store.createMultiIndexStore(["proposal_id", "policy_id"], "proposal_id"))
+    this.stores.set(CoinstrKind.Proposal, Store.createMultiIndexStore(["proposal_id", "policy_id", "utxo"], "proposal_id"))
     this.stores.set(CoinstrKind.ApprovedProposal, Store.createMultiIndexStore(["approval_id", "proposal_id", "policy_id"], "approval_id"))
     this.stores.set(CoinstrKind.SharedKey, Store.createSingleIndexStore("policyId"))
     this.stores.set(CoinstrKind.CompletedProposal, Store.createMultiIndexStore(["id", "txId", "policy_id"], "id"))
@@ -404,10 +404,15 @@ export class Coinstr {
     amountDescriptor,
     feeRatePriority,
     policyPath,
-    utxos
+    utxos,
+    useFrozenUtxos = false
   }: CoinstrTypes.SpendProposalPayload): Promise<CoinstrTypes.PublishedSpendingProposal> {
 
-    const frozenUtxos = await policy.getFrozenUtxosOutpoints()
+    const _frozenUtxos = await policy.getFrozenUtxosOutpoints()
+    const frozenUtxos = useFrozenUtxos ? [] : _frozenUtxos
+    const utxosOutpoints = new Set(await policy.getUtxosOutpoints())
+    if (utxos?.some(utxo => !utxosOutpoints.has(utxo))) throw new Error("Invalid UTXOs")
+    if (!useFrozenUtxos && utxos?.some(utxo => frozenUtxos.includes(utxo))) throw new Error("To use frozen utxos, useFrozenUtxos must be set to true")
 
     let amount: number;
     let psbt: string;
@@ -463,11 +468,13 @@ export class Coinstr {
     }
     const signer = 'Unknown'
     const fee = this.bitcoinUtil.getFee(psbt)
+    const utxo = this.bitcoinUtil.getPsbtUtxos(psbt).join('-')
     Promise.all(promises)
     return {
       ...proposalContent[type],
       signer,
       fee,
+      utxo,
       type: ProposalType.Spending,
       status: ProposalStatus.Unsigned,
       policy_id: policy.id,
@@ -1055,7 +1062,11 @@ export class Coinstr {
       sharedKeyAuthenticator)
 
     const pub = this.nostrClient.publish(completedProposalEvent)
-    const promises: Promise<void>[] = [pub.onFirstOkOrCompleteFailure(), this.deleteProposals(proposalId)]
+    const proposalStore = this.getStore(CoinstrKind.Proposal);
+    const proposalsThatShareUtxo: Array<CoinstrTypes.PublishedSpendingProposal> = proposalStore.getManyAsArray([proposal.utxo], "utxo");
+    const proposalsIdsThatShareUtxo = proposalsThatShareUtxo.map(proposal => proposal.proposal_id);
+
+    const promises: Promise<void>[] = [pub.onFirstOkOrCompleteFailure(), this.deleteProposals(proposalsIdsThatShareUtxo)]
 
     const publishedCompletedProposal: CoinstrTypes.PublishedCompletedSpendingProposal = {
       type,
@@ -1206,7 +1217,8 @@ export class Coinstr {
     const status = ProposalStatus.Unsigned
     const signer = 'Unknown'
     const fee = this.bitcoinUtil.getFee(psbt)
-    return { ...proposal[type], proposal_id, type, status, signer, fee, policy_id, createdAt }
+    const utxo = this.bitcoinUtil.getPsbtUtxos(psbt).join('-')
+    return { ...proposal[type], proposal_id, type, status, signer, fee, utxo, policy_id, createdAt }
 
   }
 

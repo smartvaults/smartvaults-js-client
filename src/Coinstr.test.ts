@@ -213,7 +213,7 @@ describe('Coinstr', () => {
       policy2 = await coinstr.savePolicy(savePayload)
       savePayload = getSavePolicyPayload(3, keySet2.getPublicKeys())
       policy3 = await coinstr.savePolicy(savePayload)
-
+      bitcoinUtil.getPsbtUtxos.mockReturnValue(["utxo1", "utxo2"])
     })
 
     // it('lee policies', async () => {
@@ -318,6 +318,8 @@ describe('Coinstr', () => {
         .mockResolvedValueOnce({ amount: 4000, psbt: "encoded psbt4" })
       bitcoinUtil.createWallet.mockReturnValue(wallet)
       bitcoinUtil.getFee.mockReturnValue(100)
+      bitcoinUtil.getPsbtUtxos.mockReturnValue(["utxo1", "utxo2"])
+
     })
 
     it('should receive policy events', async () => {
@@ -920,6 +922,7 @@ describe('Coinstr', () => {
       bitcoinUtil.getTrxId.mockReturnValue(mockTxid)
       bitcoinUtil.getFee.mockReturnValue(420)
       bitcoinUtil.canFinalizePsbt.mockReturnValue(false)
+      bitcoinUtil.getPsbtUtxos.mockReturnValue(['utxo1', 'utxo2'])
 
       let savePolicyPayload1 = getSavePolicyPayload(11, keySet1.getPublicKeys(), -10)
       let policy1 = await coinstr.savePolicy(savePolicyPayload1) // Policy 1 is created by authenticator 1
@@ -1110,6 +1113,22 @@ describe('Coinstr', () => {
     }
     );
 
+
+    it('deleteProposals works', async () => {
+      const spendProposal = await coinstr.getProposalsById([spendProposal3.proposal_id]);
+      const approvals = await coinstr.getApprovals([spendProposal3.proposal_id]);
+      expect(spendProposal.size).toBe(1);
+      expect(approvals.size).toBe(1);
+      expect(approvals.get(spendProposal3.proposal_id)!.length).toBe(2);
+      await coinstr.deleteProposals(spendProposal3.proposal_id)
+      await sleep(200)
+      const proposals = await coinstr.getProposalsById([spendProposal3.proposal_id]);
+      const approvals2 = await coinstr.getApprovals([spendProposal3.proposal_id]);
+      expect(proposals.size).toBe(0);
+      expect(approvals2.size).toBe(0);
+    }
+    );
+
     it('finalizeSpendingProposal works', async () => {
       bitcoinUtil.canFinalizePsbt.mockReturnValue(true)
       await coinstr._saveApprovedProposal(spendProposal1.proposal_id)
@@ -1127,21 +1146,6 @@ describe('Coinstr', () => {
       const completedProposal = await coinstr.getCompletedProposalByTx(expectedTrx.trx)
       const expectedCompletedProposal = await coinstr.getCompletedProposalsById([finalizedProposal.id])
       expect(completedProposal).toEqual(expectedCompletedProposal.get(finalizedProposal.id))
-    }
-    );
-
-    it('deleteProposals works', async () => {
-      const spendProposal = await coinstr.getProposalsById([spendProposal3.proposal_id]);
-      const approvals = await coinstr.getApprovals([spendProposal3.proposal_id]);
-      expect(spendProposal.size).toBe(1);
-      expect(approvals.size).toBe(1);
-      expect(approvals.get(spendProposal3.proposal_id)!.length).toBe(2);
-      await coinstr.deleteProposals(spendProposal3.proposal_id)
-      await sleep(200)
-      const proposals = await coinstr.getProposalsById([spendProposal3.proposal_id]);
-      const approvals2 = await coinstr.getApprovals([spendProposal3.proposal_id]);
-      expect(proposals.size).toBe(0);
-      expect(approvals2.size).toBe(0);
     }
     );
 
