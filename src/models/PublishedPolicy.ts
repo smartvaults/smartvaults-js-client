@@ -220,11 +220,11 @@ export class PublishedPolicy {
       return [];
     }
     const indexKey = "unhashed";
-    const froozenUtxos = await this.getFrozenUtxosOutpoints();
+    const frozenUtxos = await this.getFrozenUtxosOutpoints();
 
     const maybeLabeledUtxos: Array<LabeledUtxo> = utxos.map(utxo => {
       const label: PublishedLabel | undefined = this.labelStore.get(utxo.address, indexKey) || this.labelStore.get(utxo.utxo.outpoint, indexKey);
-      const frozen = froozenUtxos.includes(utxo.utxo.outpoint) ? true : false;
+      const frozen = frozenUtxos.includes(utxo.utxo.outpoint) ? true : false;
       if (label) {
         return { ...utxo, labelText: label.label.text, labelId: label.label_id, frozen };
       }

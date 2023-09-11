@@ -1061,12 +1061,10 @@ export class Coinstr {
     },
       sharedKeyAuthenticator)
 
-    const pub = this.nostrClient.publish(completedProposalEvent)
-    const proposalStore = this.getStore(CoinstrKind.Proposal);
-    const proposalsThatShareUtxo: Array<CoinstrTypes.PublishedSpendingProposal> = proposalStore.getManyAsArray([proposal.utxo], "utxo");
-    const proposalsIdsThatShareUtxo = proposalsThatShareUtxo.map(proposal => proposal.proposal_id);
+    await this.nostrClient.publish(completedProposalEvent).onFirstOkOrCompleteFailure()
+    const proposalsIdsToDelete: string[] = (await this.getProposalsWithCommonUtxos(proposal)).map(({ proposal_id }) => proposal_id);
+    await this.deleteProposals(proposalsIdsToDelete)
 
-    const promises: Promise<void>[] = [pub.onFirstOkOrCompleteFailure(), this.deleteProposals(proposalsIdsThatShareUtxo)]
 
     const publishedCompletedProposal: CoinstrTypes.PublishedCompletedSpendingProposal = {
       type,
@@ -1078,10 +1076,29 @@ export class Coinstr {
       completion_date: fromNostrDate(completedProposalEvent.created_at),
       id: completedProposalEvent.id,
     }
-    await Promise.all(promises)
     return publishedCompletedProposal
   }
 
+  private async getProposalsWithCommonUtxos(proposal: CoinstrTypes.PublishedSpendingProposal): Promise<Array<CoinstrTypes.PublishedSpendingProposal>> {
+    const utxos = proposal.utxo.split('-');
+    const policyId = proposal.policy_id;
+    const proposalsMap = await this.getProposalsByPolicyId(policyId);
+    const policyProposals = Array.from(proposalsMap.values()).flat() as Array<CoinstrTypes.PublishedSpendingProposal>;
+
+    const utxosSet = new Set(utxos);
+    const proposals: Array<CoinstrTypes.PublishedSpendingProposal> = [];
+
+    for (const proposal of policyProposals) {
+      const proposalUtxos = proposal.utxo.split('-');
+      for (const proposalUtxo of proposalUtxos) {
+        if (utxosSet.has(proposalUtxo)) {
+          proposals.push(proposal);
+          break;
+        }
+      }
+    }
+    return proposals;
+  }
 
   /**
    * Retrieves a completed proposal based on the provided transaction details.
