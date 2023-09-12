@@ -3,9 +3,10 @@ import { Event } from 'nostr-tools'
 import { Balance } from './Balance'
 import { Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails, Utxo } from './types'
 import { BitcoinUtil, Wallet } from './interfaces'
-import { TimeUtil, fromNostrDate, toPublished } from '../util'
+import { PaginationOpts, TimeUtil, fromNostrDate, toPublished } from '../util'
 import { generateUiMetadata, UIMetadata, Key } from '../util/GenerateUiMetadata'
-import { PublishedOwnedSigner, PublishedSharedSigner } from '../types'
+import { LabeledUtxo, PublishedLabel, PublishedOwnedSigner, PublishedProofOfReserveProposal, PublishedSharedSigner, PublishedSpendingProposal } from '../types'
+import { type Store } from '../service'
 
 export class PublishedPolicy {
   id: string
@@ -23,7 +24,9 @@ export class PublishedPolicy {
   private getSharedSigners: (publicKeys?: string | string[]) => Promise<PublishedSharedSigner[]>
   private getOwnedSigners: () => Promise<PublishedOwnedSigner[]>
   private toMiniscript: (descriptor: string) => string
-
+  private getProposalsByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, (PublishedSpendingProposal | PublishedProofOfReserveProposal) | Array<PublishedSpendingProposal | PublishedProofOfReserveProposal>>>
+  private getLabelsByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, PublishedLabel | Array<PublishedLabel>>>
+  private labelStore: Store
 
   static fromPolicyAndEvent<K extends number>({
     policyContent,
@@ -40,7 +43,10 @@ export class PublishedPolicy {
       sharedKeyAuth: Authenticator
     },
     getSharedSigners: (publicKeys?: string | string[]) => Promise<PublishedSharedSigner[]>,
-    getOwnedSigners: () => Promise<PublishedOwnedSigner[]>
+    getOwnedSigners: () => Promise<PublishedOwnedSigner[]>,
+    getProposalsByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, (PublishedSpendingProposal | PublishedProofOfReserveProposal) | Array<PublishedSpendingProposal | PublishedProofOfReserveProposal>>>,
+    getLabelsByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, PublishedLabel | Array<PublishedLabel>>>,
+    labelStore: Store
   )
 
     : PublishedPolicy {
@@ -50,7 +56,10 @@ export class PublishedPolicy {
       nostrPublicKeys,
       sharedKeyAuth,
       getSharedSigners,
-      getOwnedSigners
+      getOwnedSigners,
+      getProposalsByPolicyId,
+      getLabelsByPolicyId,
+      labelStore
     )
   }
 
@@ -71,7 +80,11 @@ export class PublishedPolicy {
     nostrPublicKeys: string[],
     sharedKeyAuth: Authenticator,
     getSharedSigners: (publicKeys?: string | string[]) => Promise<PublishedSharedSigner[]>,
-    getOwnedSigners: () => Promise<PublishedOwnedSigner[]>
+    getOwnedSigners: () => Promise<PublishedOwnedSigner[]>,
+    getProposalsByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, (PublishedSpendingProposal | PublishedProofOfReserveProposal) | Array<PublishedSpendingProposal | PublishedProofOfReserveProposal>>>,
+    getLabelsByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, PublishedLabel | Array<PublishedLabel>>>,
+    labelStore: Store,
+
   ) {
     this.id = id
     this.name = name
@@ -85,6 +98,9 @@ export class PublishedPolicy {
     this.getSharedSigners = getSharedSigners
     this.getOwnedSigners = getOwnedSigners
     this.toMiniscript = bitcoinUtil.toMiniscript
+    this.getProposalsByPolicyId = getProposalsByPolicyId
+    this.getLabelsByPolicyId = getLabelsByPolicyId
+    this.labelStore = labelStore
   }
 
   async getUiMetadata(): Promise<UIMetadata> {
@@ -190,6 +206,53 @@ export class PublishedPolicy {
 
   async getUtxos(): Promise<Array<Utxo>> {
     return (await this.synced()).get_utxos()
+  }
+
+  async getLabeledUtxos(): Promise<Array<LabeledUtxo>> {
+    let utxos: Array<Utxo> = [];
+    try {
+      [utxos] = await Promise.all([
+        this.getUtxos(),
+        this.getLabelsByPolicyId(this.id, {})
+      ]);
+    } catch (error) {
+      console.error("An error occurred:", error);
+      return [];
+    }
+    const indexKey = "unhashed";
+    const frozenUtxos = await this.getFrozenUtxosOutpoints();
+
+    const maybeLabeledUtxos: Array<LabeledUtxo> = utxos.map(utxo => {
+      const label: PublishedLabel | undefined = this.labelStore.get(utxo.address, indexKey) || this.labelStore.get(utxo.utxo.outpoint, indexKey);
+      const frozen = frozenUtxos.includes(utxo.utxo.outpoint) ? true : false;
+      if (label) {
+        return { ...utxo, labelText: label.label.text, labelId: label.label_id, frozen };
+      }
+      return { ...utxo, frozen };
+    });
+
+    return maybeLabeledUtxos;
+  }
+
+  async getFrozenUtxosOutpoints(): Promise<string[]> {
+    const policyId = this.id;
+    const proposal = (await this.getProposalsByPolicyId(policyId, {})).get(policyId) as Array<PublishedSpendingProposal> || [];
+    const proposals = Array.isArray(proposal) ? proposal : [proposal];
+    const utxos = proposals.flatMap(proposal => proposal.utxos);
+    return utxos;
+  }
+
+  async getUtxosOutpoints(): Promise<string[]> {
+    const utxos = await this.getUtxos() || [];
+    const utxosOutpoints = utxos.map(utxo => utxo.utxo.outpoint);
+    return utxosOutpoints;
+  }
+
+  async getFrozenBalance(): Promise<number> {
+    const utxos = await this.getLabeledUtxos();
+    const frozenUtxos = utxos.filter(utxo => utxo.frozen);
+    const frozenBalance = frozenUtxos.reduce((accumulator, current) => accumulator + current.utxo.txout.value, 0);
+    return frozenBalance;
   }
 
   private decorateTrxDetails(trxDetails: any): any {

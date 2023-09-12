@@ -54,6 +54,8 @@ export type SpendProposalPayload = {
   feeRatePriority: string,
   createdAt?: Date,
   policyPath?: Map<string, Array<number>>
+  utxos?: Array<string>
+  useFrozenUtxos?: boolean
 }
 
 export type Metadata = {
@@ -139,9 +141,11 @@ export type PublishedSpendingProposal = PublishedProposal & BaseProposal & {
   to_address: string
   amount: number
   description: string,
+  utxos: string[]
 }
 export type PublishedProofOfReserveProposal = PublishedProposal & BaseProposal & {
   message: string
+  utxos?: string[]
 }
 
 export type CompletedSpendingProposal = {
@@ -208,4 +212,5 @@ export type PublishedLabel = Published & {
 export type LabeledUtxo = Utxo & {
   labelText?: string
   labelId?: string
+  frozen: boolean
 }

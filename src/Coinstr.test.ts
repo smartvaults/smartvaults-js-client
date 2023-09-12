@@ -213,7 +213,7 @@ describe('Coinstr', () => {
       policy2 = await coinstr.savePolicy(savePayload)
       savePayload = getSavePolicyPayload(3, keySet2.getPublicKeys())
       policy3 = await coinstr.savePolicy(savePayload)
-
+      bitcoinUtil.getPsbtUtxos.mockReturnValue(["utxo1", "utxo2"])
     })
 
     // it('lee policies', async () => {
@@ -318,6 +318,8 @@ describe('Coinstr', () => {
         .mockResolvedValueOnce({ amount: 4000, psbt: "encoded psbt4" })
       bitcoinUtil.createWallet.mockReturnValue(wallet)
       bitcoinUtil.getFee.mockReturnValue(100)
+      bitcoinUtil.getPsbtUtxos.mockReturnValue(["utxo1", "utxo2"])
+
     })
 
     it('should receive policy events', async () => {
@@ -901,6 +903,7 @@ describe('Coinstr', () => {
     let expectedTrx: FinalizeTrxResponse;
     let coinstr2: Coinstr
     let finalizedProposal;
+    let policy1;
 
     beforeAll(async () => {
 
@@ -913,6 +916,7 @@ describe('Coinstr', () => {
         .mockResolvedValueOnce({ amount: 2000, psbt: "encoded psbt2" })
         .mockResolvedValueOnce({ amount: 3000, psbt: "encoded psbt3" })
         .mockResolvedValueOnce({ amount: 4000, psbt: "encoded psbt4" })
+        .mockResolvedValueOnce({ amount: 5000, psbt: "encoded psbt5" })
       bitcoinUtil.createWallet.mockReturnValue(wallet)
       let mockTxid = Math.random().toString(36).substring(7)
       expectedTrx = { txid: mockTxid, psbt: "psbt1", trx: { inputs: ["input1"], txid: mockTxid, net: -1, confirmation_time: { confirmetAt: (new Date()).toString() } } }
@@ -920,9 +924,10 @@ describe('Coinstr', () => {
       bitcoinUtil.getTrxId.mockReturnValue(mockTxid)
       bitcoinUtil.getFee.mockReturnValue(420)
       bitcoinUtil.canFinalizePsbt.mockReturnValue(false)
+      bitcoinUtil.getPsbtUtxos.mockReturnValue(['utxo1', 'utxo2'])
 
       let savePolicyPayload1 = getSavePolicyPayload(11, keySet1.getPublicKeys(), -10)
-      let policy1 = await coinstr.savePolicy(savePolicyPayload1) // Policy 1 is created by authenticator 1
+      policy1 = await coinstr.savePolicy(savePolicyPayload1) // Policy 1 is created by authenticator 1
       let savePolicyPayload2 = getSavePolicyPayload(12, altKeySet.getPublicKeys(), -12)
       let policy2 = await coinstr2.savePolicy(savePolicyPayload2) // Policy 2 is created by authenticator 2
       let payloadWithBothKeys = getSavePolicyPayload(13, [...keySet1.getPublicKeys(), ...altKeySet.getPublicKeys()], -13)
@@ -1110,25 +1115,6 @@ describe('Coinstr', () => {
     }
     );
 
-    it('finalizeSpendingProposal works', async () => {
-      bitcoinUtil.canFinalizePsbt.mockReturnValue(true)
-      await coinstr._saveApprovedProposal(spendProposal1.proposal_id)
-      finalizedProposal = await coinstr.finalizeSpendingProposal(spendProposal1.proposal_id)
-      expect(finalizedProposal.tx).toEqual(expectedTrx.trx)
-      expect(finalizedProposal.description).toEqual(spendProposal1.description)
-      await sleep(1000)
-      const completedProposalsMap = await coinstr.getCompletedProposalsById(finalizedProposal.id);
-      expect(completedProposalsMap.size).toBe(1);
-      expect(completedProposalsMap.get(finalizedProposal.id)).toEqual(finalizedProposal);
-    }
-    );
-
-    it('getCompletedProposalByTx works', async () => {
-      const completedProposal = await coinstr.getCompletedProposalByTx(expectedTrx.trx)
-      const expectedCompletedProposal = await coinstr.getCompletedProposalsById([finalizedProposal.id])
-      expect(completedProposal).toEqual(expectedCompletedProposal.get(finalizedProposal.id))
-    }
-    );
 
     it('deleteProposals works', async () => {
       const spendProposal = await coinstr.getProposalsById([spendProposal3.proposal_id]);
@@ -1142,6 +1128,36 @@ describe('Coinstr', () => {
       const approvals2 = await coinstr.getApprovals([spendProposal3.proposal_id]);
       expect(proposals.size).toBe(0);
       expect(approvals2.size).toBe(0);
+    }
+    );
+
+    it('finalizeSpendingProposal works', async () => {
+      bitcoinUtil.canFinalizePsbt.mockReturnValue(true)
+      bitcoinUtil.getPsbtUtxos.mockReturnValue(['utxo1', 'otherUtxo'])
+      await coinstr._saveApprovedProposal(spendProposal1.proposal_id)
+      const proposalWithOneCommonUtxo = await coinstr.spend(spendProposalPayload(22, policy1))
+      await coinstr.getProposals()
+      bitcoinUtil.getPsbtUtxos.mockReturnValue(['nocommon', 'utxos'])
+      const proposalWithNoCommonUtxo = await coinstr.spend(spendProposalPayload(23, policy1))
+      const proposalsBefore = await coinstr.getProposals()
+      expect(proposalsBefore.length).toBe(4)
+      expect(proposalsBefore[1]).toEqual(proposalWithOneCommonUtxo)
+      finalizedProposal = await coinstr.finalizeSpendingProposal(spendProposal1.proposal_id)
+      const proposalsAfter = await coinstr.getProposals()
+      expect(proposalsAfter.length).toBe(1)
+      expect(proposalsAfter[0]).toEqual(proposalWithNoCommonUtxo)
+      expect(finalizedProposal.tx).toEqual(expectedTrx.trx)
+      expect(finalizedProposal.description).toEqual(spendProposal1.description)
+      const completedProposalsMap = await coinstr.getCompletedProposalsById(finalizedProposal.id);
+      expect(completedProposalsMap.size).toBe(1);
+      expect(completedProposalsMap.get(finalizedProposal.id)).toEqual(finalizedProposal);
+    }
+    );
+
+    it('getCompletedProposalByTx works', async () => {
+      const completedProposal = await coinstr.getCompletedProposalByTx(expectedTrx.trx)
+      const expectedCompletedProposal = await coinstr.getCompletedProposalsById([finalizedProposal.id])
+      expect(completedProposal).toEqual(expectedCompletedProposal.get(finalizedProposal.id))
     }
     );
 

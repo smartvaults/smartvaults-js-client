@@ -49,7 +49,10 @@ describe('PublishedPolicy', () => {
       sharedKeyAuth,
     },
       coinstr.getSharedSigners,
-      coinstr.getOwnedSigners
+      coinstr.getOwnedSigners,
+      coinstr.getProposalsByPolicyId,
+      coinstr.getLabelsByPolicyId,
+      coinstr.getStore(CoinstrKind.Labels),
     )
   })
 
@@ -300,19 +303,19 @@ describe('PublishedPolicy', () => {
 
     it('should correctly call the get_utxos method of the wallet instance', async () => {
       wallet.sync.mockResolvedValue()
-      
+
       const expected = [{
         "utxo": {
-            "outpoint": "05dce7f5440ded30bd55359d9e4f65de34fefaaef5fb16ac4cfaf72375fd204d:1",
-            "txout": {
-                "value": 2695,
-                "script_pubkey": "5120ff7855d223320ed6c3116cf89d3eef8a03ffb9ed68002724f6d9be537efefa2d"
-            },
-            "keychain": "External",
-            "is_spent": false
+          "outpoint": "05dce7f5440ded30bd55359d9e4f65de34fefaaef5fb16ac4cfaf72375fd204d:1",
+          "txout": {
+            "value": 2695,
+            "script_pubkey": "5120ff7855d223320ed6c3116cf89d3eef8a03ffb9ed68002724f6d9be537efefa2d"
+          },
+          "keychain": "External",
+          "is_spent": false
         },
         "address": "tb1plau9t53rxg8ddsc3dnuf60h03gpllw0ddqqzwf8kmxl9xlh7lgks7dfexg"
-    }]
+      }]
       wallet.get_utxos.mockReturnValue(expected)
       let actual = await policy.getUtxos()
       expect(expected).toEqual(actual)

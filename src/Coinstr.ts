@@ -3,7 +3,7 @@ import { generatePrivateKey, Kind, Event, Filter, Sub } from 'nostr-tools'
 import { CoinstrKind, TagType, ProposalType, ProposalStatus, ApprovalStatus, StoreKind, AuthenticatorType } from './enum'
 import { NostrClient, PubPool, Store } from './service'
 import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished, nostrDate } from './util'
-import { BasicTrxDetails, BitcoinUtil, Contact, Policy, PublishedPolicy, TrxDetails, type Utxo } from './models'
+import { BasicTrxDetails, BitcoinUtil, Contact, Policy, PublishedPolicy, TrxDetails } from './models'
 import * as CoinstrTypes from './types'
 import { EventKindHandlerFactory } from './event-kind-handler'
 
@@ -209,7 +209,10 @@ export class Coinstr {
       sharedKeyAuth: sharedKeyAuthenticator
     },
       this.getSharedSigners,
-      this.getOwnedSigners
+      this.getOwnedSigners,
+      this.getProposalsByPolicyId,
+      this.getLabelsByPolicyId,
+      this.getStore(CoinstrKind.Labels),
     )
 
     const authenticatorName = this.authenticator.getName()
@@ -400,16 +403,33 @@ export class Coinstr {
     description,
     amountDescriptor,
     feeRatePriority,
-    policyPath
+    policyPath,
+    utxos,
+    useFrozenUtxos = false
   }: CoinstrTypes.SpendProposalPayload): Promise<CoinstrTypes.PublishedSpendingProposal> {
 
-    let { amount, psbt } = await policy.buildTrx({
-      address: to_address,
-      amount: amountDescriptor,
-      feeRate: feeRatePriority,
-      policyPath
-    })
+    const _frozenUtxos = await policy.getFrozenUtxosOutpoints()
+    const frozenUtxos = useFrozenUtxos ? [] : _frozenUtxos
+    const utxosOutpoints = new Set(await policy.getUtxosOutpoints())
+    if (utxos?.some(utxo => !utxosOutpoints.has(utxo))) throw new Error("Invalid UTXOs")
+    if (!useFrozenUtxos && utxos?.some(utxo => frozenUtxos.includes(utxo))) throw new Error("To use frozen utxos, useFrozenUtxos must be set to true")
 
+    let amount: number;
+    let psbt: string;
+    try {
+      const trx = await policy.buildTrx({
+        address: to_address,
+        amount: amountDescriptor,
+        feeRate: feeRatePriority,
+        policyPath,
+        utxos,
+        frozenUtxos,
+      })
+      amount = trx.amount
+      psbt = trx.psbt
+    } catch (err) {
+      throw new Error(`Error while building transaction: ${err}`)
+    }
     let {
       descriptor,
       nostrPublicKeys,
@@ -448,11 +468,13 @@ export class Coinstr {
     }
     const signer = 'Unknown'
     const fee = this.bitcoinUtil.getFee(psbt)
+    const utxo = this.bitcoinUtil.getPsbtUtxos(psbt)
     Promise.all(promises)
     return {
       ...proposalContent[type],
       signer,
       fee,
+      utxos: utxo,
       type: ProposalType.Spending,
       status: ProposalStatus.Unsigned,
       policy_id: policy.id,
@@ -1039,8 +1061,10 @@ export class Coinstr {
     },
       sharedKeyAuthenticator)
 
-    const pub = this.nostrClient.publish(completedProposalEvent)
-    const promises: Promise<void>[] = [pub.onFirstOkOrCompleteFailure(), this.deleteProposals(proposalId)]
+    await this.nostrClient.publish(completedProposalEvent).onFirstOkOrCompleteFailure()
+    const proposalsIdsToDelete: string[] = (await this.getProposalsWithCommonUtxos(proposal)).map(({ proposal_id }) => proposal_id);
+    await this.deleteProposals(proposalsIdsToDelete)
+
 
     const publishedCompletedProposal: CoinstrTypes.PublishedCompletedSpendingProposal = {
       type,
@@ -1052,10 +1076,29 @@ export class Coinstr {
       completion_date: fromNostrDate(completedProposalEvent.created_at),
       id: completedProposalEvent.id,
     }
-    await Promise.all(promises)
     return publishedCompletedProposal
   }
 
+  private async getProposalsWithCommonUtxos(proposal: CoinstrTypes.PublishedSpendingProposal): Promise<Array<CoinstrTypes.PublishedSpendingProposal>> {
+    const utxos = proposal.utxos;
+    const policyId = proposal.policy_id;
+    const proposalsMap = await this.getProposalsByPolicyId(policyId);
+    const policyProposals = Array.from(proposalsMap.values()).flat() as Array<CoinstrTypes.PublishedSpendingProposal>;
+
+    const utxosSet = new Set(utxos);
+    const proposals: Array<CoinstrTypes.PublishedSpendingProposal> = [];
+
+    for (const proposal of policyProposals) {
+      const proposalUtxos = proposal.utxos;
+      for (const proposalUtxo of proposalUtxos) {
+        if (utxosSet.has(proposalUtxo)) {
+          proposals.push(proposal);
+          break;
+        }
+      }
+    }
+    return proposals;
+  }
 
   /**
    * Retrieves a completed proposal based on the provided transaction details.
@@ -1191,7 +1234,8 @@ export class Coinstr {
     const status = ProposalStatus.Unsigned
     const signer = 'Unknown'
     const fee = this.bitcoinUtil.getFee(psbt)
-    return { ...proposal[type], proposal_id, type, status, signer, fee, policy_id, createdAt }
+    const utxos = this.bitcoinUtil.getPsbtUtxos(psbt)
+    return { ...proposal[type], proposal_id, type, status, signer, fee, utxos, policy_id, createdAt }
 
   }
 
@@ -1349,7 +1393,7 @@ export class Coinstr {
     return labels
   }
 
-  async getLabelsByPolicyId(policy_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, CoinstrTypes.PublishedLabel | Array<CoinstrTypes.PublishedLabel>>> {
+  getLabelsByPolicyId = async (policy_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, CoinstrTypes.PublishedLabel | Array<CoinstrTypes.PublishedLabel>>> => {
     const policyIds = Array.isArray(policy_ids) ? policy_ids : [policy_ids]
     const store = this.getStore(CoinstrKind.Labels);
     const labelsFilter = this.buildLabelsFilter().events(policyIds).pagination(paginationOpts).toFilters();
@@ -1363,31 +1407,6 @@ export class Coinstr {
     const labelsFilter = this.buildLabelsFilter().ids(labelIds).pagination(paginationOpts).toFilters();
     await this._getLabels(labelsFilter);
     return store.getMany(labelIds, "label_id");
-  }
-
-  async getLabeledUtxos(policy: PublishedPolicy): Promise<Array<CoinstrTypes.LabeledUtxo>> {
-    let utxos: Array<Utxo> = [];
-    try {
-      [utxos] = await Promise.all([
-        policy.getUtxos(),
-        this.getLabelsByPolicyId(policy.id)
-      ]);
-    } catch (error) {
-      console.error("An error occurred:", error);
-      return [];
-    }
-    const labelStore = this.getStore(CoinstrKind.Labels);
-    const indexKey = "unhashed";
-
-    const maybeLabeledUtxos: Array<CoinstrTypes.LabeledUtxo> = utxos.map(utxo => {
-      const label: CoinstrTypes.PublishedLabel | undefined = labelStore.get(utxo.address, indexKey) || labelStore.get(utxo.utxo.outpoint, indexKey);
-      if (label) {
-        return { ...utxo, labelText: label.label.text, labelId: label.label_id };
-      }
-      return utxo;
-    });
-
-    return maybeLabeledUtxos;
   }
 
 }

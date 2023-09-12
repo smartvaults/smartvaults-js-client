@@ -92,6 +92,7 @@ export class ProposalHandler extends EventKindHandler {
         const signerResult: string | null = this.searchSignerInDescriptor(fingerprints, decryptedProposalObj[type].descriptor)
         const signer = signerResult ?? 'Unknown'
         const psbt = decryptedProposalObj[type].psbt
+        const utxos = this.bitcoinUtil.getPsbtUtxos(psbt)
         const fee = this.bitcoinUtil.getFee(psbt)
         const publishedProposal: PublishedSpendingProposal | PublishedProofOfReserveProposal = {
           type,
@@ -99,6 +100,7 @@ export class ProposalHandler extends EventKindHandler {
           signer,
           fee,
           ...decryptedProposalObj[type],
+          utxos,
           createdAt,
           policy_id: policyId,
           proposal_id: proposalEvent.id
