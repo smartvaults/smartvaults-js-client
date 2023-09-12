@@ -141,11 +141,11 @@ export type PublishedSpendingProposal = PublishedProposal & BaseProposal & {
   to_address: string
   amount: number
   description: string,
-  utxo: string
+  utxos: string[]
 }
 export type PublishedProofOfReserveProposal = PublishedProposal & BaseProposal & {
   message: string
-  utxo?: string
+  utxos?: string[]
 }
 
 export type CompletedSpendingProposal = {

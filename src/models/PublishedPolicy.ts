@@ -238,8 +238,7 @@ export class PublishedPolicy {
     const policyId = this.id;
     const proposal = (await this.getProposalsByPolicyId(policyId, {})).get(policyId) as Array<PublishedSpendingProposal> || [];
     const proposals = Array.isArray(proposal) ? proposal : [proposal];
-    const maybeConcatUtxos = proposals.map(proposal => proposal.utxo);
-    const utxos = maybeConcatUtxos.flatMap(utxo => utxo.split('-'));
+    const utxos = proposals.flatMap(proposal => proposal.utxos);
     return utxos;
   }
 

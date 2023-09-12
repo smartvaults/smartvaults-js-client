@@ -33,7 +33,7 @@ export class Coinstr {
   initStores() {
     this.stores = new Map()
     this.stores.set(CoinstrKind.Policy, Store.createSingleIndexStore("id"))
-    this.stores.set(CoinstrKind.Proposal, Store.createMultiIndexStore(["proposal_id", "policy_id", "utxo"], "proposal_id"))
+    this.stores.set(CoinstrKind.Proposal, Store.createMultiIndexStore(["proposal_id", "policy_id"], "proposal_id"))
     this.stores.set(CoinstrKind.ApprovedProposal, Store.createMultiIndexStore(["approval_id", "proposal_id", "policy_id"], "approval_id"))
     this.stores.set(CoinstrKind.SharedKey, Store.createSingleIndexStore("policyId"))
     this.stores.set(CoinstrKind.CompletedProposal, Store.createMultiIndexStore(["id", "txId", "policy_id"], "id"))
@@ -468,13 +468,13 @@ export class Coinstr {
     }
     const signer = 'Unknown'
     const fee = this.bitcoinUtil.getFee(psbt)
-    const utxo = this.bitcoinUtil.getPsbtUtxos(psbt).join('-')
+    const utxo = this.bitcoinUtil.getPsbtUtxos(psbt)
     Promise.all(promises)
     return {
       ...proposalContent[type],
       signer,
       fee,
-      utxo,
+      utxos: utxo,
       type: ProposalType.Spending,
       status: ProposalStatus.Unsigned,
       policy_id: policy.id,
@@ -1080,7 +1080,7 @@ export class Coinstr {
   }
 
   private async getProposalsWithCommonUtxos(proposal: CoinstrTypes.PublishedSpendingProposal): Promise<Array<CoinstrTypes.PublishedSpendingProposal>> {
-    const utxos = proposal.utxo.split('-');
+    const utxos = proposal.utxos;
     const policyId = proposal.policy_id;
     const proposalsMap = await this.getProposalsByPolicyId(policyId);
     const policyProposals = Array.from(proposalsMap.values()).flat() as Array<CoinstrTypes.PublishedSpendingProposal>;
@@ -1089,7 +1089,7 @@ export class Coinstr {
     const proposals: Array<CoinstrTypes.PublishedSpendingProposal> = [];
 
     for (const proposal of policyProposals) {
-      const proposalUtxos = proposal.utxo.split('-');
+      const proposalUtxos = proposal.utxos;
       for (const proposalUtxo of proposalUtxos) {
         if (utxosSet.has(proposalUtxo)) {
           proposals.push(proposal);
@@ -1234,8 +1234,8 @@ export class Coinstr {
     const status = ProposalStatus.Unsigned
     const signer = 'Unknown'
     const fee = this.bitcoinUtil.getFee(psbt)
-    const utxo = this.bitcoinUtil.getPsbtUtxos(psbt).join('-')
-    return { ...proposal[type], proposal_id, type, status, signer, fee, utxo, policy_id, createdAt }
+    const utxos = this.bitcoinUtil.getPsbtUtxos(psbt)
+    return { ...proposal[type], proposal_id, type, status, signer, fee, utxos, policy_id, createdAt }
 
   }
 
