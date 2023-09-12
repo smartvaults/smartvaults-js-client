@@ -1,7 +1,7 @@
 import { EventKindHandler } from "./EventKindHandler";
 import { PolicyHandler } from "./PolicyHandler";
-import { Coinstr } from "../Coinstr";
-import { CoinstrKind, StoreKind } from "../enum";
+import { SmartVaults } from "../SmartVaults";
+import { SmartVaultsKind, StoreKind } from "../enum";
 import { SharedKeyHandler } from "./SharedKeyHandler";
 import { ProposalHandler } from "./ProposalHandler";
 import { ApprovalsHandler } from "./ApprovalsHandler";
@@ -14,10 +14,10 @@ import { EventDeletionHandler } from "./EventDeletionHandler";
 import { LabelsHandler } from "./LabelsHandler";
 import { Kind } from "nostr-tools";
 export class EventKindHandlerFactory {
-  private coinstr: Coinstr
+  private smartVaults: SmartVaults
   private handlers: Map<number, EventKindHandler>
-  constructor(coinstr: Coinstr) {
-    this.coinstr = coinstr
+  constructor(smartVaults: SmartVaults) {
+    this.smartVaults = smartVaults
     this.handlers = new Map()
   }
 
@@ -28,43 +28,43 @@ export class EventKindHandlerFactory {
         bitcoinUtil,
         nostrClient,
         stores
-      } = this.coinstr
-      const getSharedKeysById = this.coinstr.getSharedKeysById
-      const checkPsbts = this.coinstr.checkPsbts
-      const getOwnedSigners = this.coinstr.getOwnedSigners
-      const getCompletedProposalsByPolicyId = this.coinstr.getCompletedProposalsByPolicyId
-      const getProposalsByPolicyId = this.coinstr.getProposalsByPolicyId
-      const getApprovalsByPolicyId = this.coinstr.getApprovalsByPolicyId
-      const getApprovalsByProposalId = this.coinstr.getApprovals
-      const getSharedSigners = this.coinstr.getSharedSigners
-      const getLabelsByPolicyId = this.coinstr.getLabelsByPolicyId
+      } = this.smartVaults
+      const getSharedKeysById = this.smartVaults.getSharedKeysById
+      const checkPsbts = this.smartVaults.checkPsbts
+      const getOwnedSigners = this.smartVaults.getOwnedSigners
+      const getCompletedProposalsByPolicyId = this.smartVaults.getCompletedProposalsByPolicyId
+      const getProposalsByPolicyId = this.smartVaults.getProposalsByPolicyId
+      const getApprovalsByPolicyId = this.smartVaults.getApprovalsByPolicyId
+      const getApprovalsByProposalId = this.smartVaults.getApprovals
+      const getSharedSigners = this.smartVaults.getSharedSigners
+      const getLabelsByPolicyId = this.smartVaults.getLabelsByPolicyId
       const eventsStore = stores.get(StoreKind.Events)!
-      const completedProposalsStore = stores.get(CoinstrKind.CompletedProposal)!
-      const proposalsStore = stores.get(CoinstrKind.Proposal)!
-      const approvalsStore = stores.get(CoinstrKind.ApprovedProposal)!
-      const sharedKeysStore = stores.get(CoinstrKind.SharedKey)!
-      const labelStore = stores.get(CoinstrKind.Labels)!
+      const completedProposalsStore = stores.get(SmartVaultsKind.CompletedProposal)!
+      const proposalsStore = stores.get(SmartVaultsKind.Proposal)!
+      const approvalsStore = stores.get(SmartVaultsKind.ApprovedProposal)!
+      const sharedKeysStore = stores.get(SmartVaultsKind.SharedKey)!
+      const labelStore = stores.get(SmartVaultsKind.Labels)!
       switch (eventKind) {
-        case CoinstrKind.Policy:
+        case SmartVaultsKind.Policy:
           this.handlers.set(eventKind, new PolicyHandler(stores.get(eventKind)!, eventsStore, completedProposalsStore, proposalsStore, approvalsStore, sharedKeysStore, labelStore, nostrClient, bitcoinUtil, authenticator,
             getSharedKeysById, getCompletedProposalsByPolicyId, getProposalsByPolicyId, getApprovalsByPolicyId, getSharedSigners, getOwnedSigners, getLabelsByPolicyId))
           break
-        case CoinstrKind.Proposal:
+        case SmartVaultsKind.Proposal:
           this.handlers.set(eventKind, new ProposalHandler(stores.get(eventKind)!, eventsStore, approvalsStore, nostrClient, bitcoinUtil, authenticator, getSharedKeysById, checkPsbts, getOwnedSigners, getApprovalsByProposalId))
           break
-        case CoinstrKind.ApprovedProposal:
+        case SmartVaultsKind.ApprovedProposal:
           this.handlers.set(eventKind, new ApprovalsHandler(stores.get(eventKind)!, eventsStore, nostrClient, authenticator, getSharedKeysById))
           break
-        case CoinstrKind.SharedKey:
+        case SmartVaultsKind.SharedKey:
           this.handlers.set(eventKind, new SharedKeyHandler(authenticator, stores.get(eventKind)!, eventsStore))
           break
-        case CoinstrKind.CompletedProposal:
+        case SmartVaultsKind.CompletedProposal:
           this.handlers.set(eventKind, new CompletedProposalHandler(stores.get(eventKind)!, eventsStore, nostrClient, bitcoinUtil, getSharedKeysById))
           break
-        case CoinstrKind.SharedSigners:
+        case SmartVaultsKind.SharedSigners:
           this.handlers.set(eventKind, new SharedSignerHandler(authenticator, stores.get(eventKind)!, eventsStore))
           break
-        case CoinstrKind.Signers:
+        case SmartVaultsKind.Signers:
           this.handlers.set(eventKind, new OwnedSignerHandler(authenticator, nostrClient, stores.get(eventKind)!, eventsStore))
           break
         case Kind.Metadata:
@@ -76,7 +76,7 @@ export class EventKindHandlerFactory {
         case Kind.EventDeletion:
           this.handlers.set(eventKind, new EventDeletionHandler(stores))
           break
-        case CoinstrKind.Labels:
+        case SmartVaultsKind.Labels:
           this.handlers.set(eventKind, new LabelsHandler(stores.get(eventKind)!, eventsStore, getSharedKeysById))
           break
         default:

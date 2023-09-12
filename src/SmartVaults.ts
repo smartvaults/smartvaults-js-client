@@ -1,13 +1,13 @@
 import { Authenticator, DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { generatePrivateKey, Kind, Event, Filter, Sub } from 'nostr-tools'
-import { CoinstrKind, TagType, ProposalType, ProposalStatus, ApprovalStatus, StoreKind, AuthenticatorType } from './enum'
+import { SmartVaultsKind, TagType, ProposalType, ProposalStatus, ApprovalStatus, StoreKind, AuthenticatorType } from './enum'
 import { NostrClient, PubPool, Store } from './service'
 import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished, nostrDate } from './util'
 import { BasicTrxDetails, BitcoinUtil, Contact, Policy, PublishedPolicy, TrxDetails } from './models'
-import * as CoinstrTypes from './types'
+import * as SmartVaultsTypes from './types'
 import { EventKindHandlerFactory } from './event-kind-handler'
 
-export class Coinstr {
+export class SmartVaults {
   authenticator: Authenticator
   bitcoinUtil: BitcoinUtil
   nostrClient: NostrClient
@@ -32,17 +32,17 @@ export class Coinstr {
 
   initStores() {
     this.stores = new Map()
-    this.stores.set(CoinstrKind.Policy, Store.createSingleIndexStore("id"))
-    this.stores.set(CoinstrKind.Proposal, Store.createMultiIndexStore(["proposal_id", "policy_id"], "proposal_id"))
-    this.stores.set(CoinstrKind.ApprovedProposal, Store.createMultiIndexStore(["approval_id", "proposal_id", "policy_id"], "approval_id"))
-    this.stores.set(CoinstrKind.SharedKey, Store.createSingleIndexStore("policyId"))
-    this.stores.set(CoinstrKind.CompletedProposal, Store.createMultiIndexStore(["id", "txId", "policy_id"], "id"))
-    this.stores.set(CoinstrKind.SharedSigners, Store.createSingleIndexStore("id"))
-    this.stores.set(CoinstrKind.Signers, Store.createSingleIndexStore("id"))
+    this.stores.set(SmartVaultsKind.Policy, Store.createSingleIndexStore("id"))
+    this.stores.set(SmartVaultsKind.Proposal, Store.createMultiIndexStore(["proposal_id", "policy_id"], "proposal_id"))
+    this.stores.set(SmartVaultsKind.ApprovedProposal, Store.createMultiIndexStore(["approval_id", "proposal_id", "policy_id"], "approval_id"))
+    this.stores.set(SmartVaultsKind.SharedKey, Store.createSingleIndexStore("policyId"))
+    this.stores.set(SmartVaultsKind.CompletedProposal, Store.createMultiIndexStore(["id", "txId", "policy_id"], "id"))
+    this.stores.set(SmartVaultsKind.SharedSigners, Store.createSingleIndexStore("id"))
+    this.stores.set(SmartVaultsKind.Signers, Store.createSingleIndexStore("id"))
     this.stores.set(Kind.Metadata, Store.createSingleIndexStore("id"))
     this.stores.set(StoreKind.Events, Store.createSingleIndexStore("id"))
     this.stores.set(StoreKind.MySharedSigners, Store.createMultiIndexStore(["id", "signerId"], "id"))
-    this.stores.set(CoinstrKind.Labels, Store.createMultiIndexStore(["id", "policy_id", "label_id", "unhashed"], "id"))
+    this.stores.set(SmartVaultsKind.Labels, Store.createMultiIndexStore(["id", "policy_id", "label_id", "unhashed"], "id"))
   }
   initEventKindHandlerFactory() {
     this.eventKindHandlerFactor = new EventKindHandlerFactory(this)
@@ -93,7 +93,7 @@ export class Coinstr {
     return contactsEvent
   }
 
-  async setProfile(metadata: CoinstrTypes.Metadata): Promise<CoinstrTypes.Profile> {
+  async setProfile(metadata: SmartVaultsTypes.Metadata): Promise<SmartVaultsTypes.Profile> {
     const setMetadataEvent = await buildEvent({
       kind: Kind.Metadata,
       content: JSON.stringify(metadata),
@@ -108,23 +108,23 @@ export class Coinstr {
     }
   }
 
-  async getProfile(publicKey?: string): Promise<CoinstrTypes.Profile> {
+  async getProfile(publicKey?: string): Promise<SmartVaultsTypes.Profile> {
     publicKey = publicKey || this.authenticator.getPublicKey()
     const [profile] = await this.getProfiles([publicKey])
     return profile
   }
 
-  async getProfiles(publicKeys: string[]): Promise<CoinstrTypes.Profile[]> {
+  async getProfiles(publicKeys: string[]): Promise<SmartVaultsTypes.Profile[]> {
     const metadataFilter = filterBuilder()
       .kinds(Kind.Metadata)
       .authors(publicKeys)
       .toFilters()
     const metadataEvents = await this.nostrClient.list(metadataFilter)
-    const profiles: CoinstrTypes.Profile[] = await this.eventKindHandlerFactor.getHandler(Kind.Metadata).handle(metadataEvents)
+    const profiles: SmartVaultsTypes.Profile[] = await this.eventKindHandlerFactor.getHandler(Kind.Metadata).handle(metadataEvents)
     return profiles
   }
 
-  async getContactProfiles(contacts?: Contact[]): Promise<Array<CoinstrTypes.ContactProfile | Contact>> {
+  async getContactProfiles(contacts?: Contact[]): Promise<Array<SmartVaultsTypes.ContactProfile | Contact>> {
     contacts = contacts || await this.getContacts();
     if (!contacts.length) return []
     const profiles = await this.getProfiles(contacts.map(c => c.publicKey));
@@ -147,7 +147,7 @@ export class Coinstr {
     return this.eventKindHandlerFactor.getHandler(Kind.Contacts).handle([contactsEvent])
   }
 
-  async getRecommendedContacts(): Promise<Array<CoinstrTypes.Profile | string>> {
+  async getRecommendedContacts(): Promise<Array<SmartVaultsTypes.Profile | string>> {
     try {
       const [rawSharedSigners, contactList] = await Promise.all([
         this.getSharedSigners(),
@@ -182,7 +182,7 @@ export class Coinstr {
     miniscript,
     nostrPublicKeys,
     createdAt
-  }: CoinstrTypes.SavePolicyPayload): Promise<PublishedPolicy> {
+  }: SmartVaultsTypes.SavePolicyPayload): Promise<PublishedPolicy> {
     const descriptor = this.bitcoinUtil.toDescriptor(miniscript)
     const secretKey = generatePrivateKey()
     let sharedKeyAuthenticator = new DirectPrivateKeyAuthenticator(secretKey)
@@ -194,7 +194,7 @@ export class Coinstr {
 
     const tags = nostrPublicKeys.map(pubkey => [TagType.PubKey, pubkey])
     const policyEvent = await buildEvent({
-      kind: CoinstrKind.Policy,
+      kind: SmartVaultsKind.Policy,
       content: await sharedKeyAuthenticator.encryptObj(policyContent),
       tags: [...tags],
       createdAt
@@ -212,18 +212,18 @@ export class Coinstr {
       this.getOwnedSigners,
       this.getProposalsByPolicyId,
       this.getLabelsByPolicyId,
-      this.getStore(CoinstrKind.Labels),
+      this.getStore(SmartVaultsKind.Labels),
     )
 
     const authenticatorName = this.authenticator.getName()
-    let sharedKeyEvents: Array<Event<CoinstrKind.SharedKey>>
+    let sharedKeyEvents: Array<Event<SmartVaultsKind.SharedKey>>
     if (authenticatorName === AuthenticatorType.WebExtension) {
       sharedKeyEvents = await this.createSharedKeysSync(nostrPublicKeys, secretKey, policyEvent)
     } else {
       sharedKeyEvents = await this.createSharedKeysAsync(nostrPublicKeys, secretKey, policyEvent)
     }
 
-    const publishedSharedKeyAuthenticators: Array<CoinstrTypes.SharedKeyAuthenticator> = sharedKeyEvents.map(sharedKeyEvent => {
+    const publishedSharedKeyAuthenticators: Array<SmartVaultsTypes.SharedKeyAuthenticator> = sharedKeyEvents.map(sharedKeyEvent => {
       const id = sharedKeyEvent.id
       const creator = sharedKeyEvent.pubkey
       const policyId = policyEvent.id
@@ -232,13 +232,13 @@ export class Coinstr {
 
     const pub = this.nostrClient.publish(policyEvent)
     await pub.onFirstOkOrCompleteFailure()
-    this.getStore(CoinstrKind.Policy).store(publishedPolicy)
-    this.getStore(CoinstrKind.SharedKey).store(publishedSharedKeyAuthenticators)
+    this.getStore(SmartVaultsKind.Policy).store(publishedPolicy)
+    this.getStore(SmartVaultsKind.SharedKey).store(publishedSharedKeyAuthenticators)
     this.getStore(StoreKind.Events).store([policyEvent, ...sharedKeyEvents])
     return publishedPolicy
   }
 
-  private async createSharedKeysAsync(nostrPublicKeys: string[], secretKey: string, policyEvent: Event<CoinstrKind.Policy>): Promise<Array<Event<CoinstrKind.SharedKey>>> {
+  private async createSharedKeysAsync(nostrPublicKeys: string[], secretKey: string, policyEvent: Event<SmartVaultsKind.Policy>): Promise<Array<Event<SmartVaultsKind.SharedKey>>> {
     let promises = nostrPublicKeys.map(async pubkey => {
       let content;
       try {
@@ -248,7 +248,7 @@ export class Coinstr {
         throw err;
       }
       const rawSharedKeyEvent = await buildEvent({
-        kind: CoinstrKind.SharedKey,
+        kind: SmartVaultsKind.SharedKey,
         content,
         tags: [[TagType.Event, policyEvent.id], [TagType.PubKey, pubkey]],
       },
@@ -265,14 +265,14 @@ export class Coinstr {
         throw new Error(`Error while creating shared key: ${result.reason}`);
       }
       return acc;
-    }, [] as { pubResult: void, rawSharedKeyEvent: Event<CoinstrKind.SharedKey> }[]);
+    }, [] as { pubResult: void, rawSharedKeyEvent: Event<SmartVaultsKind.SharedKey> }[]);
     const sharedKeyEvents = validResults.map(res => res!.rawSharedKeyEvent)
     return sharedKeyEvents
   }
 
-  private async createSharedKeysSync(nostrPublicKeys: string[], secretKey: string, policyEvent: Event<CoinstrKind.Policy>): Promise<Array<Event<CoinstrKind.SharedKey>>> {
+  private async createSharedKeysSync(nostrPublicKeys: string[], secretKey: string, policyEvent: Event<SmartVaultsKind.Policy>): Promise<Array<Event<SmartVaultsKind.SharedKey>>> {
     const promises: Promise<void>[] = []
-    const sharedKeyEvents: Array<{ sharedKeyEvent: Event<CoinstrKind.SharedKey>, pubPromise: Promise<void> }> = []
+    const sharedKeyEvents: Array<{ sharedKeyEvent: Event<SmartVaultsKind.SharedKey>, pubPromise: Promise<void> }> = []
 
     for (const pubkey of nostrPublicKeys) {
       let content;
@@ -283,7 +283,7 @@ export class Coinstr {
         throw err;
       }
       const sharedKeyEvent = await buildEvent({
-        kind: CoinstrKind.SharedKey,
+        kind: SmartVaultsKind.SharedKey,
         content,
         tags: [[TagType.Event, policyEvent.id], [TagType.PubKey, pubkey]],
       },
@@ -303,7 +303,7 @@ export class Coinstr {
         throw new Error(`Error while creating shared key: ${result.reason}`);
       }
       return acc;
-    }, [] as Event<CoinstrKind.SharedKey>[])
+    }, [] as Event<SmartVaultsKind.SharedKey>[])
 
     return validResults
   }
@@ -316,7 +316,7 @@ export class Coinstr {
   async getPolicies(paginationOpts: PaginationOpts = {}): Promise<PublishedPolicy[]> {
 
     const policiesFilter = filterBuilder()
-      .kinds(CoinstrKind.Policy)
+      .kinds(SmartVaultsKind.Policy)
       .pubkeys(this.authenticator.getPublicKey())
       .pagination(paginationOpts)
       .toFilters()
@@ -330,11 +330,11 @@ export class Coinstr {
    *          
    */
   async getPoliciesById(ids: string[]): Promise<Map<string, PublishedPolicy>> {
-    const store = this.getStore(CoinstrKind.Policy)
+    const store = this.getStore(SmartVaultsKind.Policy)
     const missingIds = store.missing(ids)
     if (missingIds.length) {
       const policiesFilter = filterBuilder()
-        .kinds(CoinstrKind.Policy)
+        .kinds(SmartVaultsKind.Policy)
         .pubkeys(this.authenticator.getPublicKey())
         .ids(missingIds)
         .toFilters()
@@ -343,13 +343,13 @@ export class Coinstr {
     return store.getMany(ids!)
   }
 
-  getSharedKeysById = async (ids: string[]): Promise<Map<string, CoinstrTypes.SharedKeyAuthenticator>> => {
+  getSharedKeysById = async (ids: string[]): Promise<Map<string, SmartVaultsTypes.SharedKeyAuthenticator>> => {
     ids = [...new Set(ids)]; // remove potential duplicates from ids
-    const store = this.getStore(CoinstrKind.SharedKey)
+    const store = this.getStore(SmartVaultsKind.SharedKey)
     const missingIds = store.missing(ids)
     if (missingIds.length) {
       const sharedKeysFilter = filterBuilder()
-        .kinds(CoinstrKind.SharedKey)
+        .kinds(SmartVaultsKind.SharedKey)
         .events(missingIds)
         .pubkeys(this.authenticator.getPublicKey())
         .toFilters()
@@ -359,21 +359,21 @@ export class Coinstr {
     return storeResult
   }
 
-  private async _getPolicies(filter: Filter<CoinstrKind.Policy>[]): Promise<PublishedPolicy[]> {
+  private async _getPolicies(filter: Filter<SmartVaultsKind.Policy>[]): Promise<PublishedPolicy[]> {
     const policyEvents = await this.nostrClient.list(filter)
-    const policyHandler = this.eventKindHandlerFactor.getHandler(CoinstrKind.Policy)
+    const policyHandler = this.eventKindHandlerFactor.getHandler(SmartVaultsKind.Policy)
     return policyHandler.handle(policyEvents)
   }
 
-  private async _getSharedKeys(filter: Filter<CoinstrKind.SharedKey>[]): Promise<Map<string, CoinstrTypes.SharedKeyAuthenticator>> {
+  private async _getSharedKeys(filter: Filter<SmartVaultsKind.SharedKey>[]): Promise<Map<string, SmartVaultsTypes.SharedKeyAuthenticator>> {
     const sharedKeyEvents = await this.nostrClient.list(filter)
-    const sharedKeyHandler = this.eventKindHandlerFactor.getHandler(CoinstrKind.SharedKey)
+    const sharedKeyHandler = this.eventKindHandlerFactor.getHandler(SmartVaultsKind.SharedKey)
     return sharedKeyHandler.handle(sharedKeyEvents)
   }
 
   async getPolicyEvent(policy_id: string): Promise<any> {
     const policiesFilter = filterBuilder()
-      .kinds(CoinstrKind.Policy)
+      .kinds(SmartVaultsKind.Policy)
       .ids(policy_id)
       .toFilters()
     const policyEvent = await this.nostrClient.list(policiesFilter)
@@ -406,7 +406,7 @@ export class Coinstr {
     policyPath,
     utxos,
     useFrozenUtxos = false
-  }: CoinstrTypes.SpendProposalPayload): Promise<CoinstrTypes.PublishedSpendingProposal> {
+  }: SmartVaultsTypes.SpendProposalPayload): Promise<SmartVaultsTypes.PublishedSpendingProposal> {
 
     const _frozenUtxos = await policy.getFrozenUtxosOutpoints()
     const frozenUtxos = useFrozenUtxos ? [] : _frozenUtxos
@@ -436,7 +436,7 @@ export class Coinstr {
       sharedKeyAuth
     } = policy
     const type = ProposalType.Spending
-    let proposalContent: CoinstrTypes.SpendingProposal = {
+    let proposalContent: SmartVaultsTypes.SpendingProposal = {
       [type]: {
         descriptor,
         description,
@@ -447,7 +447,7 @@ export class Coinstr {
     }
     const tags = nostrPublicKeys.map(pubkey => [TagType.PubKey, pubkey])
     const proposalEvent = await buildEvent({
-      kind: CoinstrKind.Proposal,
+      kind: SmartVaultsKind.Proposal,
       content: await sharedKeyAuth.encryptObj(proposalContent),
       tags: [...tags, [TagType.Event, policy.id]],
     },
@@ -484,11 +484,11 @@ export class Coinstr {
 
   }
 
-  subscribe(kinds: (CoinstrKind | Kind)[] | (CoinstrKind | Kind), callback: (eventKind: number, payload: any) => void): Sub<number> {
+  subscribe(kinds: (SmartVaultsKind | Kind)[] | (SmartVaultsKind | Kind), callback: (eventKind: number, payload: any) => void): Sub<number> {
     if (!Array.isArray(kinds)) {
       kinds = [kinds]
     }
-    const kindsHaveHandler = new Set([...Object.values(CoinstrKind), Kind.Metadata, Kind.Contacts, Kind.EventDeletion]);
+    const kindsHaveHandler = new Set([...Object.values(SmartVaultsKind), Kind.Metadata, Kind.Contacts, Kind.EventDeletion]);
     let filters = this.subscriptionFilters(kinds)
     return this.nostrClient.sub(filters, async (event: Event<number>) => {
       const {
@@ -509,7 +509,7 @@ export class Coinstr {
     })
   }
 
-  private buildFilter(kind: CoinstrKind | Kind, useAuthors = false, paginationOpts: PaginationOpts = {}): Filter<number> {
+  private buildFilter(kind: SmartVaultsKind | Kind, useAuthors = false, paginationOpts: PaginationOpts = {}): Filter<number> {
 
 
     let builder = filterBuilder().kinds(kind).pagination(paginationOpts)
@@ -523,17 +523,17 @@ export class Coinstr {
     return builder.toFilter()
   }
 
-  private subscriptionFilters(kinds: (CoinstrKind | Kind)[]): Filter<number>[] {
+  private subscriptionFilters(kinds: (SmartVaultsKind | Kind)[]): Filter<number>[] {
     let filters: Filter<number>[] = [];
-    const coinstrKinds = new Set(Object.values(CoinstrKind));
+    const smartVaultsKinds = new Set(Object.values(SmartVaultsKind));
     const kindsSet = new Set(Object.values(Kind));
     const paginationOpts = {
       since: nostrDate()
     }
     for (const kind of kinds) {
-      if (coinstrKinds.has(kind as CoinstrKind)) {
-        const useAuthors = kind === CoinstrKind.Signers;
-        filters.push(this.buildFilter(kind as CoinstrKind, useAuthors, paginationOpts));
+      if (smartVaultsKinds.has(kind as SmartVaultsKind)) {
+        const useAuthors = kind === SmartVaultsKind.Signers;
+        filters.push(this.buildFilter(kind as SmartVaultsKind, useAuthors, paginationOpts));
       } else if (kindsSet.has(kind as Kind)) {
         const useAuthors = kind === Kind.Metadata || kind === Kind.Contacts;
         filters.push(this.buildFilter(kind as Kind, useAuthors, paginationOpts));
@@ -550,9 +550,9 @@ export class Coinstr {
   }
 
 
-  private async _getOwnedSigners(filter: Filter<CoinstrKind.Signers>[]): Promise<CoinstrTypes.PublishedOwnedSigner[]> {
+  private async _getOwnedSigners(filter: Filter<SmartVaultsKind.Signers>[]): Promise<SmartVaultsTypes.PublishedOwnedSigner[]> {
     const signersEvents = await this.nostrClient.list(filter)
-    const ownedSignerHandler = this.eventKindHandlerFactor.getHandler(CoinstrKind.Signers)
+    const ownedSignerHandler = this.eventKindHandlerFactor.getHandler(SmartVaultsKind.Signers)
     return ownedSignerHandler.handle(signersEvents)
   }
 
@@ -567,7 +567,7 @@ export class Coinstr {
    * 
    * @async
    */
-  getOwnedSigners = async (): Promise<CoinstrTypes.PublishedOwnedSigner[]> => {
+  getOwnedSigners = async (): Promise<SmartVaultsTypes.PublishedOwnedSigner[]> => {
     const signersFilter = this.buildOwnedSignersFilter()
     return this._getOwnedSigners(signersFilter)
   }
@@ -578,7 +578,7 @@ export class Coinstr {
    * @param id - An array of ids or a single id
    * @returns A map of MySharedSigners objects by signerId
    */
-  getMySharedSigners = async (id?: string | string[]): Promise<Map<string, CoinstrTypes.MySharedSigner | Array<CoinstrTypes.MySharedSigner>>> => {
+  getMySharedSigners = async (id?: string | string[]): Promise<Map<string, SmartVaultsTypes.MySharedSigner | Array<SmartVaultsTypes.MySharedSigner>>> => {
     const ids: string[] | undefined = Array.isArray(id) ? id : id ? [id] : undefined;
     const mysharedSignersStore = this.getStore(StoreKind.MySharedSigners)
     let signersFilter = this.buildMySharedSignersFilter()
@@ -600,16 +600,16 @@ export class Coinstr {
       const sharedId = event.id;
       const sharedDate = fromNostrDate(event.created_at);
 
-      return { id: sharedId, signerId, sharedWith, sharedDate } as CoinstrTypes.MySharedSigner;
+      return { id: sharedId, signerId, sharedWith, sharedDate } as SmartVaultsTypes.MySharedSigner;
     });
     mysharedSignersStore.store(mySharedSigners)
     return mysharedSignersStore.getMany(ids, "signerId")
 
   }
 
-  private async _getSharedSigners(filter: Filter<CoinstrKind.SharedSigners>[]): Promise<CoinstrTypes.PublishedSharedSigner[]> {
+  private async _getSharedSigners(filter: Filter<SmartVaultsKind.SharedSigners>[]): Promise<SmartVaultsTypes.PublishedSharedSigner[]> {
     const signersEvents = await this.nostrClient.list(filter)
-    const sharedSignerHandler = this.eventKindHandlerFactor.getHandler(CoinstrKind.SharedSigners)
+    const sharedSignerHandler = this.eventKindHandlerFactor.getHandler(SmartVaultsKind.SharedSigners)
     return sharedSignerHandler.handle(signersEvents)
   }
 
@@ -624,7 +624,7 @@ export class Coinstr {
    * 
    * @async
    */
-  getSharedSigners = async (publicKeys?: string | string[]): Promise<CoinstrTypes.PublishedSharedSigner[]> => {
+  getSharedSigners = async (publicKeys?: string | string[]): Promise<SmartVaultsTypes.PublishedSharedSigner[]> => {
     const keysToFilter = Array.isArray(publicKeys) ? publicKeys : (publicKeys ? [publicKeys] : []);
     const sharedSignersFilter = this.buildSharedSignersFilter();
     if (keysToFilter.length > 0) {
@@ -652,10 +652,10 @@ export class Coinstr {
     fingerprint,
     name,
     t,
-  }: CoinstrTypes.OwnedSigner): Promise<CoinstrTypes.PublishedOwnedSigner> {
+  }: SmartVaultsTypes.OwnedSigner): Promise<SmartVaultsTypes.PublishedOwnedSigner> {
     let ownerPubKey = this.authenticator.getPublicKey()
 
-    const signer: CoinstrTypes.OwnedSigner = {
+    const signer: SmartVaultsTypes.OwnedSigner = {
       description,
       descriptor,
       fingerprint,
@@ -664,7 +664,7 @@ export class Coinstr {
     }
     const content = await this.authenticator.encryptObj(signer)
     const signerEvent = await buildEvent({
-      kind: CoinstrKind.Signers,
+      kind: SmartVaultsKind.Signers,
       content,
       tags: [],
     },
@@ -683,27 +683,27 @@ export class Coinstr {
    * @async
    * @param {Object} params - Parameters for the shared signer, including `descriptor` and `fingerpring`
    * @param {string} pubKey - Public key of the user with whom the signer is being shared.
-   * @returns {Promise<CoinstrTypes.SharedSigner>} A promise that resolves to a PublishedSharedSigner object, includes 
+   * @returns {Promise<SmartVaultsTypes.SharedSigner>} A promise that resolves to a PublishedSharedSigner object, includes 
    * the owner's public key and shared date.
    * @throws Will throw an error if the event publishing fails.
    * @example
    * const signer = await saveSharedSigner({descriptor, fingerprint}, pubKey);
    */
-  async saveSharedSigner(ownedSigner: CoinstrTypes.PublishedOwnedSigner, pubKeys: string | string[]): Promise<CoinstrTypes.PublishedSharedSigner[]> {
+  async saveSharedSigner(ownedSigner: SmartVaultsTypes.PublishedOwnedSigner, pubKeys: string | string[]): Promise<SmartVaultsTypes.PublishedSharedSigner[]> {
 
     if (!Array.isArray(pubKeys)) {
       pubKeys = [pubKeys]
     }
     const ownerPubKey = this.authenticator.getPublicKey()
-    const SharedSigner: CoinstrTypes.SharedSigner = {
+    const SharedSigner: SmartVaultsTypes.SharedSigner = {
       descriptor: ownedSigner.descriptor,
       fingerprint: ownedSigner.fingerprint,
     }
-    const sharedSigners: CoinstrTypes.PublishedSharedSigner[] = []
+    const sharedSigners: SmartVaultsTypes.PublishedSharedSigner[] = []
     for (const pubKey of pubKeys) {
       const content = await this.authenticator.encryptObj(SharedSigner, pubKey)
       const signerEvent = await buildEvent({
-        kind: CoinstrKind.SharedSigners,
+        kind: SmartVaultsKind.SharedSigners,
         content,
         tags: [[TagType.Event, ownedSigner.id], [TagType.PubKey, pubKey]],
       },
@@ -732,9 +732,9 @@ export class Coinstr {
 
   /**
    * Get direct messages
-   * @returns {Promise<CoinstrTypes.PublishedDirectMessage[]>}
+   * @returns {Promise<SmartVaultsTypes.PublishedDirectMessage[]>}
    */
-  async getDirectMessages(paginationOpts: PaginationOpts = {}): Promise<CoinstrTypes.PublishedDirectMessage[]> {
+  async getDirectMessages(paginationOpts: PaginationOpts = {}): Promise<SmartVaultsTypes.PublishedDirectMessage[]> {
 
     const directMessagesFilter = filterBuilder()
       .kinds(Kind.EncryptedDirectMessage)
@@ -742,7 +742,7 @@ export class Coinstr {
       .pagination(paginationOpts)
       .toFilters()
     const directMessageEvents = await this.nostrClient.list(directMessagesFilter)
-    let directMessages: CoinstrTypes.PublishedDirectMessage[] = []
+    let directMessages: SmartVaultsTypes.PublishedDirectMessage[] = []
     for (let directMessageEvent of directMessageEvents) {
       let {
         content,
@@ -756,50 +756,50 @@ export class Coinstr {
 
   private buildSharedSignersFilter() {
     return filterBuilder()
-      .kinds(CoinstrKind.SharedSigners)
+      .kinds(SmartVaultsKind.SharedSigners)
       .pubkeys(this.authenticator.getPublicKey())
   }
 
   private buildOwnedSignersFilter() {
     return filterBuilder()
-      .kinds(CoinstrKind.Signers)
+      .kinds(SmartVaultsKind.Signers)
       .authors(this.authenticator.getPublicKey())
       .toFilters();
   }
 
   private buildMySharedSignersFilter() {
     return filterBuilder()
-      .kinds(CoinstrKind.SharedSigners)
+      .kinds(SmartVaultsKind.SharedSigners)
       .authors(this.authenticator.getPublicKey())
   }
 
   private buildProposalsFilter() {
     return filterBuilder()
-      .kinds(CoinstrKind.Proposal)
+      .kinds(SmartVaultsKind.Proposal)
       .pubkeys(this.authenticator.getPublicKey())
   }
 
   private buildCompletedProposalsFilter() {
     return filterBuilder()
-      .kinds(CoinstrKind.CompletedProposal)
+      .kinds(SmartVaultsKind.CompletedProposal)
       .pubkeys(this.authenticator.getPublicKey())
   }
 
   private buildApprovedProposalsFilter() {
     return filterBuilder()
-      .kinds(CoinstrKind.ApprovedProposal)
+      .kinds(SmartVaultsKind.ApprovedProposal)
       .pubkeys(this.authenticator.getPublicKey())
   }
 
   private buildLabelsFilter() {
     return filterBuilder()
-      .kinds(CoinstrKind.Labels)
+      .kinds(SmartVaultsKind.Labels)
       .pubkeys(this.authenticator.getPublicKey())
   }
 
   private async getProposalEvent(proposal_id: any) {
     const proposalsFilter = filterBuilder()
-      .kinds(CoinstrKind.Proposal)
+      .kinds(SmartVaultsKind.Proposal)
       .ids(proposal_id)
       .toFilters()
 
@@ -818,15 +818,15 @@ export class Coinstr {
 
 
 
-  private async _getCompletedProposals(filter: Filter<CoinstrKind.CompletedProposal>[]): Promise<(CoinstrTypes.PublishedCompletedSpendingProposal | CoinstrTypes.PublishedCompletedProofOfReserveProposal)[]> {
+  private async _getCompletedProposals(filter: Filter<SmartVaultsKind.CompletedProposal>[]): Promise<(SmartVaultsTypes.PublishedCompletedSpendingProposal | SmartVaultsTypes.PublishedCompletedProofOfReserveProposal)[]> {
     const completedProposalEvents = await this.nostrClient.list(filter)
-    const completedProposalHandler = this.eventKindHandlerFactor.getHandler(CoinstrKind.CompletedProposal)
+    const completedProposalHandler = this.eventKindHandlerFactor.getHandler(SmartVaultsKind.CompletedProposal)
     return completedProposalHandler.handle(completedProposalEvents)
   }
 
-  async getCompletedProposalsById(ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, CoinstrTypes.PublishedCompletedSpendingProposal | CoinstrTypes.PublishedCompletedProofOfReserveProposal>> {
+  async getCompletedProposalsById(ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, SmartVaultsTypes.PublishedCompletedSpendingProposal | SmartVaultsTypes.PublishedCompletedProofOfReserveProposal>> {
     const completedProposalsIds = Array.isArray(ids) ? ids : [ids]
-    const store = this.getStore(CoinstrKind.CompletedProposal);
+    const store = this.getStore(SmartVaultsKind.CompletedProposal);
     const missingIds = store.missing(completedProposalsIds);
     if (missingIds.length) {
       const completedProposalsFilter = this.buildCompletedProposalsFilter().ids(missingIds).pagination(paginationOpts).toFilters();
@@ -835,11 +835,11 @@ export class Coinstr {
     return store.getMany(completedProposalsIds, "id");
   }
 
-  getCompletedProposalsByPolicyId = async (policy_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, (CoinstrTypes.PublishedCompletedSpendingProposal | CoinstrTypes.PublishedCompletedProofOfReserveProposal)
-    | Array<CoinstrTypes.PublishedCompletedSpendingProposal | CoinstrTypes.PublishedCompletedProofOfReserveProposal>
+  getCompletedProposalsByPolicyId = async (policy_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, (SmartVaultsTypes.PublishedCompletedSpendingProposal | SmartVaultsTypes.PublishedCompletedProofOfReserveProposal)
+    | Array<SmartVaultsTypes.PublishedCompletedSpendingProposal | SmartVaultsTypes.PublishedCompletedProofOfReserveProposal>
   >> => {
     const policyIds = Array.isArray(policy_ids) ? policy_ids : [policy_ids]
-    const store = this.getStore(CoinstrKind.CompletedProposal);
+    const store = this.getStore(SmartVaultsKind.CompletedProposal);
     const missingIds = store.missing(policyIds, "policy_id");
     if (missingIds.length) {
       const completedProposalsFilter = this.buildCompletedProposalsFilter().events(policyIds).pagination(paginationOpts).toFilters();
@@ -856,15 +856,15 @@ export class Coinstr {
   *
   * @async
   */
-  async getCompletedProposals(paginationOpts: PaginationOpts = {}): Promise<(CoinstrTypes.PublishedCompletedSpendingProposal | CoinstrTypes.PublishedCompletedProofOfReserveProposal)[]> {
+  async getCompletedProposals(paginationOpts: PaginationOpts = {}): Promise<(SmartVaultsTypes.PublishedCompletedSpendingProposal | SmartVaultsTypes.PublishedCompletedProofOfReserveProposal)[]> {
     const completedProposalsFilter = this.buildCompletedProposalsFilter().pagination(paginationOpts).toFilters()
     const completedProposals = await this._getCompletedProposals(completedProposalsFilter)
     return completedProposals
   }
 
-  private async _getApprovals(filter: Filter<CoinstrKind.ApprovedProposal>[]): Promise<CoinstrTypes.PublishedApprovedProposal[]> {
+  private async _getApprovals(filter: Filter<SmartVaultsKind.ApprovedProposal>[]): Promise<SmartVaultsTypes.PublishedApprovedProposal[]> {
     const approvedProposalEvents = await this.nostrClient.list(filter)
-    const approvedProposalHandler = this.eventKindHandlerFactor.getHandler(CoinstrKind.ApprovedProposal)
+    const approvedProposalHandler = this.eventKindHandlerFactor.getHandler(SmartVaultsKind.ApprovedProposal)
     return approvedProposalHandler.handle(approvedProposalEvents)
   }
 
@@ -878,14 +878,14 @@ export class Coinstr {
  * 
  * @async
  */
-  getApprovals = async (proposal_ids?: string[] | string): Promise<Map<string, CoinstrTypes.PublishedApprovedProposal[]>> => {
+  getApprovals = async (proposal_ids?: string[] | string): Promise<Map<string, SmartVaultsTypes.PublishedApprovedProposal[]>> => {
     const proposalIds = Array.isArray(proposal_ids) ? proposal_ids : proposal_ids ? [proposal_ids] : undefined;
     let approvedProposalsFilter = this.buildApprovedProposalsFilter();
     if (proposalIds) {
       approvedProposalsFilter = approvedProposalsFilter.events(proposalIds);
     }
     const approvalsArray = await this._getApprovals(approvedProposalsFilter.toFilters());
-    const approvalsMap = new Map<string, CoinstrTypes.PublishedApprovedProposal[]>();
+    const approvalsMap = new Map<string, SmartVaultsTypes.PublishedApprovedProposal[]>();
     approvalsArray.forEach(approval => {
       const proposalId = approval.proposal_id;
       if (approvalsMap.has(proposalId)) {
@@ -897,11 +897,11 @@ export class Coinstr {
     return approvalsMap;
   }
 
-  getApprovalsByPolicyId = async (policy_ids: string[] | string | string): Promise<Map<string, (CoinstrTypes.PublishedApprovedProposal)
-    | Array<CoinstrTypes.PublishedApprovedProposal>>> => {
+  getApprovalsByPolicyId = async (policy_ids: string[] | string | string): Promise<Map<string, (SmartVaultsTypes.PublishedApprovedProposal)
+    | Array<SmartVaultsTypes.PublishedApprovedProposal>>> => {
     const policyIds = Array.isArray(policy_ids) ? policy_ids : [policy_ids]
     let approvedProposalsFilter = this.buildApprovedProposalsFilter();
-    const store = this.getStore(CoinstrKind.ApprovedProposal);
+    const store = this.getStore(SmartVaultsKind.ApprovedProposal);
     if (policyIds) {
       approvedProposalsFilter = approvedProposalsFilter.events(policyIds);
     }
@@ -913,25 +913,25 @@ export class Coinstr {
   /**
   * @ignore
   */
-  private async _getProposals(filter: Filter<CoinstrKind.Policy>[]): Promise<Array<CoinstrTypes.PublishedSpendingProposal | CoinstrTypes.PublishedProofOfReserveProposal>> {
+  private async _getProposals(filter: Filter<SmartVaultsKind.Policy>[]): Promise<Array<SmartVaultsTypes.PublishedSpendingProposal | SmartVaultsTypes.PublishedProofOfReserveProposal>> {
     const proposalEvents = await this.nostrClient.list(filter)
-    const proposalHandler = this.eventKindHandlerFactor.getHandler(CoinstrKind.Proposal)
+    const proposalHandler = this.eventKindHandlerFactor.getHandler(SmartVaultsKind.Proposal)
     return proposalHandler.handle(proposalEvents)
   }
 
-  async getProposalsById(proposal_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, CoinstrTypes.PublishedSpendingProposal | CoinstrTypes.PublishedProofOfReserveProposal>> {
+  async getProposalsById(proposal_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, SmartVaultsTypes.PublishedSpendingProposal | SmartVaultsTypes.PublishedProofOfReserveProposal>> {
     const proposalIds = Array.isArray(proposal_ids) ? proposal_ids : [proposal_ids]
-    const store = this.getStore(CoinstrKind.Proposal);
+    const store = this.getStore(SmartVaultsKind.Proposal);
     const proposalsFilter = this.buildProposalsFilter().ids(proposal_ids).pagination(paginationOpts).toFilters();
     await this._getProposals(proposalsFilter);
     return store.getMany(proposalIds, "proposal_id");
   }
 
-  getProposalsByPolicyId = async (policy_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, (CoinstrTypes.PublishedSpendingProposal | CoinstrTypes.PublishedProofOfReserveProposal)
-    | Array<CoinstrTypes.PublishedSpendingProposal | CoinstrTypes.PublishedProofOfReserveProposal>
+  getProposalsByPolicyId = async (policy_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, (SmartVaultsTypes.PublishedSpendingProposal | SmartVaultsTypes.PublishedProofOfReserveProposal)
+    | Array<SmartVaultsTypes.PublishedSpendingProposal | SmartVaultsTypes.PublishedProofOfReserveProposal>
   >> => {
     const policyIds = Array.isArray(policy_ids) ? policy_ids : [policy_ids]
-    const store = this.getStore(CoinstrKind.Proposal);
+    const store = this.getStore(SmartVaultsKind.Proposal);
     const proposalsFilter = this.buildProposalsFilter().events(policyIds).pagination(paginationOpts).toFilters();
     await this._getProposals(proposalsFilter);
     return store.getMany(policyIds, "policy_id");
@@ -946,7 +946,7 @@ export class Coinstr {
    * 
    * @returns A Promise that resolves to an array of decrypted proposals.
    */
-  async getProposals(paginationOpts: PaginationOpts = {}): Promise<Array<CoinstrTypes.PublishedSpendingProposal | CoinstrTypes.PublishedProofOfReserveProposal>> {
+  async getProposals(paginationOpts: PaginationOpts = {}): Promise<Array<SmartVaultsTypes.PublishedSpendingProposal | SmartVaultsTypes.PublishedProofOfReserveProposal>> {
     const proposalsFilter = this.buildProposalsFilter().pagination(paginationOpts).toFilters()
     const proposals = await this._getProposals(proposalsFilter)
     return proposals
@@ -1003,10 +1003,10 @@ export class Coinstr {
    *
    * @throws An error if the proposal or policy cannot be found, if there are no approvals for the proposal, if the PSBTs cannot be finalized, or if the proposal cannot be broadcast.
    */
-  async finalizeSpendingProposal(proposalId: string): Promise<CoinstrTypes.PublishedCompletedSpendingProposal> {
+  async finalizeSpendingProposal(proposalId: string): Promise<SmartVaultsTypes.PublishedCompletedSpendingProposal> {
     const proposalMap = await this.getProposalsById(proposalId)
 
-    const proposal = proposalMap.get(proposalId) as CoinstrTypes.PublishedSpendingProposal
+    const proposal = proposalMap.get(proposalId) as SmartVaultsTypes.PublishedSpendingProposal
     if (!proposal) {
       throw new Error(`Proposal with id ${proposalId} not found`)
     }
@@ -1047,7 +1047,7 @@ export class Coinstr {
 
     const sharedKeyAuthenticator = policy.sharedKeyAuth
 
-    const completedProposal: CoinstrTypes.CompletedSpendingProposal = {
+    const completedProposal: SmartVaultsTypes.CompletedSpendingProposal = {
       [type]: {
         tx: txResponse.trx,
         description: proposal.description,
@@ -1057,7 +1057,7 @@ export class Coinstr {
     const content = await sharedKeyAuthenticator.encryptObj(completedProposal)
 
     const completedProposalEvent = await buildEvent({
-      kind: CoinstrKind.CompletedProposal,
+      kind: SmartVaultsKind.CompletedProposal,
       content,
       tags: [...policyMembers, [TagType.Event, proposalId], [TagType.Event, policy.id]],
     },
@@ -1068,7 +1068,7 @@ export class Coinstr {
     await this.deleteProposals(proposalsIdsToDelete)
 
 
-    const publishedCompletedProposal: CoinstrTypes.PublishedCompletedSpendingProposal = {
+    const publishedCompletedProposal: SmartVaultsTypes.PublishedCompletedSpendingProposal = {
       type,
       txId,
       ...completedProposal[type],
@@ -1081,14 +1081,14 @@ export class Coinstr {
     return publishedCompletedProposal
   }
 
-  private async getProposalsWithCommonUtxos(proposal: CoinstrTypes.PublishedSpendingProposal): Promise<Array<CoinstrTypes.PublishedSpendingProposal>> {
+  private async getProposalsWithCommonUtxos(proposal: SmartVaultsTypes.PublishedSpendingProposal): Promise<Array<SmartVaultsTypes.PublishedSpendingProposal>> {
     const utxos = proposal.utxos;
     const policyId = proposal.policy_id;
     const proposalsMap = await this.getProposalsByPolicyId(policyId);
-    const policyProposals = Array.from(proposalsMap.values()).flat() as Array<CoinstrTypes.PublishedSpendingProposal>;
+    const policyProposals = Array.from(proposalsMap.values()).flat() as Array<SmartVaultsTypes.PublishedSpendingProposal>;
 
     const utxosSet = new Set(utxos);
-    const proposals: Array<CoinstrTypes.PublishedSpendingProposal> = [];
+    const proposals: Array<SmartVaultsTypes.PublishedSpendingProposal> = [];
 
     for (const proposal of policyProposals) {
       const proposalUtxos = proposal.utxos;
@@ -1108,20 +1108,20 @@ export class Coinstr {
    * @async
    * @function getCompletedProposalByTx
    * @param {TrxDetails | BasicTrxDetails} tx - Object containing the transaction details.
-   * @returns {Promise<CoinstrTypes.PublishedCompletedSpendingProposal | null>} A Promise that resolves with the completed proposal, if found, or null.
+   * @returns {Promise<SmartVaultsTypes.PublishedCompletedSpendingProposal | null>} A Promise that resolves with the completed proposal, if found, or null.
    * 
    * @example
    * getCompletedProposalByTx({txid: '1234', confirmation_time: {confirmedAt: new Date()}, net: -1})
    * 
    */
-  async getCompletedProposalByTx(tx: TrxDetails | BasicTrxDetails): Promise<CoinstrTypes.PublishedCompletedSpendingProposal | null> {
+  async getCompletedProposalByTx(tx: TrxDetails | BasicTrxDetails): Promise<SmartVaultsTypes.PublishedCompletedSpendingProposal | null> {
     const { txid: txId, confirmation_time: confirmationTime, net: net } = tx;
 
     if (!txId || net > 0) {
       return null
     }
 
-    const completedProposalStore = this.getStore(CoinstrKind.CompletedProposal);
+    const completedProposalStore = this.getStore(SmartVaultsKind.CompletedProposal);
     const maybeStoredCompletedProposal = await completedProposalStore.get(txId, 'txId');
 
     if (maybeStoredCompletedProposal) {
@@ -1136,7 +1136,7 @@ export class Coinstr {
       paginationOpts = { since, until };
     }
 
-    const completedProposals = await this.getCompletedProposals(paginationOpts) as CoinstrTypes.PublishedCompletedSpendingProposal[];
+    const completedProposals = await this.getCompletedProposals(paginationOpts) as SmartVaultsTypes.PublishedCompletedSpendingProposal[];
     const completedProposal = completedProposals.find(({ txId: id }) => id === txId);
 
     if (!completedProposal) {
@@ -1148,34 +1148,34 @@ export class Coinstr {
 
   async deleteApprovals(ids: string | string[]): Promise<void> {
     const approvalIds = Array.isArray(ids) ? ids : [ids]
-    await this.eventKindHandlerFactor.getHandler(CoinstrKind.ApprovedProposal).delete(approvalIds)
+    await this.eventKindHandlerFactor.getHandler(SmartVaultsKind.ApprovedProposal).delete(approvalIds)
   }
 
   async deleteProposals(ids: string | string[]): Promise<void> {
     const proposalIds = Array.isArray(ids) ? ids : [ids]
-    await this.eventKindHandlerFactor.getHandler(CoinstrKind.Proposal).delete(proposalIds)
+    await this.eventKindHandlerFactor.getHandler(SmartVaultsKind.Proposal).delete(proposalIds)
   }
 
   async deleteCompletedProposals(ids: string | string[]): Promise<void> {
     const completedProposalIds = Array.isArray(ids) ? ids : [ids]
-    await this.eventKindHandlerFactor.getHandler(CoinstrKind.CompletedProposal).delete(completedProposalIds)
+    await this.eventKindHandlerFactor.getHandler(SmartVaultsKind.CompletedProposal).delete(completedProposalIds)
   }
 
   async deleteSigners(ids: string | string[]): Promise<void> {
     const signerIds = Array.isArray(ids) ? ids : [ids]
-    await this.eventKindHandlerFactor.getHandler(CoinstrKind.Signers).delete(signerIds)
+    await this.eventKindHandlerFactor.getHandler(SmartVaultsKind.Signers).delete(signerIds)
   }
 
   async deletePolicies(ids: string | string[]): Promise<void> {
     const policyIds = Array.isArray(ids) ? ids : [ids]
-    await this.eventKindHandlerFactor.getHandler(CoinstrKind.Policy).delete(policyIds)
+    await this.eventKindHandlerFactor.getHandler(SmartVaultsKind.Policy).delete(policyIds)
   }
 
   async revokeMySharedSigners(ids: string | string[]): Promise<void> {
     const mySharedSignersStore = this.getStore(StoreKind.MySharedSigners);
-    const mySharedSignersToDelete: CoinstrTypes.MySharedSigner[] = [];
+    const mySharedSignersToDelete: SmartVaultsTypes.MySharedSigner[] = [];
     const promises = (Array.isArray(ids) ? ids : [ids]).map(async (sharedSignerId) => {
-      const mySharedSignerEvent: CoinstrTypes.MySharedSigner = mySharedSignersStore.get(sharedSignerId, 'id');
+      const mySharedSignerEvent: SmartVaultsTypes.MySharedSigner = mySharedSignersStore.get(sharedSignerId, 'id');
 
       if (!mySharedSignerEvent) {
         throw new Error(`Shared signer with id ${sharedSignerId} not found`);
@@ -1202,12 +1202,12 @@ export class Coinstr {
   /**
   * @ignore
   */
-  async _saveProofOfReserveProposal(policy_id: string, { "ProofOfReserve": { message, psbt, descriptor } }): Promise<CoinstrTypes.PublishedProofOfReserveProposal> {
+  async _saveProofOfReserveProposal(policy_id: string, { "ProofOfReserve": { message, psbt, descriptor } }): Promise<SmartVaultsTypes.PublishedProofOfReserveProposal> {
 
     const policyEvent = await this.getPolicyEvent(policy_id)
     const policyMembers = policyEvent.tags
 
-    const sharedKeyAuthenticatorResult: Map<string, CoinstrTypes.SharedKeyAuthenticator> = await this.getSharedKeysById([policy_id])
+    const sharedKeyAuthenticatorResult: Map<string, SmartVaultsTypes.SharedKeyAuthenticator> = await this.getSharedKeysById([policy_id])
     const sharedKeyAuthenticator: any = sharedKeyAuthenticatorResult.get(policy_id)?.sharedKeyAuthenticator
     if (!sharedKeyAuthenticator) {
       throw new Error(`Shared key for policy with id ${policy_id} not found`)
@@ -1215,7 +1215,7 @@ export class Coinstr {
     const policy = toPublished(await sharedKeyAuthenticator.decryptObj(policyEvent.content), policyEvent)
     const type = ProposalType.ProofOfReserve
     //proposal = policy.proof_of_reserve(wallet,message)
-    const proposal: CoinstrTypes.ProofOfReserveProposal = {
+    const proposal: SmartVaultsTypes.ProofOfReserveProposal = {
       [type]: {
         message,
         descriptor,
@@ -1225,7 +1225,7 @@ export class Coinstr {
 
     const content = await sharedKeyAuthenticator.encryptObj(proposal)
     const proposalEvent = await buildEvent({
-      kind: CoinstrKind.Proposal,
+      kind: SmartVaultsKind.Proposal,
       content,
       tags: [[TagType.Event, policy.id], ...policyMembers],
     },
@@ -1246,7 +1246,7 @@ export class Coinstr {
   /**
   * @ignore
   */
-  async _saveApprovedProposal(proposal_id: string): Promise<CoinstrTypes.PublishedApprovedProposal> {
+  async _saveApprovedProposal(proposal_id: string): Promise<SmartVaultsTypes.PublishedApprovedProposal> {
     const proposalEvent = await this.getProposalEvent(proposal_id)
     const policyId = getTagValues(proposalEvent, TagType.Event)[0]
     const policyEvent = await this.getPolicyEvent(policyId)
@@ -1257,7 +1257,7 @@ export class Coinstr {
     const decryptedProposalObj = await sharedKeyAuthenticator.decryptObj(proposalEvent.content)
     const type = decryptedProposalObj[ProposalType.Spending] ? ProposalType.Spending : ProposalType.ProofOfReserve
 
-    const approvedProposal: CoinstrTypes.BaseApprovedProposal = {
+    const approvedProposal: SmartVaultsTypes.BaseApprovedProposal = {
       [type]: {
         ...decryptedProposalObj[type],
       }
@@ -1266,13 +1266,13 @@ export class Coinstr {
     const expirationDate = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7 // 7 days
     const content = await sharedKeyAuthenticator.encryptObj(approvedProposal)
     const approvedProposalEvent = await buildEvent({
-      kind: CoinstrKind.ApprovedProposal,
+      kind: SmartVaultsKind.ApprovedProposal,
       content,
       tags: [...policyMembers, [TagType.Event, proposal_id], [TagType.Event, policyId], [TagType.Expiration, expirationDate.toString()]],
     },
       this.authenticator)
 
-    const publishedApprovedProposal: CoinstrTypes.PublishedApprovedProposal = {
+    const publishedApprovedProposal: SmartVaultsTypes.PublishedApprovedProposal = {
       type,
       ...decryptedProposalObj[type],
       proposal_id,
@@ -1293,7 +1293,7 @@ export class Coinstr {
   /**
   * @ignore
   */
-  async _saveCompletedProposal(proposal_id: string, payload: CoinstrTypes.CompletedProofOfReserveProposal | CoinstrTypes.CompletedSpendingProposal): Promise<any> {
+  async _saveCompletedProposal(proposal_id: string, payload: SmartVaultsTypes.CompletedProofOfReserveProposal | SmartVaultsTypes.CompletedSpendingProposal): Promise<any> {
     const proposalEvent = await this.getProposalEvent(proposal_id)
     const policyId = getTagValues(proposalEvent, TagType.Event)[0]
     const policyEvent = await this.getPolicyEvent(policyId)
@@ -1301,18 +1301,18 @@ export class Coinstr {
 
     const sharedKeyAuthenticator: any = (await this.getSharedKeysById([policyId])).get(policyId)?.sharedKeyAuthenticator
 
-    const completedProposal: CoinstrTypes.CompletedProofOfReserveProposal | CoinstrTypes.CompletedSpendingProposal = {
+    const completedProposal: SmartVaultsTypes.CompletedProofOfReserveProposal | SmartVaultsTypes.CompletedSpendingProposal = {
       ...payload
     }
     const type = payload[ProposalType.Spending] ? ProposalType.Spending : ProposalType.ProofOfReserve
     const content = await sharedKeyAuthenticator.encryptObj(completedProposal)
     let txId;
     if (type === ProposalType.Spending) {
-      const spendingProposal: CoinstrTypes.CompletedSpendingProposal = payload as CoinstrTypes.CompletedSpendingProposal;
+      const spendingProposal: SmartVaultsTypes.CompletedSpendingProposal = payload as SmartVaultsTypes.CompletedSpendingProposal;
       txId = this.bitcoinUtil.getTrxId(spendingProposal[type].tx)
     }
     const completedProposalEvent = await buildEvent({
-      kind: CoinstrKind.CompletedProposal,
+      kind: SmartVaultsKind.CompletedProposal,
       content,
       tags: [...policyMembers, [TagType.Event, proposal_id], [TagType.Event, policyId]],
     },
@@ -1331,7 +1331,7 @@ export class Coinstr {
     const pubDelete = this.nostrClient.publish(deletedProposalEvent)
     pubDelete.onFirstOkOrCompleteFailure()
 
-    const publishedCompletedProposal: CoinstrTypes.PublishedCompletedProofOfReserveProposal | CoinstrTypes.PublishedCompletedSpendingProposal = {
+    const publishedCompletedProposal: SmartVaultsTypes.PublishedCompletedProofOfReserveProposal | SmartVaultsTypes.PublishedCompletedSpendingProposal = {
       type,
       txId,
       ...payload[type],
@@ -1358,19 +1358,19 @@ export class Coinstr {
     return hashedIdentifier.substring(0, 32)
   }
 
-  async saveLabel(policyId: string, label: CoinstrTypes.Label): Promise<CoinstrTypes.PublishedLabel> {
+  async saveLabel(policyId: string, label: SmartVaultsTypes.Label): Promise<SmartVaultsTypes.PublishedLabel> {
     const policyEvent = await this.getPolicyEvent(policyId)
     const policyMembers = policyEvent.tags
 
-    const publishedSharedKeyAuthenticator: CoinstrTypes.SharedKeyAuthenticator | undefined = (await this.getSharedKeysById([policyId])).get(policyId)
-    if (!publishedSharedKeyAuthenticator) return {} as CoinstrTypes.PublishedLabel
+    const publishedSharedKeyAuthenticator: SmartVaultsTypes.SharedKeyAuthenticator | undefined = (await this.getSharedKeysById([policyId])).get(policyId)
+    if (!publishedSharedKeyAuthenticator) return {} as SmartVaultsTypes.PublishedLabel
     const sharedKeyAuthenticator = publishedSharedKeyAuthenticator?.sharedKeyAuthenticator
     const privateKey = publishedSharedKeyAuthenticator?.privateKey
     const labelId = await this.generateIdentifier(Object.values(label.data)[0], privateKey)
     const content = await sharedKeyAuthenticator.encryptObj(label)
 
     const labelEvent = await buildEvent({
-      kind: CoinstrKind.Labels,
+      kind: SmartVaultsKind.Labels,
       content,
       tags: [...policyMembers, [TagType.Identifier, labelId], [TagType.Event, policyId]],
     },
@@ -1379,7 +1379,7 @@ export class Coinstr {
     const pub = this.nostrClient.publish(labelEvent)
     await pub.onFirstOkOrCompleteFailure()
 
-    const publishedLabel: CoinstrTypes.PublishedLabel = {
+    const publishedLabel: SmartVaultsTypes.PublishedLabel = {
       label,
       label_id: labelId,
       policy_id: policyId,
@@ -1391,29 +1391,29 @@ export class Coinstr {
     return publishedLabel
   }
 
-  private async _getLabels(filter: Filter<CoinstrKind.Labels>[]): Promise<CoinstrTypes.PublishedLabel[]> {
+  private async _getLabels(filter: Filter<SmartVaultsKind.Labels>[]): Promise<SmartVaultsTypes.PublishedLabel[]> {
     const labelEvents = await this.nostrClient.list(filter)
-    const labelHandler = this.eventKindHandlerFactor.getHandler(CoinstrKind.Labels)
+    const labelHandler = this.eventKindHandlerFactor.getHandler(SmartVaultsKind.Labels)
     return labelHandler.handle(labelEvents)
   }
 
-  async getLabels(paginationOpts: PaginationOpts = {}): Promise<CoinstrTypes.PublishedLabel[]> {
+  async getLabels(paginationOpts: PaginationOpts = {}): Promise<SmartVaultsTypes.PublishedLabel[]> {
     const labelsFilter = this.buildLabelsFilter().pagination(paginationOpts).toFilters()
     const labels = await this._getLabels(labelsFilter)
     return labels
   }
 
-  getLabelsByPolicyId = async (policy_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, CoinstrTypes.PublishedLabel | Array<CoinstrTypes.PublishedLabel>>> => {
+  getLabelsByPolicyId = async (policy_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, SmartVaultsTypes.PublishedLabel | Array<SmartVaultsTypes.PublishedLabel>>> => {
     const policyIds = Array.isArray(policy_ids) ? policy_ids : [policy_ids]
-    const store = this.getStore(CoinstrKind.Labels);
+    const store = this.getStore(SmartVaultsKind.Labels);
     const labelsFilter = this.buildLabelsFilter().events(policyIds).pagination(paginationOpts).toFilters();
     await this._getLabels(labelsFilter);
     return store.getMany(policyIds, "policy_id");
   }
 
-  async getLabelById(label_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, CoinstrTypes.PublishedLabel>> {
+  async getLabelById(label_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, SmartVaultsTypes.PublishedLabel>> {
     const labelIds = Array.isArray(label_ids) ? label_ids : [label_ids]
-    const store = this.getStore(CoinstrKind.Labels);
+    const store = this.getStore(SmartVaultsKind.Labels);
     const labelsFilter = this.buildLabelsFilter().ids(labelIds).pagination(paginationOpts).toFilters();
     await this._getLabels(labelsFilter);
     return store.getMany(labelIds, "label_id");

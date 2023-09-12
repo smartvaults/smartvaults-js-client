@@ -4,15 +4,15 @@ import { mock, MockProxy } from 'jest-mock-extended'
 import { BitcoinUtil, Wallet } from './interfaces'
 import { PublishedPolicy } from './PublishedPolicy'
 import { Policy } from './types'
-import { CoinstrKind } from '../enum'
+import { SmartVaultsKind } from '../enum'
 import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { Keys } from '../service'
 import { fromNostrDate } from '../util'
-import { Coinstr } from '../Coinstr'
+import { SmartVaults } from '../SmartVaults'
 
 describe('PublishedPolicy', () => {
   let policyContent: Policy
-  let policyEvent: Event<CoinstrKind.Policy>
+  let policyEvent: Event<SmartVaultsKind.Policy>
   let bitcoinUtil: MockProxy<BitcoinUtil>
   let wallet: MockProxy<Wallet>
   let nostrPublicKeys: string[]
@@ -20,7 +20,7 @@ describe('PublishedPolicy', () => {
   let policy: PublishedPolicy
 
   beforeEach(() => {
-    const coinstr = mock<Coinstr>()
+    const smartVaults = mock<SmartVaults>()
     policyContent = {
       description: "desc",
       descriptor: "descriptor",
@@ -30,7 +30,7 @@ describe('PublishedPolicy', () => {
     policyEvent = {
       id: 'id1',
       content: 'content',
-      kind: CoinstrKind.Policy,
+      kind: SmartVaultsKind.Policy,
       pubkey: "pubkey1",
       sig: "sig",
       tags: [],
@@ -48,11 +48,11 @@ describe('PublishedPolicy', () => {
       nostrPublicKeys,
       sharedKeyAuth,
     },
-      coinstr.getSharedSigners,
-      coinstr.getOwnedSigners,
-      coinstr.getProposalsByPolicyId,
-      coinstr.getLabelsByPolicyId,
-      coinstr.getStore(CoinstrKind.Labels),
+      smartVaults.getSharedSigners,
+      smartVaults.getOwnedSigners,
+      smartVaults.getProposalsByPolicyId,
+      smartVaults.getLabelsByPolicyId,
+      smartVaults.getStore(SmartVaultsKind.Labels),
     )
   })
 

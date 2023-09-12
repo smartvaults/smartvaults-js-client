@@ -3,7 +3,7 @@ import {
   Kind,
 } from 'nostr-tools'
 
-import { TagType, CoinstrKind } from '../enum'
+import { TagType, SmartVaultsKind } from '../enum'
 import { getTagValues, buildEvent, PaginationOpts } from '../util'
 import { type NostrClient, type Store } from '../service'
 import { EventKindHandler } from './EventKindHandler'
@@ -126,16 +126,16 @@ export class PolicyHandler extends EventKindHandler {
 
   }
 
-  private async getPolicyRelatedEvents(policyId: string): Promise<Map<CoinstrKind, any[]>> {
-    const map = new Map<CoinstrKind, any[]>()
+  private async getPolicyRelatedEvents(policyId: string): Promise<Map<SmartVaultsKind, any[]>> {
+    const map = new Map<SmartVaultsKind, any[]>()
     const completedProposals = Array.from((await this.getCompletedProposalsByPolicyId(policyId)).values()).flat()
     const proposals = Array.from((await this.getProposalsByPolicyId(policyId)).values()).flat()
     const approvals = Array.from((await this.getApprovalsByPolicyId(policyId)).values()).flat()
     const sharedKeys = Array.from((await this.getSharedKeysById([policyId])).values()).flat()
-    map.set(CoinstrKind.ApprovedProposal, approvals)
-    map.set(CoinstrKind.CompletedProposal, completedProposals)
-    map.set(CoinstrKind.Proposal, proposals)
-    map.set(CoinstrKind.SharedKey, sharedKeys)
+    map.set(SmartVaultsKind.ApprovedProposal, approvals)
+    map.set(SmartVaultsKind.CompletedProposal, completedProposals)
+    map.set(SmartVaultsKind.Proposal, proposals)
+    map.set(SmartVaultsKind.SharedKey, sharedKeys)
     return map
   }
 
@@ -153,10 +153,10 @@ export class PolicyHandler extends EventKindHandler {
         if (sharedKeyAuthenticator) {
           policies.push(policy)
           const tags: [TagType.Event | TagType.PubKey, string][] = [[TagType.Event, id]]
-          const proposalRelatedEvents: (PublishedSpendingProposal | PublishedProofOfReserveProposal)[] | undefined = policyRelatedEvents.get(CoinstrKind.Proposal)
-          const completedProposalRelatedEvents: (PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal)[] | undefined = policyRelatedEvents.get(CoinstrKind.CompletedProposal)
-          const approvalsRelatedEvents: PublishedApprovedProposal[] | undefined = (policyRelatedEvents.get(CoinstrKind.ApprovedProposal))?.filter(approval => approval.approved_by === pubKey)
-          const sharedKeysRelatedEvents: SharedKeyAuthenticator[] | undefined = policyRelatedEvents.get(CoinstrKind.SharedKey)?.filter(sharedKey => sharedKey.creator === pubKey)
+          const proposalRelatedEvents: (PublishedSpendingProposal | PublishedProofOfReserveProposal)[] | undefined = policyRelatedEvents.get(SmartVaultsKind.Proposal)
+          const completedProposalRelatedEvents: (PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal)[] | undefined = policyRelatedEvents.get(SmartVaultsKind.CompletedProposal)
+          const approvalsRelatedEvents: PublishedApprovedProposal[] | undefined = (policyRelatedEvents.get(SmartVaultsKind.ApprovedProposal))?.filter(approval => approval.approved_by === pubKey)
+          const sharedKeysRelatedEvents: SharedKeyAuthenticator[] | undefined = policyRelatedEvents.get(SmartVaultsKind.SharedKey)?.filter(sharedKey => sharedKey.creator === pubKey)
           const policyMembers = policy.nostrPublicKeys
           const membersTags: [TagType.PubKey, string][] = policyMembers.map(member => [TagType.PubKey, member])
           const rawSharedKeyAuthEvents: Event<K>[] = []
@@ -166,8 +166,8 @@ export class PolicyHandler extends EventKindHandler {
           tags.push(...membersTags)
 
           if (proposalRelatedEvents?.length || completedProposalRelatedEvents?.length) {
-            const proposalRelatedEventsIds: string[] = policyRelatedEvents.get(CoinstrKind.Proposal)!.map(proposal => proposal.proposal_id)
-            const completedProposalRelatedEventsIds: string[] = policyRelatedEvents.get(CoinstrKind.CompletedProposal)!.map(completedProposal => completedProposal.id)
+            const proposalRelatedEventsIds: string[] = policyRelatedEvents.get(SmartVaultsKind.Proposal)!.map(proposal => proposal.proposal_id)
+            const completedProposalRelatedEventsIds: string[] = policyRelatedEvents.get(SmartVaultsKind.CompletedProposal)!.map(completedProposal => completedProposal.id)
             const policyRelatedEventsIds: string[] = [...proposalRelatedEventsIds, ...completedProposalRelatedEventsIds]
             const eventIdsTags: [TagType.Event, string][] = policyRelatedEventsIds.map(eventId => [TagType.Event, eventId])
             tags.push(...eventIdsTags)

@@ -1,4 +1,4 @@
-export enum CoinstrKind {
+export enum SmartVaultsKind {
   SharedKey = 9288,
   Policy = 9289,
   Proposal = 9290,

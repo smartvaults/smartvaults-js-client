@@ -1,17 +1,17 @@
 import sleep from 'await-sleep'
 import { MockProxy, mock } from 'jest-mock-extended'
 import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
-import { Coinstr } from './Coinstr'
+import { SmartVaults } from './SmartVaults'
 import { NostrClient, Keys, Store } from './service'
 import { TimeUtil, buildEvent } from './util'
 import { Contact, PublishedPolicy, BitcoinUtil, Wallet, type FinalizeTrxResponse } from './models'
 import { Metadata, Profile, SavePolicyPayload, OwnedSigner, SpendProposalPayload, PublishedDirectMessage, PublishedSpendingProposal, PublishedApprovedProposal, PublishedSharedSigner, PublishedOwnedSigner, MySharedSigner } from './types'
-import { CoinstrKind, ProposalStatus } from './enum'
+import { SmartVaultsKind, ProposalStatus } from './enum'
 import { Kind } from 'nostr-tools'
 jest.setTimeout(1000000);
 
-describe('Coinstr', () => {
-  let coinstr: Coinstr
+describe('SmartVaults', () => {
+  let smartVaults: SmartVaults
   let nostrClient: NostrClient
   let authenticator: DirectPrivateKeyAuthenticator
   let bitcoinUtil: MockProxy<BitcoinUtil>
@@ -31,7 +31,7 @@ describe('Coinstr', () => {
     bitcoinUtil = mock<BitcoinUtil>()
     bitcoinUtil.toDescriptor.mockReturnValue("Descriptor")
     authenticator = new DirectPrivateKeyAuthenticator(keySet1.mainKey().privateKey)
-    coinstr = new Coinstr({
+    smartVaults = new SmartVaults({
       authenticator,
       bitcoinUtil,
       nostrClient
@@ -40,7 +40,7 @@ describe('Coinstr', () => {
   })
 
   afterEach(() => {
-    coinstr.disconnect()
+    smartVaults.disconnect()
   })
 
   describe('mock', () => {
@@ -65,30 +65,30 @@ describe('Coinstr', () => {
     let contact2: Contact
     let contact3: Contact
     beforeAll(async () => {
-      profile1 = await setProfile(1, coinstr)
-      profile2 = await setProfile(2, coinstr)
-      profile3 = await setProfile(3, coinstr)
-      coinstr.setAuthenticator(authenticator)
-      profile4 = await coinstr.setProfile(getMetadata(420))
+      profile1 = await setProfile(1, smartVaults)
+      profile2 = await setProfile(2, smartVaults)
+      profile3 = await setProfile(3, smartVaults)
+      smartVaults.setAuthenticator(authenticator)
+      profile4 = await smartVaults.setProfile(getMetadata(420))
 
       contact1 = getContact(1, profile1.publicKey)
       contact2 = getContact(2, profile2.publicKey)
       contact3 = getContact(3, profile3.publicKey)
-      await coinstr.upsertContacts([contact1, contact2, contact3])
+      await smartVaults.upsertContacts([contact1, contact2, contact3])
     })
 
     it('getProfile', async () => {
-      const profile = await coinstr.getProfile(profile1.publicKey)
+      const profile = await smartVaults.getProfile(profile1.publicKey)
       expect(profile).toEqual(profile1)
-      const own_profile = await coinstr.getProfile(profile4.publicKey)
+      const own_profile = await smartVaults.getProfile(profile4.publicKey)
       expect(own_profile).toEqual(profile4)
-      profile5 = await coinstr.setProfile(getMetadata(69))
-      const own_profile2 = await coinstr.getProfile(profile5.publicKey)
+      profile5 = await smartVaults.setProfile(getMetadata(69))
+      const own_profile2 = await smartVaults.getProfile(profile5.publicKey)
       expect(own_profile2).toEqual(profile5)
     })
 
     it('getContacts', async () => {
-      const contacts = await coinstr.getContacts()
+      const contacts = await smartVaults.getContacts()
       expect(contacts.length).toBe(3)
       expect(contacts).toEqual(expect.arrayContaining(
         [
@@ -100,7 +100,7 @@ describe('Coinstr', () => {
     })
 
     it('getContactProfiles', async () => {
-      const profiles = await coinstr.getContactProfiles()
+      const profiles = await smartVaults.getContactProfiles()
       expect(profiles.length).toBe(3)
       expect(profiles).toEqual(expect.arrayContaining(
         [
@@ -113,8 +113,8 @@ describe('Coinstr', () => {
 
     it('removeContacts', async () => {
       await sleep(200)
-      await coinstr.removeContacts([contact1.publicKey, contact2.publicKey])
-      const contacts = await coinstr.getContacts()
+      await smartVaults.removeContacts([contact1.publicKey, contact2.publicKey])
+      const contacts = await smartVaults.getContacts()
       expect(contacts.length).toBe(1)
       expect(contacts).toEqual(expect.arrayContaining(
         [
@@ -127,10 +127,10 @@ describe('Coinstr', () => {
       const newKeySet = new KeySet(1)
       const newPubKey = newKeySet.mainKey().publicKey
       const newAuthenticator = new DirectPrivateKeyAuthenticator(newKeySet.mainKey().privateKey)
-      coinstr.setAuthenticator(newAuthenticator)
-      await coinstr.upsertContacts([contact1, contact2, contact3])
-      await coinstr.getContactProfiles()
-      const profiles = await coinstr.getProfile(newPubKey)
+      smartVaults.setAuthenticator(newAuthenticator)
+      await smartVaults.upsertContacts([contact1, contact2, contact3])
+      await smartVaults.getContactProfiles()
+      const profiles = await smartVaults.getProfile(newPubKey)
       expect(profiles).toEqual(undefined)
     })
 
@@ -141,10 +141,10 @@ describe('Coinstr', () => {
       const altPubKey = altKeySet.mainKey().publicKey
       const contact = new Contact({ publicKey: altPubKey, relay: "relay", petname: "pet" })
       const newAuthenticator = new DirectPrivateKeyAuthenticator(newKeySet.mainKey().privateKey)
-      coinstr.setAuthenticator(newAuthenticator)
-      await coinstr.upsertContacts([contact1, contact2, contact3, contact])
+      smartVaults.setAuthenticator(newAuthenticator)
+      await smartVaults.upsertContacts([contact1, contact2, contact3, contact])
 
-      const profiles = await coinstr.getContactProfiles()
+      const profiles = await smartVaults.getContactProfiles()
       expect(profiles.length).toBe(4)
       expect(profiles).toEqual(expect.arrayContaining(
         [
@@ -161,41 +161,41 @@ describe('Coinstr', () => {
       const newKeySet = new KeySet(1)
       const newPubKey = newKeySet.mainKey().publicKey
       const newAuthenticator = new DirectPrivateKeyAuthenticator(newKeySet.mainKey().privateKey)
-      coinstr.setAuthenticator(newAuthenticator)
+      smartVaults.setAuthenticator(newAuthenticator)
       const metadata = { ...getMetadata(1), publicKey: newPubKey }
-      await coinstr.setProfile(metadata)
-      const profiles = await coinstr.getContactProfiles()
-      const fetchedMetadata = await coinstr.getProfile(newPubKey)
+      await smartVaults.setProfile(metadata)
+      const profiles = await smartVaults.getContactProfiles()
+      const fetchedMetadata = await smartVaults.getProfile(newPubKey)
       expect(metadata).toEqual(fetchedMetadata)
       expect(profiles).toEqual([])
-      coinstr.setAuthenticator(authenticator)
+      smartVaults.setAuthenticator(authenticator)
     }
     )
 
     it('getRecommendedContacts works', async () => {
-      let recommended = await coinstr.getRecommendedContacts()
+      let recommended = await smartVaults.getRecommendedContacts()
       expect(recommended.length).toBe(0)
       const newKeySet = new KeySet(1)
       const newPubKey = newKeySet.mainKey().publicKey
       const newAuthenticator = new DirectPrivateKeyAuthenticator(newKeySet.mainKey().privateKey)
-      coinstr.setAuthenticator(newAuthenticator)
-      const signer = await saveSharedSignerPayload(coinstr, 1)
-      const signer2 = await saveSharedSignerPayload(coinstr, 2)
-      await coinstr.saveSharedSigner(signer, keySet1.mainKey().publicKey)
-      await coinstr.saveSharedSigner(signer2, keySet1.mainKey().publicKey)
-      coinstr.setAuthenticator(authenticator)
-      recommended = await coinstr.getRecommendedContacts()
+      smartVaults.setAuthenticator(newAuthenticator)
+      const signer = await saveSharedSignerPayload(smartVaults, 1)
+      const signer2 = await saveSharedSignerPayload(smartVaults, 2)
+      await smartVaults.saveSharedSigner(signer, keySet1.mainKey().publicKey)
+      await smartVaults.saveSharedSigner(signer2, keySet1.mainKey().publicKey)
+      smartVaults.setAuthenticator(authenticator)
+      recommended = await smartVaults.getRecommendedContacts()
       expect(recommended.length).toBe(1)
       expect(recommended).toEqual([newPubKey])
-      coinstr.setAuthenticator(newAuthenticator)
+      smartVaults.setAuthenticator(newAuthenticator)
       const metadata = { ...getMetadata(1), publicKey: newPubKey }
-      const profile = await coinstr.setProfile(metadata)
-      coinstr.setAuthenticator(authenticator)
-      recommended = await coinstr.getRecommendedContacts()
+      const profile = await smartVaults.setProfile(metadata)
+      smartVaults.setAuthenticator(authenticator)
+      recommended = await smartVaults.getRecommendedContacts()
       expect(recommended.length).toBe(1)
       expect(recommended).toEqual([profile])
-      await coinstr.upsertContacts(new Contact({ publicKey: newPubKey, relay: "relay", petname: "pet" }))
-      recommended = await coinstr.getRecommendedContacts()
+      await smartVaults.upsertContacts(new Contact({ publicKey: newPubKey, relay: "relay", petname: "pet" }))
+      recommended = await smartVaults.getRecommendedContacts()
       expect(recommended.length).toBe(0)
     }
     )
@@ -208,17 +208,17 @@ describe('Coinstr', () => {
 
     beforeAll(async () => {
       let savePayload = getSavePolicyPayload(1, keySet1.getPublicKeys(), -20)
-      policy1 = await coinstr.savePolicy(savePayload)
+      policy1 = await smartVaults.savePolicy(savePayload)
       savePayload = getSavePolicyPayload(2, keySet1.getPublicKeys(), -10)
-      policy2 = await coinstr.savePolicy(savePayload)
+      policy2 = await smartVaults.savePolicy(savePayload)
       savePayload = getSavePolicyPayload(3, keySet2.getPublicKeys())
-      policy3 = await coinstr.savePolicy(savePayload)
+      policy3 = await smartVaults.savePolicy(savePayload)
       bitcoinUtil.getPsbtUtxos.mockReturnValue(["utxo1", "utxo2"])
     })
 
     // it('lee policies', async () => {
-    //   coinstr.setAuthenticator(new DirectPrivateKeyAuthenticator("3fec18a9e196fd3a6417b45fad7005edb23d8529cb41d8ac738cfdd7d2b75677"))
-    //   const policies = await coinstr.getPolicies()
+    //   smartVaults.setAuthenticator(new DirectPrivateKeyAuthenticator("3fec18a9e196fd3a6417b45fad7005edb23d8529cb41d8ac738cfdd7d2b75677"))
+    //   const policies = await smartVaults.getPolicies()
     //   // expect(policies.length).toBe(3)
     //   // expect(policies[0]).toEqual(policy3)
     //   // expect(policies[1]).toEqual(policy2)
@@ -226,7 +226,7 @@ describe('Coinstr', () => {
     // })
 
     it('all policies works', async () => {
-      const policies = await coinstr.getPolicies()
+      const policies = await smartVaults.getPolicies()
       expect(policies.length).toBe(3)
       assertPublishedPolicy(policies[0], policy3)
       assertPublishedPolicy(policies[1], policy2)
@@ -234,38 +234,38 @@ describe('Coinstr', () => {
     })
 
     it('since works', async () => {
-      let policies = await coinstr.getPolicies({ since: policy2.createdAt })
+      let policies = await smartVaults.getPolicies({ since: policy2.createdAt })
       expect(policies.length).toBe(2)
       assertPublishedPolicy(policies[0], policy3)
       assertPublishedPolicy(policies[1], policy2)
 
-      policies = await coinstr.getPolicies({ since: policy3.createdAt })
+      policies = await smartVaults.getPolicies({ since: policy3.createdAt })
       expect(policies.length).toBe(1)
       assertPublishedPolicy(policies[0], policy3)
     })
 
     it('until works', async () => {
-      let policies = await coinstr.getPolicies({ until: policy2.createdAt })
+      let policies = await smartVaults.getPolicies({ until: policy2.createdAt })
       expect(policies.length).toBe(1)
       assertPublishedPolicy(policies[0], policy1)
 
-      policies = await coinstr.getPolicies({ until: policy1.createdAt })
+      policies = await smartVaults.getPolicies({ until: policy1.createdAt })
       expect(policies.length).toBe(0)
     })
 
     it('limit works', async () => {
-      let policies = await coinstr.getPolicies({ limit: 2 })
+      let policies = await smartVaults.getPolicies({ limit: 2 })
       expect(policies.length).toBe(2)
       assertPublishedPolicy(policies[0], policy3)
       assertPublishedPolicy(policies[1], policy2)
 
-      policies = await coinstr.getPolicies({ since: policy2.createdAt, limit: 1 })
+      policies = await smartVaults.getPolicies({ since: policy2.createdAt, limit: 1 })
       expect(policies.length).toBe(1)
       assertPublishedPolicy(policies[0], policy3)
     })
 
     it('ids filter works', async () => {
-      let policies = await coinstr.getPoliciesById([policy1.id, policy3.id])
+      let policies = await smartVaults.getPoliciesById([policy1.id, policy3.id])
       expect(policies.size).toBe(2)
       assertPublishedPolicy(policies.get(policy3.id)!, policy3)
       assertPublishedPolicy(policies.get(policy1.id)!, policy1)
@@ -273,23 +273,23 @@ describe('Coinstr', () => {
     })
 
     it('deletePolicies works', async () => {
-      const proposal1 = await coinstr._saveProofOfReserveProposal(policy1.id, saveProofOfReserveProposalPayload(1))
-      await coinstr._saveCompletedProposal(proposal1.proposal_id, saveProofOfReserveProposalPayload(1))
-      const policies = await coinstr.getPolicies()
-      const completedProposals = await coinstr.getCompletedProposals()
-      const proposal2 = await coinstr._saveProofOfReserveProposal(policy2.id, saveProofOfReserveProposalPayload(2))
-      const proposals = await coinstr.getProposals()
-      await coinstr._saveApprovedProposal(proposal2.proposal_id)
-      const approvals = await coinstr.getApprovals()
+      const proposal1 = await smartVaults._saveProofOfReserveProposal(policy1.id, saveProofOfReserveProposalPayload(1))
+      await smartVaults._saveCompletedProposal(proposal1.proposal_id, saveProofOfReserveProposalPayload(1))
+      const policies = await smartVaults.getPolicies()
+      const completedProposals = await smartVaults.getCompletedProposals()
+      const proposal2 = await smartVaults._saveProofOfReserveProposal(policy2.id, saveProofOfReserveProposalPayload(2))
+      const proposals = await smartVaults.getProposals()
+      await smartVaults._saveApprovedProposal(proposal2.proposal_id)
+      const approvals = await smartVaults.getApprovals()
       expect(proposals.length).toBe(1)
       expect(policies.length).toBe(3)
       expect(completedProposals.length).toBe(1)
       expect(approvals.size).toBe(1)
-      await coinstr.deletePolicies([policy1.id, policy2.id])
-      const policies2 = await coinstr.getPolicies()
-      const proposals2 = await coinstr.getProposals()
-      const completedProposals2 = await coinstr.getCompletedProposals()
-      const approvals2 = await coinstr.getApprovals()
+      await smartVaults.deletePolicies([policy1.id, policy2.id])
+      const policies2 = await smartVaults.getPolicies()
+      const proposals2 = await smartVaults.getProposals()
+      const completedProposals2 = await smartVaults.getCompletedProposals()
+      const approvals2 = await smartVaults.getApprovals()
       expect(policies2.length).toBe(1)
       expect(proposals2.length).toBe(0)
       expect(completedProposals2.length).toBe(0)
@@ -300,11 +300,11 @@ describe('Coinstr', () => {
   })
 
   describe('subscribe', () => {
-    let coinstr: Coinstr
+    let smartVaults: SmartVaults
     let keySet: KeySet
     beforeEach(async () => {
       keySet = new KeySet(2)
-      coinstr = new Coinstr({
+      smartVaults = new SmartVaults({
         authenticator: new DirectPrivateKeyAuthenticator(keySet.mainKey().privateKey),
         bitcoinUtil,
         nostrClient
@@ -327,7 +327,7 @@ describe('Coinstr', () => {
       let counter: number = 0
       let savePolicyPayload1 = getSavePolicyPayload(1, keySet.getPublicKeys(), 2)
       let savePolicyPayload2 = getSavePolicyPayload(2, keySet.getPublicKeys(), 3)
-      const sub = coinstr.subscribe(CoinstrKind.Policy, (kind: number, payload: any) => {
+      const sub = smartVaults.subscribe(SmartVaultsKind.Policy, (kind: number, payload: any) => {
         switch (counter) {
           case 0:
             assertSubscriptionPolicyPayload(kind, payload, savePolicyPayload1)
@@ -340,8 +340,8 @@ describe('Coinstr', () => {
       }
       )
 
-      await coinstr.savePolicy(savePolicyPayload1)
-      await coinstr.savePolicy(savePolicyPayload2)
+      await smartVaults.savePolicy(savePolicyPayload1)
+      await smartVaults.savePolicy(savePolicyPayload2)
       await sleep(500)
       sub.unsub()
 
@@ -350,14 +350,14 @@ describe('Coinstr', () => {
 
     it('should receive OwnedSigner and SharedSigners events', async () => {
       expect.assertions(22)
-      const pubKey = coinstr.authenticator.getPublicKey()
+      const pubKey = smartVaults.authenticator.getPublicKey()
       let counter: number = 0
       let saveOwnedSignerPayload1 = saveOwnedSignerPayload(1, pubKey)
       let saveOwnedSignerPayload2 = saveOwnedSignerPayload(2, pubKey)
-      let saveSharedSignerPayload1 = await saveSharedSignerPayload(coinstr, 1)
-      let saveSharedSignerPayload2 = await saveSharedSignerPayload(coinstr, 2)
+      let saveSharedSignerPayload1 = await saveSharedSignerPayload(smartVaults, 1)
+      let saveSharedSignerPayload2 = await saveSharedSignerPayload(smartVaults, 2)
       await sleep(1000)
-      const sub = coinstr.subscribe([CoinstrKind.Signers, CoinstrKind.SharedSigners], (kind: number, payload: any) => {
+      const sub = smartVaults.subscribe([SmartVaultsKind.Signers, SmartVaultsKind.SharedSigners], (kind: number, payload: any) => {
         switch (counter) {
           case 0:
             assertSubscriptionOwnedSignerPayload(kind, payload, saveOwnedSignerPayload1)
@@ -375,10 +375,10 @@ describe('Coinstr', () => {
         counter++
       })
 
-      await coinstr.saveOwnedSigner(saveOwnedSignerPayload1)
-      await coinstr.saveOwnedSigner(saveOwnedSignerPayload2)
-      await coinstr.saveSharedSigner(saveSharedSignerPayload1, pubKey)
-      await coinstr.saveSharedSigner(saveSharedSignerPayload2, pubKey)
+      await smartVaults.saveOwnedSigner(saveOwnedSignerPayload1)
+      await smartVaults.saveOwnedSigner(saveOwnedSignerPayload2)
+      await smartVaults.saveSharedSigner(saveSharedSignerPayload1, pubKey)
+      await smartVaults.saveSharedSigner(saveSharedSignerPayload2, pubKey)
       await sleep(1000)
       sub.unsub()
     })
@@ -389,14 +389,14 @@ describe('Coinstr', () => {
       let counter: number = 0
       let savePolicyPayload1 = getSavePolicyPayload(1, keySet.getPublicKeys(), 2)
       let savePolicyPayload2 = getSavePolicyPayload(2, keySet.getPublicKeys(), 3)
-      let policy1 = await coinstr.savePolicy(savePolicyPayload1)
-      let policy2 = await coinstr.savePolicy(savePolicyPayload2)
+      let policy1 = await smartVaults.savePolicy(savePolicyPayload1)
+      let policy2 = await smartVaults.savePolicy(savePolicyPayload2)
       let spendProposalPayload1 = spendProposalPayload(1, policy1)
       let spendProposalPayload2 = spendProposalPayload(2, policy2)
       let saveProofOfReserveProposalPayload1 = saveProofOfReserveProposalPayload(1)
       let saveProofOfReserveProposalPayload2 = saveProofOfReserveProposalPayload(2)
 
-      const sub = coinstr.subscribe(CoinstrKind.Proposal, (kind: number, payload: any) => {
+      const sub = smartVaults.subscribe(SmartVaultsKind.Proposal, (kind: number, payload: any) => {
         switch (counter) {
           case 0:
             assertSubscriptionSpendProposalPayload(kind, payload, spendProposal1)
@@ -414,10 +414,10 @@ describe('Coinstr', () => {
         counter++
       })
 
-      let spendProposal1 = await coinstr.spend(spendProposalPayload1)
-      let spendProposal2 = await coinstr.spend(spendProposalPayload2)
-      let proofOfReserveProposal1 = await coinstr._saveProofOfReserveProposal(policy1.id, saveProofOfReserveProposalPayload1)
-      let proofOfReserveProposal2 = await coinstr._saveProofOfReserveProposal(policy2.id, saveProofOfReserveProposalPayload2)
+      let spendProposal1 = await smartVaults.spend(spendProposalPayload1)
+      let spendProposal2 = await smartVaults.spend(spendProposalPayload2)
+      let proofOfReserveProposal1 = await smartVaults._saveProofOfReserveProposal(policy1.id, saveProofOfReserveProposalPayload1)
+      let proofOfReserveProposal2 = await smartVaults._saveProofOfReserveProposal(policy2.id, saveProofOfReserveProposalPayload2)
 
       await sleep(2000)
       sub.unsub()
@@ -429,14 +429,14 @@ describe('Coinstr', () => {
       let counter: number = 0
       let savePolicyPayload1 = getSavePolicyPayload(1, keySet.getPublicKeys(), 2)
       let savePolicyPayload2 = getSavePolicyPayload(2, keySet.getPublicKeys(), 3)
-      let policy1 = await coinstr.savePolicy(savePolicyPayload1)
-      let policy2 = await coinstr.savePolicy(savePolicyPayload2)
+      let policy1 = await smartVaults.savePolicy(savePolicyPayload1)
+      let policy2 = await smartVaults.savePolicy(savePolicyPayload2)
       let spendProposalPayload1 = spendProposalPayload(1, policy1)
       let spendProposalPayload2 = spendProposalPayload(2, policy2)
       let saveProofOfReserveProposalPayload1 = saveProofOfReserveProposalPayload(1)
       let saveProofOfReserveProposalPayload2 = saveProofOfReserveProposalPayload(2)
 
-      const sub = coinstr.subscribe(CoinstrKind.ApprovedProposal, (kind: number, payload: any) => {
+      const sub = smartVaults.subscribe(SmartVaultsKind.ApprovedProposal, (kind: number, payload: any) => {
         switch (counter) {
           case 0:
             assertSubscriptionApprovedProposalPayload(kind, payload, approvedProposal1)
@@ -454,14 +454,14 @@ describe('Coinstr', () => {
         counter++
       })
 
-      let spendProposal1 = await coinstr.spend(spendProposalPayload1)
-      let spendProposal2 = await coinstr.spend(spendProposalPayload2)
-      let proofOfReserveProposal1 = await coinstr._saveProofOfReserveProposal(policy1.id, saveProofOfReserveProposalPayload1)
-      let proofOfReserveProposal2 = await coinstr._saveProofOfReserveProposal(policy2.id, saveProofOfReserveProposalPayload2)
-      let approvedProposal1 = await coinstr._saveApprovedProposal(spendProposal1.proposal_id)
-      let approvedProposal2 = await coinstr._saveApprovedProposal(spendProposal2.proposal_id)
-      let approvedProposal3 = await coinstr._saveApprovedProposal(proofOfReserveProposal1.proposal_id)
-      let approvedProposal4 = await coinstr._saveApprovedProposal(proofOfReserveProposal2.proposal_id)
+      let spendProposal1 = await smartVaults.spend(spendProposalPayload1)
+      let spendProposal2 = await smartVaults.spend(spendProposalPayload2)
+      let proofOfReserveProposal1 = await smartVaults._saveProofOfReserveProposal(policy1.id, saveProofOfReserveProposalPayload1)
+      let proofOfReserveProposal2 = await smartVaults._saveProofOfReserveProposal(policy2.id, saveProofOfReserveProposalPayload2)
+      let approvedProposal1 = await smartVaults._saveApprovedProposal(spendProposal1.proposal_id)
+      let approvedProposal2 = await smartVaults._saveApprovedProposal(spendProposal2.proposal_id)
+      let approvedProposal3 = await smartVaults._saveApprovedProposal(proofOfReserveProposal1.proposal_id)
+      let approvedProposal4 = await smartVaults._saveApprovedProposal(proofOfReserveProposal2.proposal_id)
 
       await sleep(100)
       sub.unsub()
@@ -474,15 +474,15 @@ describe('Coinstr', () => {
       let counter: number = 0
       let savePolicyPayload1 = getSavePolicyPayload(1, keySet.getPublicKeys(), 2)
       let savePolicyPayload2 = getSavePolicyPayload(2, keySet.getPublicKeys(), 3)
-      let policy1 = await coinstr.savePolicy(savePolicyPayload1)
-      let policy2 = await coinstr.savePolicy(savePolicyPayload2)
+      let policy1 = await smartVaults.savePolicy(savePolicyPayload1)
+      let policy2 = await smartVaults.savePolicy(savePolicyPayload2)
       let saveProofOfReserveProposalPayload1 = saveProofOfReserveProposalPayload(1)
       let saveProofOfReserveProposalPayload2 = saveProofOfReserveProposalPayload(2)
-      let proofOfReserveProposal1 = await coinstr._saveProofOfReserveProposal(policy1.id, saveProofOfReserveProposalPayload1)
-      let proofOfReserveProposal2 = await coinstr._saveProofOfReserveProposal(policy2.id, saveProofOfReserveProposalPayload2)
+      let proofOfReserveProposal1 = await smartVaults._saveProofOfReserveProposal(policy1.id, saveProofOfReserveProposalPayload1)
+      let proofOfReserveProposal2 = await smartVaults._saveProofOfReserveProposal(policy2.id, saveProofOfReserveProposalPayload2)
       let completedProposal1;
       let completedProposal2;
-      const sub = coinstr.subscribe(CoinstrKind.CompletedProposal, (kind: number, payload: any) => {
+      const sub = smartVaults.subscribe(SmartVaultsKind.CompletedProposal, (kind: number, payload: any) => {
         sleep(2000)
         switch (counter) {
           case 0:
@@ -496,8 +496,8 @@ describe('Coinstr', () => {
       })
 
 
-      completedProposal1 = await coinstr._saveCompletedProposal(proofOfReserveProposal1.proposal_id, saveProofOfReserveProposalPayload1)
-      completedProposal2 = await coinstr._saveCompletedProposal(proofOfReserveProposal2.proposal_id, saveProofOfReserveProposalPayload2)
+      completedProposal1 = await smartVaults._saveCompletedProposal(proofOfReserveProposal1.proposal_id, saveProofOfReserveProposalPayload1)
+      completedProposal2 = await smartVaults._saveCompletedProposal(proofOfReserveProposal2.proposal_id, saveProofOfReserveProposalPayload2)
 
       await sleep(100)
       sub.unsub()
@@ -508,11 +508,11 @@ describe('Coinstr', () => {
       let counter: number = 0
       expect.assertions(23)
       let savePolicyPayload1 = getSavePolicyPayload(1, keySet.getPublicKeys(), 2)
-      let pubkey = coinstr.authenticator.getPublicKey()
+      let pubkey = smartVaults.authenticator.getPublicKey()
       let saveOwnedSignerPayload1 = saveOwnedSignerPayload(1, pubkey)
-      let saveSharedSignerPayload1 = await saveSharedSignerPayload(coinstr, 1)
+      let saveSharedSignerPayload1 = await saveSharedSignerPayload(smartVaults, 1)
       await sleep(2000)
-      const sub = coinstr.subscribe([CoinstrKind.Policy, CoinstrKind.Signers, CoinstrKind.SharedSigners, CoinstrKind.Proposal, CoinstrKind.ApprovedProposal, CoinstrKind.CompletedProposal],
+      const sub = smartVaults.subscribe([SmartVaultsKind.Policy, SmartVaultsKind.Signers, SmartVaultsKind.SharedSigners, SmartVaultsKind.Proposal, SmartVaultsKind.ApprovedProposal, SmartVaultsKind.CompletedProposal],
         (kind: number, payload: any) => {
           switch (counter) {
             case 0:
@@ -537,18 +537,18 @@ describe('Coinstr', () => {
           counter++
         })
 
-      let policy1 = await coinstr.savePolicy(savePolicyPayload1)
+      let policy1 = await smartVaults.savePolicy(savePolicyPayload1)
       await sleep(100)
-      await coinstr.saveOwnedSigner(saveOwnedSignerPayload1)
+      await smartVaults.saveOwnedSigner(saveOwnedSignerPayload1)
       await sleep(100)
-      await coinstr.saveSharedSigner(saveSharedSignerPayload1, pubkey)
+      await smartVaults.saveSharedSigner(saveSharedSignerPayload1, pubkey)
       await sleep(100)
       let saveProofOfReserveProposalPayload1 = saveProofOfReserveProposalPayload(1)
-      let proofOfReserveProposal1 = await coinstr._saveProofOfReserveProposal(policy1.id, saveProofOfReserveProposalPayload1)
+      let proofOfReserveProposal1 = await smartVaults._saveProofOfReserveProposal(policy1.id, saveProofOfReserveProposalPayload1)
       await sleep(100)
-      let approvedProposal1 = await coinstr._saveApprovedProposal(proofOfReserveProposal1.proposal_id)
+      let approvedProposal1 = await smartVaults._saveApprovedProposal(proofOfReserveProposal1.proposal_id)
       await sleep(100)
-      let completedProposal1 = await coinstr._saveCompletedProposal(proofOfReserveProposal1.proposal_id, saveProofOfReserveProposalPayload1)
+      let completedProposal1 = await smartVaults._saveCompletedProposal(proofOfReserveProposal1.proposal_id, saveProofOfReserveProposalPayload1)
       await sleep(300)
       sub.unsub()
     }
@@ -557,7 +557,7 @@ describe('Coinstr', () => {
     it('should receive Metadata events', async () => {
       let counter: number = 0
       expect.assertions(2)
-      const sub = coinstr.subscribe(Kind.Metadata, (kind: number, payload: any) => {
+      const sub = smartVaults.subscribe(Kind.Metadata, (kind: number, payload: any) => {
         switch (counter) {
           case 0:
             assertSubscriptionMetadataPayload(kind, payload, metadata1)
@@ -566,7 +566,7 @@ describe('Coinstr', () => {
         counter++
       })
 
-      const metadata1 = await coinstr.setProfile(getMetadata(1));
+      const metadata1 = await smartVaults.setProfile(getMetadata(1));
 
       await sleep(200)
       sub.unsub()
@@ -576,9 +576,9 @@ describe('Coinstr', () => {
     it('should receive Contacts events', async () => {
       let counter: number = 0
       expect.assertions(2)
-      const profile1 = await setProfile(1, coinstr)
+      const profile1 = await setProfile(1, smartVaults)
       const contact1 = getContact(1, profile1.publicKey);
-      const sub = coinstr.subscribe(Kind.Contacts, (kind: number, payload: any) => {
+      const sub = smartVaults.subscribe(Kind.Contacts, (kind: number, payload: any) => {
         switch (counter) {
           case 0:
             assertSubscriptionContactPayload(kind, payload, contact1)
@@ -587,7 +587,7 @@ describe('Coinstr', () => {
         counter++
       })
 
-      await coinstr.upsertContacts(contact1);
+      await smartVaults.upsertContacts(contact1);
 
       await sleep(200)
       sub.unsub()
@@ -599,20 +599,20 @@ describe('Coinstr', () => {
       expect.assertions(12)
       let savePolicyPayload1 = getSavePolicyPayload(1, keySet.getPublicKeys(), 2)
       let savePolicyPayload2 = getSavePolicyPayload(2, keySet.getPublicKeys(), 3)
-      let policy1 = await coinstr.savePolicy(savePolicyPayload1)
-      let policy2 = await coinstr.savePolicy(savePolicyPayload2)
+      let policy1 = await smartVaults.savePolicy(savePolicyPayload1)
+      let policy2 = await smartVaults.savePolicy(savePolicyPayload2)
       let spendProposalPayload1 = spendProposalPayload(1, policy1)
       let spendProposalPayload2 = spendProposalPayload(2, policy2)
-      let spendProposal1 = await coinstr.spend(spendProposalPayload1)
-      let spendProposal2 = await coinstr.spend(spendProposalPayload2)
-      let approval1 = await coinstr._saveApprovedProposal(spendProposal2.proposal_id)
-      let approval2 = await coinstr._saveApprovedProposal(spendProposal2.proposal_id)
-      let approval3 = await coinstr._saveApprovedProposal(spendProposal2.proposal_id)
-      const expectedDeleteEvent1 = new Map([[CoinstrKind.Proposal, [spendProposal1.proposal_id]]])
-      const expectedDeleteEvent2 = new Map([[CoinstrKind.Policy, [policy1.id]]])
-      const expectedDeleteEvent3 = new Map([[CoinstrKind.ApprovedProposal, [approval1.approval_id, approval2.approval_id, approval3.approval_id]]])
+      let spendProposal1 = await smartVaults.spend(spendProposalPayload1)
+      let spendProposal2 = await smartVaults.spend(spendProposalPayload2)
+      let approval1 = await smartVaults._saveApprovedProposal(spendProposal2.proposal_id)
+      let approval2 = await smartVaults._saveApprovedProposal(spendProposal2.proposal_id)
+      let approval3 = await smartVaults._saveApprovedProposal(spendProposal2.proposal_id)
+      const expectedDeleteEvent1 = new Map([[SmartVaultsKind.Proposal, [spendProposal1.proposal_id]]])
+      const expectedDeleteEvent2 = new Map([[SmartVaultsKind.Policy, [policy1.id]]])
+      const expectedDeleteEvent3 = new Map([[SmartVaultsKind.ApprovedProposal, [approval1.approval_id, approval2.approval_id, approval3.approval_id]]])
 
-      const sub = coinstr.subscribe(Kind.EventDeletion, (kind: number, payload: any) => {
+      const sub = smartVaults.subscribe(Kind.EventDeletion, (kind: number, payload: any) => {
         switch (counter) {
           case 0:
             expect(kind).toBe(Kind.EventDeletion)
@@ -624,30 +624,30 @@ describe('Coinstr', () => {
             break
           case 2:
             expect(kind).toBe(Kind.EventDeletion)
-            expect(new Set(payload.get(CoinstrKind.ApprovedProposal))).toEqual(new Set(expectedDeleteEvent3.get(CoinstrKind.ApprovedProposal)))
+            expect(new Set(payload.get(SmartVaultsKind.ApprovedProposal))).toEqual(new Set(expectedDeleteEvent3.get(SmartVaultsKind.ApprovedProposal)))
             break
         }
         counter++
       })
 
-      const policies = await coinstr.getPolicies()
-      const proposals = await coinstr.getProposals()
-      const approvals = await coinstr.getApprovals()
+      const policies = await smartVaults.getPolicies()
+      const proposals = await smartVaults.getProposals()
+      const approvals = await smartVaults.getApprovals()
       expect(policies.length).toBe(2)
       expect(proposals.length).toBe(2)
       expect(approvals.size).toBe(1)
 
-      await _deleteProposals([spendProposal1.proposal_id], coinstr)
+      await _deleteProposals([spendProposal1.proposal_id], smartVaults)
       await sleep(100)
-      const proposals2 = await coinstr.getProposals()
+      const proposals2 = await smartVaults.getProposals()
       expect(proposals2.length).toBe(1)
-      await _deletePolicies([policy1.id], coinstr)
+      await _deletePolicies([policy1.id], smartVaults)
       await sleep(100)
-      const policies2 = await coinstr.getPolicies()
+      const policies2 = await smartVaults.getPolicies()
       expect(policies2.length).toBe(1)
-      await _deleteApprovals([approval1.approval_id, approval2.approval_id, approval3.approval_id], coinstr)
+      await _deleteApprovals([approval1.approval_id, approval2.approval_id, approval3.approval_id], smartVaults)
       await sleep(200)
-      const approvals2 = await coinstr.getApprovals()
+      const approvals2 = await smartVaults.getApprovals()
       expect(approvals2.size).toBe(0)
       await sleep(200)
       sub.unsub()
@@ -725,16 +725,16 @@ describe('Coinstr', () => {
     let ownedSigner2: OwnedSigner
     let ownedSigner3: OwnedSigner
     beforeAll(async () => {
-      const pubKey = coinstr.authenticator.getPublicKey()
+      const pubKey = smartVaults.authenticator.getPublicKey()
       let saveOwnedSignerPayload1 = saveOwnedSignerPayload(1, pubKey)
-      ownedSigner1 = await coinstr.saveOwnedSigner(saveOwnedSignerPayload1)
+      ownedSigner1 = await smartVaults.saveOwnedSigner(saveOwnedSignerPayload1)
       let saveOwnedSignerPayload2 = saveOwnedSignerPayload(2, pubKey)
-      ownedSigner2 = await coinstr.saveOwnedSigner(saveOwnedSignerPayload2)
+      ownedSigner2 = await smartVaults.saveOwnedSigner(saveOwnedSignerPayload2)
       let saveOwnedSignerPayload3 = saveOwnedSignerPayload(3, pubKey)
-      ownedSigner3 = await coinstr.saveOwnedSigner(saveOwnedSignerPayload3)
+      ownedSigner3 = await smartVaults.saveOwnedSigner(saveOwnedSignerPayload3)
     })
     it('returns owned signers', async () => {
-      const signers = await coinstr.getOwnedSigners();
+      const signers = await smartVaults.getOwnedSigners();
       expect(signers.length).toBe(3);
       expect(signers[0]).toEqual(ownedSigner3)
       expect(signers[1]).toEqual(ownedSigner2)
@@ -751,10 +751,10 @@ describe('Coinstr', () => {
     });
 
     it('deleteSigners works', async () => {
-      const signers = await coinstr.getOwnedSigners();
+      const signers = await smartVaults.getOwnedSigners();
       expect(signers.length).toBe(3);
-      await coinstr.deleteSigners([signers[0].id, signers[1].id])
-      const signers2 = await coinstr.getOwnedSigners();
+      await smartVaults.deleteSigners([signers[0].id, signers[1].id])
+      const signers2 = await smartVaults.getOwnedSigners();
       expect(signers2.length).toBe(1);
       expect(signers2[0]).toEqual(ownedSigner1)
     }
@@ -773,14 +773,14 @@ describe('Coinstr', () => {
     let ownedSigner3: PublishedOwnedSigner;
     let ownedSigner4: PublishedOwnedSigner;
     let ownedSigner5: PublishedOwnedSigner;
-    let coinstrWithAuthenticator2: Coinstr // New instance of Coinstr
+    let smartVaultsWithAuthenticator2: SmartVaults // New instance of SmartVaults
     let pubKey: string
     let pubKey2: string
 
     beforeAll(async () => {
       const authenticator2 = new DirectPrivateKeyAuthenticator(keySet1.keys[1].privateKey) // Second authenticator
       const authenticator3 = new DirectPrivateKeyAuthenticator(keySet1.keys[2].privateKey) // Third authenticator
-      coinstrWithAuthenticator2 = new Coinstr({ // New instance of Coinstr with different authenticator
+      smartVaultsWithAuthenticator2 = new SmartVaults({ // New instance of SmartVaults with different authenticator
         authenticator: authenticator2,
         bitcoinUtil,
         nostrClient
@@ -788,35 +788,35 @@ describe('Coinstr', () => {
 
       pubKey = keySet1.keys[1].publicKey
       pubKey2 = keySet1.keys[2].publicKey
-      ownedSigner1 = await saveSharedSignerPayload(coinstr, 1)
-      let sharedSignerResult = await coinstr.saveSharedSigner(ownedSigner1, pubKey)
-      sharedSigner11 = (await coinstr.saveSharedSigner(ownedSigner1, pubKey2))[0]
+      ownedSigner1 = await saveSharedSignerPayload(smartVaults, 1)
+      let sharedSignerResult = await smartVaults.saveSharedSigner(ownedSigner1, pubKey)
+      sharedSigner11 = (await smartVaults.saveSharedSigner(ownedSigner1, pubKey2))[0]
       sharedSigner1 = sharedSignerResult[0]
-      ownedSigner2 = await saveSharedSignerPayload(coinstr, 2)
-      sharedSignerResult = await coinstr.saveSharedSigner(ownedSigner2, pubKey)
+      ownedSigner2 = await saveSharedSignerPayload(smartVaults, 2)
+      sharedSignerResult = await smartVaults.saveSharedSigner(ownedSigner2, pubKey)
       sharedSigner2 = sharedSignerResult[0]
-      ownedSigner3 = await saveSharedSignerPayload(coinstr, 3)
-      sharedSignerResult = await coinstr.saveSharedSigner(ownedSigner3, pubKey)
+      ownedSigner3 = await saveSharedSignerPayload(smartVaults, 3)
+      sharedSignerResult = await smartVaults.saveSharedSigner(ownedSigner3, pubKey)
       sharedSigner3 = sharedSignerResult[0]
 
-      let coinstrWithAuthenticator3 = new Coinstr({ // New instance of Coinstr with different authenticator
+      let smartVaultsWithAuthenticator3 = new SmartVaults({ // New instance of SmartVaults with different authenticator
         authenticator: authenticator3,
         bitcoinUtil,
         nostrClient
       });
 
-      ownedSigner4 = await saveSharedSignerPayload(coinstrWithAuthenticator3, 6)
-      sharedSignerResult = await coinstrWithAuthenticator3.saveSharedSigner(ownedSigner4, pubKey)
+      ownedSigner4 = await saveSharedSignerPayload(smartVaultsWithAuthenticator3, 6)
+      sharedSignerResult = await smartVaultsWithAuthenticator3.saveSharedSigner(ownedSigner4, pubKey)
       sharedSigner4 = sharedSignerResult[0]
-      ownedSigner5 = await saveSharedSignerPayload(coinstrWithAuthenticator3, 7)
-      sharedSignerResult = await coinstrWithAuthenticator3.saveSharedSigner(ownedSigner5, pubKey)
+      ownedSigner5 = await saveSharedSignerPayload(smartVaultsWithAuthenticator3, 7)
+      sharedSignerResult = await smartVaultsWithAuthenticator3.saveSharedSigner(ownedSigner5, pubKey)
       sharedSigner5 = sharedSignerResult[0]
 
 
     })
 
     it('returns shared all signers (default)', async () => {
-      const signers = await coinstrWithAuthenticator2.getSharedSigners(); // Using the new instance of Coinstr
+      const signers = await smartVaultsWithAuthenticator2.getSharedSigners(); // Using the new instance of SmartVaults
       expect(signers.length).toBe(5);
       expect(new Set(signers)).toEqual(new Set([sharedSigner1, sharedSigner2, sharedSigner3, sharedSigner4, sharedSigner5]));
 
@@ -831,12 +831,12 @@ describe('Coinstr', () => {
       if (!sharedSigner1.ownerPubKey) {
         throw new Error('SharedSigner1 ownerPubKey is undefined');
       }
-      const signers1 = await coinstrWithAuthenticator2.getSharedSigners(sharedSigner1.ownerPubKey);
+      const signers1 = await smartVaultsWithAuthenticator2.getSharedSigners(sharedSigner1.ownerPubKey);
       expect(signers1.length).toBe(3);
       expect(new Set(signers1)).toEqual(new Set([sharedSigner1, sharedSigner2, sharedSigner3]));
 
 
-      const signers2 = await coinstrWithAuthenticator2.getSharedSigners(sharedSigner4.ownerPubKey);
+      const signers2 = await smartVaultsWithAuthenticator2.getSharedSigners(sharedSigner4.ownerPubKey);
       expect(signers2.length).toBe(2);
       expect(new Set(signers2)).toEqual(new Set([sharedSigner4, sharedSigner5]))
     });
@@ -846,14 +846,14 @@ describe('Coinstr', () => {
       if (!sharedSigner1.ownerPubKey || !sharedSigner4.ownerPubKey) {
         throw new Error('SharedSigner1 ownerPubKey is undefined');
       }
-      const signers = await coinstrWithAuthenticator2.getSharedSigners([sharedSigner1.ownerPubKey, sharedSigner4.ownerPubKey]);
+      const signers = await smartVaultsWithAuthenticator2.getSharedSigners([sharedSigner1.ownerPubKey, sharedSigner4.ownerPubKey]);
       expect(signers.length).toBe(5);
       expect(new Set(signers)).toEqual(new Set([sharedSigner1, sharedSigner2, sharedSigner3, sharedSigner4, sharedSigner5]));
     }
     );
 
     it('getMySharedSigners', async () => {
-      const mySharedSigners = await coinstr.getMySharedSigners();
+      const mySharedSigners = await smartVaults.getMySharedSigners();
       const mySharedSigner1 = [
         { id: sharedSigner11.id, sharedDate: sharedSigner1.createdAt, signerId: ownedSigner1.id, sharedWith: pubKey2 },
         { id: sharedSigner1.id, sharedDate: sharedSigner1.createdAt, signerId: ownedSigner1.id, sharedWith: pubKey }
@@ -868,9 +868,9 @@ describe('Coinstr', () => {
     })
 
     it('revokeSharedSigner', async () => {
-      await coinstr.revokeMySharedSigners(sharedSigner1.id)
-      await coinstr.revokeMySharedSigners(sharedSigner11.id)
-      const mySharedSigners = await coinstr.getMySharedSigners();
+      await smartVaults.revokeMySharedSigners(sharedSigner1.id)
+      await smartVaults.revokeMySharedSigners(sharedSigner11.id)
+      const mySharedSigners = await smartVaults.getMySharedSigners();
       const mySharedSigner2 = { id: sharedSigner2.id, sharedDate: sharedSigner2.createdAt, signerId: ownedSigner2.id, sharedWith: pubKey }
       const mySharedSigner3 = { id: sharedSigner3.id, sharedDate: sharedSigner3.createdAt, signerId: ownedSigner3.id, sharedWith: pubKey }
       const expected1: Map<string, MySharedSigner | MySharedSigner[]> = new Map()
@@ -901,14 +901,14 @@ describe('Coinstr', () => {
     let secondCallTime1;
     let secondCallTime2;
     let expectedTrx: FinalizeTrxResponse;
-    let coinstr2: Coinstr
+    let smartVaults2: SmartVaults
     let finalizedProposal;
     let policy1;
 
     beforeAll(async () => {
 
 
-      coinstr2 = newCoinstr(altKeySet.mainKey())
+      smartVaults2 = newSmartVaults(altKeySet.mainKey())
       let wallet = mock<Wallet>()
       wallet.sync.mockResolvedValue()
       wallet.build_trx
@@ -927,28 +927,28 @@ describe('Coinstr', () => {
       bitcoinUtil.getPsbtUtxos.mockReturnValue(['utxo1', 'utxo2'])
 
       let savePolicyPayload1 = getSavePolicyPayload(11, keySet1.getPublicKeys(), -10)
-      policy1 = await coinstr.savePolicy(savePolicyPayload1) // Policy 1 is created by authenticator 1
+      policy1 = await smartVaults.savePolicy(savePolicyPayload1) // Policy 1 is created by authenticator 1
       let savePolicyPayload2 = getSavePolicyPayload(12, altKeySet.getPublicKeys(), -12)
-      let policy2 = await coinstr2.savePolicy(savePolicyPayload2) // Policy 2 is created by authenticator 2
+      let policy2 = await smartVaults2.savePolicy(savePolicyPayload2) // Policy 2 is created by authenticator 2
       let payloadWithBothKeys = getSavePolicyPayload(13, [...keySet1.getPublicKeys(), ...altKeySet.getPublicKeys()], -13)
-      let policy3 = await coinstr.savePolicy(payloadWithBothKeys) // Policy 3 is created by authenticator 1 but has both keys
+      let policy3 = await smartVaults.savePolicy(payloadWithBothKeys) // Policy 3 is created by authenticator 1 but has both keys
 
 
       let spendProposalPayload1 = spendProposalPayload(11, policy1)
       let spendProposalPayload2 = spendProposalPayload(12, policy2)
       let spendProposalPayload3 = spendProposalPayload(13, policy3) // 'signed' needed since it will be approved
 
-      spendProposal1 = await coinstr.spend(spendProposalPayload1)
-      spendProposal2 = await coinstr2.spend(spendProposalPayload2)
-      spendProposal3 = await coinstr.spend(spendProposalPayload3)
+      spendProposal1 = await smartVaults.spend(spendProposalPayload1)
+      spendProposal2 = await smartVaults2.spend(spendProposalPayload2)
+      spendProposal3 = await smartVaults.spend(spendProposalPayload3)
 
       let saveProofOfReserveProposalPayload1 = saveProofOfReserveProposalPayload(11)
       let saveProofOfReserveProposalPayload2 = saveProofOfReserveProposalPayload(12)
       let saveProofOfReserveProposalPayload3 = saveProofOfReserveProposalPayload(13)
 
-      proofOfReserveProposal1 = await coinstr._saveProofOfReserveProposal(policy1.id, saveProofOfReserveProposalPayload1)
-      proofOfReserveProposal2 = await coinstr2._saveProofOfReserveProposal(policy2.id, saveProofOfReserveProposalPayload2)
-      proofOfReserveProposal3 = await coinstr._saveProofOfReserveProposal(policy3.id, saveProofOfReserveProposalPayload3)
+      proofOfReserveProposal1 = await smartVaults._saveProofOfReserveProposal(policy1.id, saveProofOfReserveProposalPayload1)
+      proofOfReserveProposal2 = await smartVaults2._saveProofOfReserveProposal(policy2.id, saveProofOfReserveProposalPayload2)
+      proofOfReserveProposal3 = await smartVaults._saveProofOfReserveProposal(policy3.id, saveProofOfReserveProposalPayload3)
 
 
       proposalApproved1 = proofOfReserveProposal3.proposal_id
@@ -957,33 +957,33 @@ describe('Coinstr', () => {
     }
     )
     it('save approvals', async () => {
-      saveApprovedProposal1 = await coinstr._saveApprovedProposal(proposalApproved1)
-      saveApprovedProposal2 = await coinstr._saveApprovedProposal(proposalApproved2)
-      saveApprovedProposal3 = await coinstr._saveApprovedProposal(proposalApproved2)
-      saveApprovedProposal4 = await coinstr._saveApprovedProposal(proposalApproved1)
+      saveApprovedProposal1 = await smartVaults._saveApprovedProposal(proposalApproved1)
+      saveApprovedProposal2 = await smartVaults._saveApprovedProposal(proposalApproved2)
+      saveApprovedProposal3 = await smartVaults._saveApprovedProposal(proposalApproved2)
+      saveApprovedProposal4 = await smartVaults._saveApprovedProposal(proposalApproved1)
     });
 
-    const checkProposals = async (coinstr: Coinstr, expectedLength: number, expectedProposals: any) => {
-      const proposals = await coinstr.getProposals();
+    const checkProposals = async (smartVaults: SmartVaults, expectedLength: number, expectedProposals: any) => {
+      const proposals = await smartVaults.getProposals();
       expect(proposals.length).toBe(expectedLength);
       expect(new Set(proposals)).toEqual(new Set(expectedProposals));
     };
 
     it('returns proposals', async () => {
       const start = Date.now();
-      await checkProposals(coinstr, 4, [spendProposal1, proofOfReserveProposal1, proofOfReserveProposal3, spendProposal3]);
+      await checkProposals(smartVaults, 4, [spendProposal1, proofOfReserveProposal1, proofOfReserveProposal3, spendProposal3]);
       firstCallTime1 = Date.now() - start;
       const start2 = Date.now();
-      await checkProposals(coinstr2, 4, [spendProposal2, proofOfReserveProposal2, proofOfReserveProposal3, spendProposal3]);
+      await checkProposals(smartVaults2, 4, [spendProposal2, proofOfReserveProposal2, proofOfReserveProposal3, spendProposal3]);
       firstCallTime2 = Date.now() - start2;
     });
 
     it('return proposal should be faster because of cache', async () => {
       const start = Date.now();
-      await checkProposals(coinstr, 4, [spendProposal1, proofOfReserveProposal1, proofOfReserveProposal3, spendProposal3]);
+      await checkProposals(smartVaults, 4, [spendProposal1, proofOfReserveProposal1, proofOfReserveProposal3, spendProposal3]);
       secondCallTime1 = Date.now() - start;
       const start2 = Date.now();
-      await checkProposals(coinstr2, 4, [spendProposal2, proofOfReserveProposal2, proofOfReserveProposal3, spendProposal3]);
+      await checkProposals(smartVaults2, 4, [spendProposal2, proofOfReserveProposal2, proofOfReserveProposal3, spendProposal3]);
       secondCallTime2 = Date.now() - start2;
       expect(secondCallTime1).toBeLessThan(firstCallTime1);
       expect(secondCallTime2).toBeLessThan(firstCallTime2);
@@ -991,7 +991,7 @@ describe('Coinstr', () => {
 
     it('getProposals should be sensible to status changes', async () => {
       bitcoinUtil.canFinalizePsbt.mockReturnValue(true)
-      const proposals = await coinstr.getProposalsById([proposalApproved1, proposalApproved2]);
+      const proposals = await smartVaults.getProposalsById([proposalApproved1, proposalApproved2]);
       expect(proposals.size).toBe(2);
       for (const proposal of Array.from(proposals.values())) {
         expect(proposal).toHaveProperty('status');
@@ -1002,7 +1002,7 @@ describe('Coinstr', () => {
 
 
     it('getProposalsById', async () => {
-      const proposals = await coinstr.getProposalsById([spendProposal1.proposal_id, spendProposal3.proposal_id]);
+      const proposals = await smartVaults.getProposalsById([spendProposal1.proposal_id, spendProposal3.proposal_id]);
       expect(proposals.size).toBe(2);
       expect(new Set(Array.from(proposals.values()))).toEqual(new Set([spendProposal1, spendProposal3]));
     });
@@ -1014,14 +1014,14 @@ describe('Coinstr', () => {
         [policyId1, [proofOfReserveProposal1, spendProposal1]],
         [policyId3, [proofOfReserveProposal3, spendProposal3]]
       ]);
-      const proposals = await coinstr.getProposalsByPolicyId([spendProposal1.policy_id, spendProposal3.policy_id]);
+      const proposals = await smartVaults.getProposalsByPolicyId([spendProposal1.policy_id, spendProposal3.policy_id]);
       expect(proposals.size).toBe(2);
       expect(Array.from(proposals.values()).sort).toEqual(Array.from(expectedMap.values()).sort);
     });
 
     it('returns proposals with limit works', async () => {
-      const proposalsAuth1 = await coinstr.getProposals({ limit: 2 });
-      const proposalsAuth2 = await coinstr2.getProposals({ limit: 3 });
+      const proposalsAuth1 = await smartVaults.getProposals({ limit: 2 });
+      const proposalsAuth2 = await smartVaults2.getProposals({ limit: 3 });
       expect(proposalsAuth1.length).toBe(2);
       expect(proposalsAuth2.length).toBe(3);
     });
@@ -1031,15 +1031,15 @@ describe('Coinstr', () => {
       // Each set of keys creates one SpendProposal (1 and 2), SpendProposal3 is created by auth 1 but has both keys in the policy
       // hence the message is sent to both Auth 1 and Auth 2.
 
-      let coinstr = newCoinstr(keySet1.keys[1])
-      let directMessages = await coinstr.getDirectMessages();
+      let smartVaults = newSmartVaults(keySet1.keys[1])
+      let directMessages = await smartVaults.getDirectMessages();
       expect(directMessages.length).toBe(2) // 2 proposals sent by key 1
       let publicKeyAuth1 = keySet1.mainKey().publicKey
       assertProposalDirectMessage(directMessages[0], spendProposal3, publicKeyAuth1)
       assertProposalDirectMessage(directMessages[1], spendProposal1, publicKeyAuth1)
 
-      coinstr = newCoinstr(altKeySet.keys[1])
-      directMessages = await coinstr.getDirectMessages();
+      smartVaults = newSmartVaults(altKeySet.keys[1])
+      directMessages = await smartVaults.getDirectMessages();
       let publicKeyAuth2 = altKeySet.mainKey().publicKey
       expect(directMessages.length).toBe(2)
       assertProposalDirectMessage(directMessages[0], spendProposal3, publicKeyAuth1)
@@ -1049,7 +1049,7 @@ describe('Coinstr', () => {
 
 
     const checkApprovals = async (expectedSize: number, expectedProposals: Record<string, PublishedApprovedProposal[]>) => {
-      const approvedProposals = await coinstr.getApprovals();
+      const approvedProposals = await smartVaults.getApprovals();
       expect(approvedProposals.size).toBe(expectedSize);
 
       for (const [proposalId, expected] of Object.entries(expectedProposals)) {
@@ -1079,27 +1079,27 @@ describe('Coinstr', () => {
       await checkApprovals(proposalIds.length, expectedProposals);
 
       for (const proposalId of proposalIds) {
-        const singleApprovedProposal = await coinstr.getApprovals([proposalId]);
+        const singleApprovedProposal = await smartVaults.getApprovals([proposalId]);
         expect(singleApprovedProposal.size).toBe(1);
       }
     });
 
     it('save completed proposals', async () => {
-      completedProposal2 = await coinstr._saveCompletedProposal(proposalApproved1, saveProofOfReserveProposalPayload(12))
-      completedProposal3 = await coinstr2._saveCompletedProposal(proposalApproved2, saveProofOfReserveProposalPayload(13))
+      completedProposal2 = await smartVaults._saveCompletedProposal(proposalApproved1, saveProofOfReserveProposalPayload(12))
+      completedProposal3 = await smartVaults2._saveCompletedProposal(proposalApproved2, saveProofOfReserveProposalPayload(13))
     });
     it('returns completed proposals', async () => {
-      const completedProposals = await coinstr.getCompletedProposals();
+      const completedProposals = await smartVaults.getCompletedProposals();
       expect(completedProposals.length).toBe(2);
       expect(new Set(completedProposals)).toEqual(new Set([completedProposal2, completedProposal3]));
-      let activeProposalsAuth1 = await coinstr.getProposals();
+      let activeProposalsAuth1 = await smartVaults.getProposals();
       expect(activeProposalsAuth1.length).toBe(2);
-      let activeProposalsAuth2 = await coinstr2.getProposals();
+      let activeProposalsAuth2 = await smartVaults2.getProposals();
       expect(activeProposalsAuth2.length).toBe(2);
     });
 
     it('getCompletedProposalsById', async () => {
-      const proposals = await coinstr.getCompletedProposalsById([completedProposal2.id, completedProposal3.id]);
+      const proposals = await smartVaults.getCompletedProposalsById([completedProposal2.id, completedProposal3.id]);
       expect(proposals.size).toBe(2);
       expect(proposals.get(completedProposal2.id)).toEqual(completedProposal2);
       expect(proposals.get(completedProposal3.id)).toEqual(completedProposal3);
@@ -1109,7 +1109,7 @@ describe('Coinstr', () => {
     it('getCompletedProposalsByPolicyId', async () => {
       const policyId1 = completedProposal2.policy_id;
       const expectedMap1 = new Map([[policyId1, [completedProposal3, completedProposal2]]]);
-      const proposals1 = await coinstr.getCompletedProposalsByPolicyId([policyId1]);
+      const proposals1 = await smartVaults.getCompletedProposalsByPolicyId([policyId1]);
       expect(proposals1.size).toBe(1);
       expect(proposals1).toEqual(expectedMap1);
     }
@@ -1117,15 +1117,15 @@ describe('Coinstr', () => {
 
 
     it('deleteProposals works', async () => {
-      const spendProposal = await coinstr.getProposalsById([spendProposal3.proposal_id]);
-      const approvals = await coinstr.getApprovals([spendProposal3.proposal_id]);
+      const spendProposal = await smartVaults.getProposalsById([spendProposal3.proposal_id]);
+      const approvals = await smartVaults.getApprovals([spendProposal3.proposal_id]);
       expect(spendProposal.size).toBe(1);
       expect(approvals.size).toBe(1);
       expect(approvals.get(spendProposal3.proposal_id)!.length).toBe(2);
-      await coinstr.deleteProposals(spendProposal3.proposal_id)
+      await smartVaults.deleteProposals(spendProposal3.proposal_id)
       await sleep(200)
-      const proposals = await coinstr.getProposalsById([spendProposal3.proposal_id]);
-      const approvals2 = await coinstr.getApprovals([spendProposal3.proposal_id]);
+      const proposals = await smartVaults.getProposalsById([spendProposal3.proposal_id]);
+      const approvals2 = await smartVaults.getApprovals([spendProposal3.proposal_id]);
       expect(proposals.size).toBe(0);
       expect(approvals2.size).toBe(0);
     }
@@ -1134,74 +1134,74 @@ describe('Coinstr', () => {
     it('finalizeSpendingProposal works', async () => {
       bitcoinUtil.canFinalizePsbt.mockReturnValue(true)
       bitcoinUtil.getPsbtUtxos.mockReturnValue(['utxo1', 'otherUtxo'])
-      await coinstr._saveApprovedProposal(spendProposal1.proposal_id)
-      const proposalWithOneCommonUtxo = await coinstr.spend(spendProposalPayload(22, policy1))
-      await coinstr.getProposals()
+      await smartVaults._saveApprovedProposal(spendProposal1.proposal_id)
+      const proposalWithOneCommonUtxo = await smartVaults.spend(spendProposalPayload(22, policy1))
+      await smartVaults.getProposals()
       bitcoinUtil.getPsbtUtxos.mockReturnValue(['nocommon', 'utxos'])
-      const proposalWithNoCommonUtxo = await coinstr.spend(spendProposalPayload(23, policy1))
-      const proposalsBefore = await coinstr.getProposals()
+      const proposalWithNoCommonUtxo = await smartVaults.spend(spendProposalPayload(23, policy1))
+      const proposalsBefore = await smartVaults.getProposals()
       expect(proposalsBefore.length).toBe(4)
       expect(proposalsBefore[1]).toEqual(proposalWithOneCommonUtxo)
-      finalizedProposal = await coinstr.finalizeSpendingProposal(spendProposal1.proposal_id)
-      const proposalsAfter = await coinstr.getProposals()
+      finalizedProposal = await smartVaults.finalizeSpendingProposal(spendProposal1.proposal_id)
+      const proposalsAfter = await smartVaults.getProposals()
       expect(proposalsAfter.length).toBe(1)
       expect(proposalsAfter[0]).toEqual(proposalWithNoCommonUtxo)
       expect(finalizedProposal.tx).toEqual(expectedTrx.trx)
       expect(finalizedProposal.description).toEqual(spendProposal1.description)
-      const completedProposalsMap = await coinstr.getCompletedProposalsById(finalizedProposal.id);
+      const completedProposalsMap = await smartVaults.getCompletedProposalsById(finalizedProposal.id);
       expect(completedProposalsMap.size).toBe(1);
       expect(completedProposalsMap.get(finalizedProposal.id)).toEqual(finalizedProposal);
     }
     );
 
     it('getCompletedProposalByTx works', async () => {
-      const completedProposal = await coinstr.getCompletedProposalByTx(expectedTrx.trx)
-      const expectedCompletedProposal = await coinstr.getCompletedProposalsById([finalizedProposal.id])
+      const completedProposal = await smartVaults.getCompletedProposalByTx(expectedTrx.trx)
+      const expectedCompletedProposal = await smartVaults.getCompletedProposalsById([finalizedProposal.id])
       expect(completedProposal).toEqual(expectedCompletedProposal.get(finalizedProposal.id))
     }
     );
 
     it('deleteApprovals works', async () => {
-      await coinstr.deleteApprovals([saveApprovedProposal1.approval_id, saveApprovedProposal4.approval_id])
+      await smartVaults.deleteApprovals([saveApprovedProposal1.approval_id, saveApprovedProposal4.approval_id])
       await sleep(200)
-      const approvedProposals = await coinstr.getApprovals([proposalApproved1]);
+      const approvedProposals = await smartVaults.getApprovals([proposalApproved1]);
       expect(approvedProposals.size).toBe(0);
     }
     );
 
     it('deleteCompletedProposals works', async () => {
-      const completedProposals = await coinstr.getCompletedProposalsById([completedProposal2.id, completedProposal3.id]);
+      const completedProposals = await smartVaults.getCompletedProposalsById([completedProposal2.id, completedProposal3.id]);
       expect(completedProposals.size).toBe(2);
-      await coinstr.deleteCompletedProposals([completedProposal2.id, completedProposal3.id])
+      await smartVaults.deleteCompletedProposals([completedProposal2.id, completedProposal3.id])
       await sleep(200)
-      const completedProposals2 = await coinstr.getCompletedProposalsById([completedProposal2.id, completedProposal3.id]);
+      const completedProposals2 = await smartVaults.getCompletedProposalsById([completedProposal2.id, completedProposal3.id]);
       expect(completedProposals2.size).toBe(0);
     }
     );
 
     it('getLabels work', async () => {
-      const label = await coinstr.saveLabel(spendProposal1.policy_id, { data: { 'address': 'address1' }, text: 'text' })
-      const fetchedLabel = await coinstr.getLabels()
+      const label = await smartVaults.saveLabel(spendProposal1.policy_id, { data: { 'address': 'address1' }, text: 'text' })
+      const fetchedLabel = await smartVaults.getLabels()
       expect(fetchedLabel.length).toBe(1)
       expect(fetchedLabel[0]).toEqual(label)
-      const label2 = await coinstr.saveLabel(spendProposal1.policy_id, { data: { 'address': 'address2' }, text: 'text2' })
-      const labelsByPolicyId = await coinstr.getLabelsByPolicyId([spendProposal1.policy_id])
+      const label2 = await smartVaults.saveLabel(spendProposal1.policy_id, { data: { 'address': 'address2' }, text: 'text2' })
+      const labelsByPolicyId = await smartVaults.getLabelsByPolicyId([spendProposal1.policy_id])
       expect(labelsByPolicyId.size).toBe(1)
       expect(labelsByPolicyId.get(spendProposal1.policy_id)).toEqual([label, label2])
       await sleep(300)
-      const label3 = await coinstr.saveLabel(spendProposal1.policy_id, { data: { 'address': 'address1' }, text: 'text3' })
-      const fetchedLabels2 = await coinstr.getLabels()
+      const label3 = await smartVaults.saveLabel(spendProposal1.policy_id, { data: { 'address': 'address1' }, text: 'text3' })
+      const fetchedLabels2 = await smartVaults.getLabels()
       expect(fetchedLabels2.length).toBe(2)
       expect(fetchedLabels2).toEqual([label3, label2])
-      const labelByLabelId = await coinstr.getLabelById(label3.label_id)
+      const labelByLabelId = await smartVaults.getLabelById(label3.label_id)
       expect(labelByLabelId.get(label3.label_id)).toEqual(label3)
     }
     )
 
   });
 
-  function newCoinstr(keys: Keys): Coinstr {
-    return new Coinstr({
+  function newSmartVaults(keys: Keys): SmartVaults {
+    return new SmartVaults({
       authenticator: new DirectPrivateKeyAuthenticator(keys.privateKey),
       bitcoinUtil,
       nostrClient
@@ -1222,7 +1222,7 @@ function assertPublishedPolicy(actual: PublishedPolicy, expected: PublishedPolic
 }
 
 function assertSubscriptionPolicyPayload(kind: number, actual: any, savePayload: SavePolicyPayload) {
-  expect(kind).toBe(CoinstrKind.Policy)
+  expect(kind).toBe(SmartVaultsKind.Policy)
   expect(actual).toBeInstanceOf(PublishedPolicy)
   expect(actual.name).toBe(savePayload.name)
   expect(actual.description).toBe(savePayload.description)
@@ -1232,14 +1232,14 @@ function assertSubscriptionPolicyPayload(kind: number, actual: any, savePayload:
 }
 
 function assertSubscriptionSharedSignerPayload(kind: number, payload: any, expectedPayload: PublishedOwnedSigner) {
-  expect(kind).toBe(CoinstrKind.SharedSigners)
+  expect(kind).toBe(SmartVaultsKind.SharedSigners)
   expect(payload.descriptor).toEqual(expectedPayload.descriptor)
   expect(payload.fingerprint).toEqual(expectedPayload.fingerprint)
   expect(payload.ownerPubKey).toEqual(expectedPayload.ownerPubKey)
 }
 
 function assertSubscriptionOwnedSignerPayload(kind: number, payload: any, expectedPayload: OwnedSigner) {
-  expect(kind).toBe(CoinstrKind.Signers)
+  expect(kind).toBe(SmartVaultsKind.Signers)
   expect(payload.descriptor).toEqual(expectedPayload.descriptor)
   expect(payload.fingerprint).toEqual(expectedPayload.fingerprint)
   expect(payload.ownerPubKey).toEqual(expectedPayload.ownerPubKey)
@@ -1251,22 +1251,22 @@ function assertSubscriptionOwnedSignerPayload(kind: number, payload: any, expect
 
 
 function assertSubscriptionSpendProposalPayload(kind: number, payload: any, expectedPayload: any) {
-  expect(kind).toBe(CoinstrKind.Proposal)
+  expect(kind).toBe(SmartVaultsKind.Proposal)
   expect(payload).toEqual(expectedPayload)
 }
 
 function assertSubscriptionProofOfReserveProposalPayload(kind: number, payload: any, expectedPayload: any) {
-  expect(kind).toBe(CoinstrKind.Proposal)
+  expect(kind).toBe(SmartVaultsKind.Proposal)
   expect(payload).toEqual(expectedPayload)
 }
 
 function assertSubscriptionApprovedProposalPayload(kind: number, payload: any, expectedPayload: any) {
-  expect(kind).toBe(CoinstrKind.ApprovedProposal)
+  expect(kind).toBe(SmartVaultsKind.ApprovedProposal)
   expect(payload).toEqual(expectedPayload)
 }
 
 function assertSubscriptionCompletedProposalPayload(kind: number, payload: any, expectedPayload: any) {
-  expect(kind).toBe(CoinstrKind.CompletedProposal)
+  expect(kind).toBe(SmartVaultsKind.CompletedProposal)
   expect(payload).toEqual(expectedPayload)
 }
 
@@ -1314,15 +1314,15 @@ function getContact(id: number, publicKey: string): Contact {
   })
 }
 
-async function setProfile(id: number, coinstr: Coinstr): Promise<Profile> {
+async function setProfile(id: number, smartVaults: SmartVaults): Promise<Profile> {
   const metadata = getMetadata(id)
   const auth = new DirectPrivateKeyAuthenticator(new Keys().privateKey)
-  coinstr.setAuthenticator(auth)
-  return await coinstr.setProfile(metadata)
+  smartVaults.setAuthenticator(auth)
+  return await smartVaults.setProfile(metadata)
 }
 
-async function saveSharedSignerPayload(coinstr: Coinstr, id: number): Promise<PublishedOwnedSigner> {
-  const ownedSigner = await coinstr.saveOwnedSigner({
+async function saveSharedSignerPayload(smartVaults: SmartVaults, id: number): Promise<PublishedOwnedSigner> {
+  const ownedSigner = await smartVaults.saveOwnedSigner({
     description: `description${id}`,
     descriptor: `descriptor${id}`,
     fingerprint: `fingerprint${id}`,
@@ -1363,8 +1363,8 @@ function saveProofOfReserveProposalPayload(id: number) {
   }
 }
 
-async function _deleteApprovals(ids: string[], coinstr: Coinstr): Promise<void> {
-  const pubKey = coinstr.authenticator.getPublicKey()
+async function _deleteApprovals(ids: string[], smartVaults: SmartVaults): Promise<void> {
+  const pubKey = smartVaults.authenticator.getPublicKey()
   const promises: Promise<any>[] = [];
   const proposalParticipants = ['p', pubKey];
   const eventTags = ids.map(id => ['e', id]);
@@ -1372,37 +1372,37 @@ async function _deleteApprovals(ids: string[], coinstr: Coinstr): Promise<void> 
     kind: Kind.EventDeletion,
     content: '',
     tags: [...eventTags, proposalParticipants],
-  }, coinstr.authenticator);
-  const pub = coinstr.nostrClient.publish(deleteEvent);
+  }, smartVaults.authenticator);
+  const pub = smartVaults.nostrClient.publish(deleteEvent);
   promises.push(pub.onFirstOkOrCompleteFailure());
   await Promise.all(promises);
 }
 
-async function _deleteProposals(ids: string[], coinstr: Coinstr): Promise<any> {
-  const pubKey = coinstr.authenticator.getPublicKey()
+async function _deleteProposals(ids: string[], smartVaults: SmartVaults): Promise<any> {
+  const pubKey = smartVaults.authenticator.getPublicKey()
   const promises: Promise<any>[] = [];
   const proposalParticipants = ['p', pubKey];
   for (const id of ids) {
-    const proposal = (await coinstr.getProposalsById([id]))?.get(id);
+    const proposal = (await smartVaults.getProposalsById([id]))?.get(id);
     if (!proposal) continue
-    const sharedKeyAuth = (await coinstr.getSharedKeysById([proposal.policy_id])).get(proposal.policy_id)!.sharedKeyAuthenticator;
+    const sharedKeyAuth = (await smartVaults.getSharedKeysById([proposal.policy_id])).get(proposal.policy_id)!.sharedKeyAuthenticator;
     const deleteEvent = await buildEvent({
       kind: Kind.EventDeletion,
       content: '',
       tags: [['e', id], proposalParticipants],
     }, sharedKeyAuth);
-    const pub = coinstr.nostrClient.publish(deleteEvent);
+    const pub = smartVaults.nostrClient.publish(deleteEvent);
     promises.push(pub.onFirstOkOrCompleteFailure());
   }
   await Promise.all(promises);
 }
 
-async function _deletePolicies(ids: string[], coinstr: Coinstr): Promise<any> {
-  const pubKey = coinstr.authenticator.getPublicKey()
+async function _deletePolicies(ids: string[], smartVaults: SmartVaults): Promise<any> {
+  const pubKey = smartVaults.authenticator.getPublicKey()
   const promises: Promise<any>[] = [];
   const proposalParticipants = ['p', pubKey];
   for (const id of ids) {
-    const policy = (await coinstr.getPoliciesById([id]))?.get(id);
+    const policy = (await smartVaults.getPoliciesById([id]))?.get(id);
     if (!policy) continue
     const sharedKeyAuth = policy.sharedKeyAuth;
     const deleteEvent = await buildEvent({
@@ -1410,7 +1410,7 @@ async function _deletePolicies(ids: string[], coinstr: Coinstr): Promise<any> {
       content: '',
       tags: [['e', id], proposalParticipants],
     }, sharedKeyAuth);
-    const pub = coinstr.nostrClient.publish(deleteEvent);
+    const pub = smartVaults.nostrClient.publish(deleteEvent);
     promises.push(pub.onFirstOkOrCompleteFailure());
   }
   await Promise.all(promises);
