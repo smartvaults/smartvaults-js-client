@@ -910,7 +910,9 @@ export class Coinstr {
   }
 
 
-
+  /**
+  * @ignore
+  */
   private async _getProposals(filter: Filter<CoinstrKind.Policy>[]): Promise<Array<CoinstrTypes.PublishedSpendingProposal | CoinstrTypes.PublishedProofOfReserveProposal>> {
     const proposalEvents = await this.nostrClient.list(filter)
     const proposalHandler = this.eventKindHandlerFactor.getHandler(CoinstrKind.Proposal)
@@ -1197,7 +1199,9 @@ export class Coinstr {
   }
 
 
-  //Mock method to create a proposal, this will be replaced when the policy class is created
+  /**
+  * @ignore
+  */
   async _saveProofOfReserveProposal(policy_id: string, { "ProofOfReserve": { message, psbt, descriptor } }): Promise<CoinstrTypes.PublishedProofOfReserveProposal> {
 
     const policyEvent = await this.getPolicyEvent(policy_id)
@@ -1239,6 +1243,9 @@ export class Coinstr {
 
   }
 
+  /**
+  * @ignore
+  */
   async _saveApprovedProposal(proposal_id: string): Promise<CoinstrTypes.PublishedApprovedProposal> {
     const proposalEvent = await this.getProposalEvent(proposal_id)
     const policyId = getTagValues(proposalEvent, TagType.Event)[0]
@@ -1283,6 +1290,9 @@ export class Coinstr {
     return publishedApprovedProposal
   }
 
+  /**
+  * @ignore
+  */
   async _saveCompletedProposal(proposal_id: string, payload: CoinstrTypes.CompletedProofOfReserveProposal | CoinstrTypes.CompletedSpendingProposal): Promise<any> {
     const proposalEvent = await this.getProposalEvent(proposal_id)
     const policyId = getTagValues(proposalEvent, TagType.Event)[0]
