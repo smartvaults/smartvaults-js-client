@@ -36,8 +36,10 @@ export class OwnedSignerHandler extends EventKindHandler {
 
       return this.authenticator.decryptObj(signersEvent.content, signersEvent.pubkey)
         .then(baseDecryptedSigner => {
+          const key = this.extractKey(baseDecryptedSigner.descriptor)
           const signer: PublishedOwnedSigner = {
             ...baseDecryptedSigner,
+            key,
             id: signersEvent.id,
             ownerPubKey: signersEvent.pubkey,
             createdAt: fromNostrDate(signersEvent.created_at)
@@ -78,7 +80,8 @@ export class OwnedSignerHandler extends EventKindHandler {
         continue
       }
       const baseDecryptedSigner: BaseOwnedSigner = await this.authenticator.decryptObj(signersEvent.content, signersEvent.pubkey)
-      signers.push({ ...baseDecryptedSigner, id: signersEvent.id, ownerPubKey: signersEvent.pubkey, createdAt: fromNostrDate(signersEvent.created_at) })
+      const key = this.extractKey(baseDecryptedSigner.descriptor)
+      signers.push({ ...baseDecryptedSigner, key, id: signersEvent.id, ownerPubKey: signersEvent.pubkey, createdAt: fromNostrDate(signersEvent.created_at) })
       rawSignersEvents.push(signersEvent)
     }
     this.store.store(signers)
@@ -86,6 +89,10 @@ export class OwnedSignerHandler extends EventKindHandler {
     return signers
   }
 
+  private extractKey(descriptor: string): string {
+    const matches = descriptor.match(/\((.*?)\)/)
+    return matches ? matches[1] : ''
+  }
 
   protected async _delete<K extends number>(signersIds: string[]): Promise<void> {
     const pubKey = this.authenticator.getPublicKey()

@@ -557,11 +557,11 @@ export class SmartVaults {
   }
 
   /**
-   * Fetches signers owned by the user and returns them as an array of OwnedSigner objects.
+   * Fetches signers owned by the user and returns them as an array of BaseOwnedSigner objects.
    * 
    *  
-   * @returns {Promise<OwnedSigner[]>} A promise that resolves to an array of OwnedSigner objects.
-   * Each OwnedSigner object represents an owned signer and contains all the properties of the base signer object, plus `ownerPubKey' and 'createdAt' properties.
+   * @returns {Promise<BaseOwnedSigner[]>} A promise that resolves to an array of BaseOwnedSigner objects.
+   * Each BaseOwnedSigner object represents an owned signer and contains all the properties of the base signer object, plus `ownerPubKey' and 'createdAt' properties.
    * 
    * @throws {Error} Throws an error if there's an issue in fetching signer events or decrypting content.
    * 
@@ -614,11 +614,11 @@ export class SmartVaults {
   }
 
   /**
-   * Fetches all signers that had been shared with the user and returns them as an array of SharedSigner objects.
+   * Fetches all signers that had been shared with the user and returns them as an array of BaseSharedSigner objects.
    * 
    *  
-   * @returns {Promise<SharedSigner[]>} A promise that resolves to an array of SharedSigner objects.
-   * Each SharedSigner object represents an shared signer and contains all the properties of the base shared signer object, plus `ownerPubKey' and 'createdAt' properties.
+   * @returns {Promise<BaseSharedSigner[]>} A promise that resolves to an array of BaseSharedSigner objects.
+   * Each BaseSharedSigner object represents an shared signer and contains all the properties of the base shared signer object, plus `ownerPubKey' and 'createdAt' properties.
    * 
    * @throws {Error} Throws an error if there's an issue in fetching signer events or decrypting content.
    * 
@@ -633,6 +633,11 @@ export class SmartVaults {
     return this._getSharedSigners(sharedSignersFilter.toFilters());
   }
 
+  private extractKey(descriptor: string): string {
+    const matches = descriptor.match(/\((.*?)\)/)
+    return matches ? matches[1] : ''
+  }
+
   /**
    * Asynchronously saves an owned signer by encrypting its properties, building a new event, 
    * and publishing it via `NostrClient`.
@@ -640,7 +645,7 @@ export class SmartVaults {
    * @async
    * @param {Object} params - Parameters for the owned signer, including `description`, `descriptor`, 
    * `fingerprint`, `name`, `t`.
-   * @returns {Promise<OwnedSigner>} A promise that resolves to an OwnedSigner object with encrypted 
+   * @returns {Promise<BaseOwnedSigner>} A promise that resolves to an BaseOwnedSigner object with encrypted 
    * data and includes the owner's public key and creation date.
    * @throws Will throw an error if the event publishing fails.
    * @example
@@ -652,10 +657,10 @@ export class SmartVaults {
     fingerprint,
     name,
     t,
-  }: SmartVaultsTypes.OwnedSigner): Promise<SmartVaultsTypes.PublishedOwnedSigner> {
+  }: SmartVaultsTypes.BaseOwnedSigner): Promise<SmartVaultsTypes.PublishedOwnedSigner> {
     let ownerPubKey = this.authenticator.getPublicKey()
 
-    const signer: SmartVaultsTypes.OwnedSigner = {
+    const signer: SmartVaultsTypes.BaseOwnedSigner = {
       description,
       descriptor,
       fingerprint,
@@ -673,17 +678,18 @@ export class SmartVaults {
     await pub.onFirstOkOrCompleteFailure()
     const id = signerEvent.id
     const createdAt = fromNostrDate(signerEvent.created_at);
+    const key = this.extractKey(descriptor)
 
-    return { ...signer, id, ownerPubKey, createdAt }
+    return { ...signer, key, id, ownerPubKey, createdAt }
   }
 
   /**
-   * Asynchronously creates and publishes a 'SharedSigner' event.
+   * Asynchronously creates and publishes a 'BaseSharedSigner' event.
    *
    * @async
    * @param {Object} params - Parameters for the shared signer, including `descriptor` and `fingerpring`
    * @param {string} pubKey - Public key of the user with whom the signer is being shared.
-   * @returns {Promise<SmartVaultsTypes.SharedSigner>} A promise that resolves to a PublishedSharedSigner object, includes 
+   * @returns {Promise<SmartVaultsTypes.BaseSharedSigner>} A promise that resolves to a PublishedSharedSigner object, includes 
    * the owner's public key and shared date.
    * @throws Will throw an error if the event publishing fails.
    * @example
@@ -695,13 +701,13 @@ export class SmartVaults {
       pubKeys = [pubKeys]
     }
     const ownerPubKey = this.authenticator.getPublicKey()
-    const SharedSigner: SmartVaultsTypes.SharedSigner = {
+    const BaseSharedSigner: SmartVaultsTypes.BaseSharedSigner = {
       descriptor: ownedSigner.descriptor,
       fingerprint: ownedSigner.fingerprint,
     }
     const sharedSigners: SmartVaultsTypes.PublishedSharedSigner[] = []
     for (const pubKey of pubKeys) {
-      const content = await this.authenticator.encryptObj(SharedSigner, pubKey)
+      const content = await this.authenticator.encryptObj(BaseSharedSigner, pubKey)
       const signerEvent = await buildEvent({
         kind: SmartVaultsKind.SharedSigners,
         content,
@@ -714,7 +720,9 @@ export class SmartVaults {
 
       const id = signerEvent.id
       const createdAt = fromNostrDate(signerEvent.created_at)
-      sharedSigners.push({ ...SharedSigner, id, ownerPubKey, createdAt })
+      const key = this.extractKey(ownedSigner.descriptor)
+
+      sharedSigners.push({ ...BaseSharedSigner, key, id, ownerPubKey, createdAt })
     }
     return sharedSigners
   }

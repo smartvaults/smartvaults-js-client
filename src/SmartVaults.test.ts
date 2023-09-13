@@ -5,7 +5,7 @@ import { SmartVaults } from './SmartVaults'
 import { NostrClient, Keys, Store } from './service'
 import { TimeUtil, buildEvent } from './util'
 import { Contact, PublishedPolicy, BitcoinUtil, Wallet, type FinalizeTrxResponse } from './models'
-import { Metadata, Profile, SavePolicyPayload, OwnedSigner, SpendProposalPayload, PublishedDirectMessage, PublishedSpendingProposal, PublishedApprovedProposal, PublishedSharedSigner, PublishedOwnedSigner, MySharedSigner } from './types'
+import { Metadata, Profile, SavePolicyPayload, SpendProposalPayload, PublishedDirectMessage, PublishedSpendingProposal, PublishedApprovedProposal, PublishedSharedSigner, PublishedOwnedSigner, MySharedSigner, BaseOwnedSigner } from './types'
 import { SmartVaultsKind, ProposalStatus } from './enum'
 import { Kind } from 'nostr-tools'
 jest.setTimeout(1000000);
@@ -721,9 +721,9 @@ describe('SmartVaults', () => {
   });
 
   describe('getOwnedSigners', () => {
-    let ownedSigner1: OwnedSigner
-    let ownedSigner2: OwnedSigner
-    let ownedSigner3: OwnedSigner
+    let ownedSigner1: BaseOwnedSigner
+    let ownedSigner2: BaseOwnedSigner
+    let ownedSigner3: BaseOwnedSigner
     beforeAll(async () => {
       const pubKey = smartVaults.authenticator.getPublicKey()
       let saveOwnedSignerPayload1 = saveOwnedSignerPayload(1, pubKey)
@@ -1238,7 +1238,7 @@ function assertSubscriptionSharedSignerPayload(kind: number, payload: any, expec
   expect(payload.ownerPubKey).toEqual(expectedPayload.ownerPubKey)
 }
 
-function assertSubscriptionOwnedSignerPayload(kind: number, payload: any, expectedPayload: OwnedSigner) {
+function assertSubscriptionOwnedSignerPayload(kind: number, payload: any, expectedPayload: any) {
   expect(kind).toBe(SmartVaultsKind.Signers)
   expect(payload.descriptor).toEqual(expectedPayload.descriptor)
   expect(payload.fingerprint).toEqual(expectedPayload.fingerprint)
@@ -1324,7 +1324,7 @@ async function setProfile(id: number, smartVaults: SmartVaults): Promise<Profile
 async function saveSharedSignerPayload(smartVaults: SmartVaults, id: number): Promise<PublishedOwnedSigner> {
   const ownedSigner = await smartVaults.saveOwnedSigner({
     description: `description${id}`,
-    descriptor: `descriptor${id}`,
+    descriptor: `tr(descriptor${id}/*)#123`,
     fingerprint: `fingerprint${id}`,
     name: `name${id}`,
     t: `t${id}`,
@@ -1332,9 +1332,9 @@ async function saveSharedSignerPayload(smartVaults: SmartVaults, id: number): Pr
   return ownedSigner
 }
 
-function saveOwnedSignerPayload(id: number, ownerPubKey: string): OwnedSigner {
+function saveOwnedSignerPayload(id: number, ownerPubKey: string) {
   return {
-    descriptor: `descriptor${id}`,
+    descriptor: `tr(descriptor${id}/*)#123`,
     fingerprint: `fingerprint${id}`,
     ownerPubKey,
     name: `name${id}`,

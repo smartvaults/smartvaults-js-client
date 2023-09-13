@@ -35,7 +35,8 @@ export class SharedSignerHandler extends EventKindHandler {
       }
 
       const baseDecryptedSigner: BaseSharedSigner = await this.authenticator.decryptObj(event.content, event.pubkey)
-      const signer: PublishedSharedSigner = { ...baseDecryptedSigner, id: event.id, ownerPubKey: event.pubkey, createdAt: fromNostrDate(event.created_at) }
+      const key = this.extractKey(baseDecryptedSigner.descriptor)
+      const signer: PublishedSharedSigner = { ...baseDecryptedSigner, key, id: event.id, ownerPubKey: event.pubkey, createdAt: fromNostrDate(event.created_at) }
 
       return { signer, rawEvent: event }
     })
@@ -68,7 +69,8 @@ export class SharedSignerHandler extends EventKindHandler {
         continue
       }
       const baseDecryptedSigner: BaseSharedSigner = await this.authenticator.decryptObj(event.content, event.pubkey)
-      const signer: PublishedSharedSigner = { ...baseDecryptedSigner, id: event.id, ownerPubKey: event.pubkey, createdAt: fromNostrDate(event.created_at) }
+      const key = this.extractKey(baseDecryptedSigner.descriptor)
+      const signer: PublishedSharedSigner = { ...baseDecryptedSigner, key, id: event.id, ownerPubKey: event.pubkey, createdAt: fromNostrDate(event.created_at) }
       signers.push(signer)
       rawSignersEvents.push(event)
     }
@@ -77,4 +79,8 @@ export class SharedSignerHandler extends EventKindHandler {
     return signers
   }
 
+  private extractKey(descriptor: string): string {
+    const matches = descriptor.match(/\((.*?)\)/)
+    return matches ? matches[1] : ''
+  }
 }
