@@ -576,18 +576,17 @@ describe('SmartVaults', () => {
     it('should receive Contacts events', async () => {
       let counter: number = 0
       expect.assertions(2)
-      const profile1 = await setProfile(1, smartVaults)
-      const contact1 = getContact(1, profile1.publicKey);
+      const contact = new Contact({ publicKey: keySet1.mainKey().publicKey, relay: "relay", petname: "pet" })
       const sub = smartVaults.subscribe(Kind.Contacts, (kind: number, payload: any) => {
         switch (counter) {
           case 0:
-            assertSubscriptionContactPayload(kind, payload, contact1)
+            assertSubscriptionContactPayload(kind, payload, contact)
             break
         }
         counter++
       })
 
-      await smartVaults.upsertContacts(contact1);
+      await smartVaults.upsertContacts(contact);
 
       await sleep(200)
       sub.unsub()

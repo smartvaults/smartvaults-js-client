@@ -70,14 +70,18 @@ export class SmartVaults {
    * @async
    * @param {Contact | Contact[]} newContacts - Single or array of Contact objects.
    * @returns {Promise<Event<Kind.Contacts>>} - Resolves to an Event of Kind.Contacts.
-   * @throws {Error} - If upsert operation or event publishing fails.
+   * @throws {Error} - If event publishing fails or if the authenticated user is trying to add himself as a contact.
    *
    * @example
    * const contact = new Contact({ publicKey: 'somePubKey', relay: 'some.relay.com' });
    * await upsertContacts(contact);
    */
   async upsertContacts(newContacts: Contact | Contact[]): Promise<Event<Kind.Contacts>> {
+    const authPubKey = this.authenticator.getPublicKey()
     newContacts = Array.isArray(newContacts) ? newContacts : [newContacts]
+    if (newContacts.some(c => c.publicKey === authPubKey)) {
+      throw new Error('Cannot add self as contact')
+    }
     let contacts = await this.getContacts()
     contacts = Contact.merge(contacts, newContacts)
     const contactsEvent = await buildEvent({
@@ -895,7 +899,7 @@ export class SmartVaults {
    * @param {string} pubKey - Public key of the user with whom the signer is being shared.
    * @returns {Promise<SmartVaultsTypes.BaseSharedSigner>} A promise that resolves to a PublishedSharedSigner object, includes 
    * the owner's public key and shared date.
-   * @throws Will throw an error if the event publishing fails.
+   * @throws Will throw an error if the event publishing fails or if the user tries to share a signer with themselves.
    * @example
    * const signer = await saveSharedSigner({descriptor, fingerprint}, pubKey);
    */
