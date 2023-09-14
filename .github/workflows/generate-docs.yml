@@ -3,7 +3,7 @@ name: Generate and Deploy Documentation
 on:
   push:
     branches:
-      - gh-pages
+      - feature/improve-documentation
 
 jobs:
   build:
