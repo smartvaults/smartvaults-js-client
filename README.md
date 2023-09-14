@@ -16,7 +16,7 @@ npx tsc
 npx typedoc --out docs src
 ```
 
-documentation will be generated at docs
+documentation will be generated at /docs
 
 ## Usage examples
 
