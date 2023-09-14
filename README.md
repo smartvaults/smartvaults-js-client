@@ -1,26 +1,30 @@
-### Install dependencies
+# Install dependencies
 
-```
+``` shell
 npm install
 ```
 
-### Build
+## Build
 
-```
+``` shell
 npx tsc
 ```
 
-### Generate comprehensive documentation
+## Generate comprehensive documentation
 
-```
+``` shell
 npx typedoc --out docs src
 ```
 
 documentation will be generated at docs/index.html
 
-### Installation
+## Usage examples
 
-`npm install @smontero/coinstr-js-client @smontero/coinstr-wasm @smontero/nostr-ual --save`
+### Install
+
+```shell
+npm install @smontero/coinstr-js-client @smontero/coinstr-wasm @smontero/nostr-ual --save
+```
 
 ### Import modules
 
@@ -75,7 +79,7 @@ const smartVaults = new SmartVaults ({authenticator, bitcoinUtil, nostrClient})
 
 ```javascript
 // Define the metadata object
-const metadata = { name:'Bob', about:'Primary account'}
+const metadata = { name:'Bob', about:'Learning about Smart Vaults!'}
 // Set profile
 await smartVaults.setProfile(metadata)
 const myPublicKey = authenticator.getPublicKey()
@@ -85,6 +89,8 @@ const myProfile = await smartVaults.getProfile(myPublicKey)
 const otherAuthenticator = new DirectPrivateKeyAuthenticator(generatePrivateKey())
 const contactPubKey = otherAuthenticator.getPublicKey()
 const contact = new Contact({publicKey: contactPubKey})
+// Add contact
+await smartVaults.upsertContacts(contact);
 // Fetch contacts
 const contacts = await smartVaults.getContacts()
 // Fetch contacts including their metadata ( profile )

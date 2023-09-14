@@ -64,6 +64,18 @@ export class SmartVaults {
     return this.stores.get(eventKind)!
   }
 
+  /**
+   * Asynchronously upserts contacts and publishes a Contacts event.
+   *
+   * @async
+   * @param {Contact | Contact[]} newContacts - Single or array of Contact objects.
+   * @returns {Promise<Event<Kind.Contacts>>} - Resolves to an Event of Kind.Contacts.
+   * @throws {Error} - If upsert operation or event publishing fails.
+   *
+   * @example
+   * const contact = new Contact({ publicKey: 'somePubKey', relay: 'some.relay.com' });
+   * await upsertContacts(contact);
+   */
   async upsertContacts(newContacts: Contact | Contact[]): Promise<Event<Kind.Contacts>> {
     newContacts = Array.isArray(newContacts) ? newContacts : [newContacts]
     let contacts = await this.getContacts()
@@ -79,6 +91,18 @@ export class SmartVaults {
     return contactsEvent
   }
 
+  /**
+   * Asynchronously removes contacts by publicKey and publishes a Contacts event.
+   *
+   * @async
+   * @param {string | string[]} contactsToRemove - publicKeys of contacts to remove.
+   * @returns {Promise<Event<Kind.Contacts>>} - Resolves to an Event of Kind.Contacts.
+   * @throws {Error} - If removal or event publishing fails.
+   *
+   * @example
+   * await removeContacts('somePubKey');
+   * await removeContacts(['somePubKey', 'otherPubKey']);
+   */
   async removeContacts(contactsToRemove: string | string[]): Promise<Event<Kind.Contacts>> {
     const currentContacts: Contact[] = await this.getContacts()
     const contacts = Contact.remove(contactsToRemove, currentContacts)
@@ -93,6 +117,16 @@ export class SmartVaults {
     return contactsEvent
   }
 
+  /**
+   * Sets the profile metadata and publishes a Metadata event.
+   * 
+   * @async
+   * @param {SmartVaultsTypes.Metadata} metadata - Metadata for the profile.
+   * @returns {Promise<SmartVaultsTypes.Profile>} - The updated profile.
+   * @throws {Error} - On failure to set metadata or publish the event.
+   * @example
+   * await setProfile({ name: 'Alice', about: 'Learning about Smart Vaults' });
+   */
   async setProfile(metadata: SmartVaultsTypes.Metadata): Promise<SmartVaultsTypes.Profile> {
     const setMetadataEvent = await buildEvent({
       kind: Kind.Metadata,
@@ -108,12 +142,30 @@ export class SmartVaults {
     }
   }
 
+  /**
+   * Retrieves a profile by a given public key or uses the instance's public key if not provided.
+   * 
+   * @async
+   * @param {string} [publicKey] - Optional public key to fetch the profile.
+   * @returns {Promise<SmartVaultsTypes.Profile>} - The fetched profile.
+   * @example
+   * const profile = await getProfile('publicKey123');
+   */
   async getProfile(publicKey?: string): Promise<SmartVaultsTypes.Profile> {
     publicKey = publicKey || this.authenticator.getPublicKey()
     const [profile] = await this.getProfiles([publicKey])
     return profile
   }
 
+  /**
+   * Retrieves multiple profiles by their public keys.
+   * 
+   * @async
+   * @param {string[]} publicKeys - Array of public keys.
+   * @returns {Promise<SmartVaultsTypes.Profile[]>} - Array of fetched profiles.
+   * @example
+   * const profiles = await getProfiles(['publicKey1', 'publicKey2']);
+   */
   async getProfiles(publicKeys: string[]): Promise<SmartVaultsTypes.Profile[]> {
     const metadataFilter = filterBuilder()
       .kinds(Kind.Metadata)
@@ -124,6 +176,15 @@ export class SmartVaults {
     return profiles
   }
 
+  /**
+   * Retrieves profiles for given contacts or for all contacts if none are provided.
+   * 
+   * @async
+   * @param {Contact[]} [contacts] - Optional array of contacts.
+   * @returns {Promise<Array<SmartVaultsTypes.ContactProfile | Contact>>} - Array of profiles or contacts.
+   * @example
+   * const contactProfiles = await getContactProfiles([{ publicKey: 'key1' }, { publicKey: 'key2' }]);
+   */
   async getContactProfiles(contacts?: Contact[]): Promise<Array<SmartVaultsTypes.ContactProfile | Contact>> {
     contacts = contacts || await this.getContacts();
     if (!contacts.length) return []
@@ -135,6 +196,14 @@ export class SmartVaults {
     });
   }
 
+  /**
+   * Retrieves all contacts for the authenticated user.
+   * 
+   * @async
+   * @returns {Promise<Contact[]>} - Array of contacts.
+   * @example
+   * const contacts = await getContacts();
+   */
   async getContacts(): Promise<Contact[]> {
     const contactsFilter = filterBuilder()
       .kinds(Kind.Contacts)
@@ -147,6 +216,15 @@ export class SmartVaults {
     return this.eventKindHandlerFactor.getHandler(Kind.Contacts).handle([contactsEvent])
   }
 
+  /**
+   * Retrieves a list of recommended contacts based on shared signers.
+   * 
+   * @async
+   * @returns {Promise<Array<SmartVaultsTypes.Profile | string>>} - Array of profiles or public keys.
+   * @throws {Error} - On failure to fetch shared signers or contacts.
+   * @example
+   * const recommendedContacts = await getRecommendedContacts();
+   */
   async getRecommendedContacts(): Promise<Array<SmartVaultsTypes.Profile | string>> {
     try {
       const [rawSharedSigners, contactList] = await Promise.all([
@@ -167,14 +245,30 @@ export class SmartVaults {
       return [];
     }
   }
+
   /**
-   *
-   * Method to handle the policy creation
-   * @param {String} name
-   * @param {String} description
-   * @param {String} miniscript
-   * @param {String} pubKey
-   * @returns
+   * Asynchronously saves a new policy and associated shared keys, then publishes the policy event.
+   * 
+   * @async
+   * @param {SmartVaultsTypes.SavePolicyPayload} payload - Payload containing policy details.
+   * @param {string} payload.name - The name of the policy.
+   * @param {string} payload.description - Description of the policy.
+   * @param {string} payload.miniscript - Miniscript representing the policy.
+   * @param {string[]} payload.nostrPublicKeys - Public keys of the members of the policy.
+   * @param {Date} payload.createdAt - Creation date of the policy.
+   * 
+   * @returns {Promise<PublishedPolicy>} - A PublishedPolicy instance.
+   * @throws {Error} - If the policy cannot be saved or events cannot be published.
+   * 
+   * @example
+   * const payload = {
+   *   name: 'My Policy',
+   *   description: 'Description here',
+   *   miniscript: 'miniscriptString',
+   *   nostrPublicKeys: ['key1', 'key2'],
+   *   createdAt: new Date()
+   * };
+   * const publishedPolicy = await savePolicy(payload);
    */
   async savePolicy({
     name,
@@ -309,9 +403,16 @@ export class SmartVaults {
   }
 
   /**
-   * Get policies in the pagination scope
-   * @returns {Promise<PublishedPolicy[]>} 
-   *          
+   * Asynchronously retrieves policies within a specified pagination scope.
+   *
+   * @async
+   * @param {PaginationOpts} [paginationOpts={}] - Pagination options for fetching policies.
+   * @returns {Promise<PublishedPolicy[]>} - An array of PublishedPolicy objects.
+   * @throws {Error} - If unable to fetch policies.
+   * 
+   * @example
+   * const paginationOpts = { limit: 10, page: 2 };
+   * const policies = await getPolicies(paginationOpts);
    */
   async getPolicies(paginationOpts: PaginationOpts = {}): Promise<PublishedPolicy[]> {
 
@@ -325,9 +426,16 @@ export class SmartVaults {
   }
 
   /**
-   * Gets policies by id
-   * @returns {Promise<Map<string, PublishedPolicy>>}
-   *          
+   * Asynchronously retrieves policies by their IDs.
+   *
+   * @async
+   * @param {string[]} ids - An array of policy IDs.
+   * @returns {Promise<Map<string, PublishedPolicy>>} - A map where the key is the policy ID and the value is the PublishedPolicy object.
+   * @throws {Error} - If unable to fetch policies by IDs.
+   * 
+   * @example
+   * const ids = ['id1', 'id2'];
+   * const policiesById = await getPoliciesById(ids);
    */
   async getPoliciesById(ids: string[]): Promise<Map<string, PublishedPolicy>> {
     const store = this.getStore(SmartVaultsKind.Policy)
@@ -343,6 +451,18 @@ export class SmartVaults {
     return store.getMany(ids!)
   }
 
+  /**
+   * Asynchronously retrieves shared keys by their IDs.
+   *
+   * @async
+   * @param {string[]} ids - An array of shared key IDs.
+   * @returns {Promise<Map<string, SmartVaultsTypes.SharedKeyAuthenticator>>} - A map where the key is the shared key ID and the value is the SharedKeyAuthenticator object.
+   * @throws {Error} - If unable to fetch shared keys by IDs.
+   * 
+   * @example
+   * const ids = ['id1', 'id2'];
+   * const sharedKeysById = await getSharedKeysById(ids);
+   */
   getSharedKeysById = async (ids: string[]): Promise<Map<string, SmartVaultsTypes.SharedKeyAuthenticator>> => {
     ids = [...new Set(ids)]; // remove potential duplicates from ids
     const store = this.getStore(SmartVaultsKind.SharedKey)
@@ -389,13 +509,38 @@ export class SmartVaults {
   }
 
   /**
+   * Asynchronously initiates a spending proposal.
+   *
+   * @async
+   * @param {SmartVaultsTypes.SpendProposalPayload} payload - Payload for the spending proposal.
+   * @param {Policy} payload.policy - The policy under which the spending will be proposed.
+   * @param {string} payload.to_address - The target address where funds will be sent.
+   * @param {string} payload.description - A description of the spend proposal.
+   * @param {number} payload.amountDescriptor - The amount to be sent, can be max or an amount in sats.
+   * @param {string | number} payload.feeRatePriority - Can be low, medium, high or a numeric value for the target block.
+   * @param {Map<string, number[]>} payload.policyPath - The policy path (a map where the key is the policy node id and the value is the list of the indexes of the items that are intended to be satisfied from the policy node).
+   * @param {string[]} [payload.utxos] - Optional: The UTXOs to be used.
+   * @param {boolean} [payload.useFrozenUtxos=false] - Optional: Whether or not to use frozen UTXOs.
+   *
+   * @returns {Promise<SmartVaultsTypes.PublishedSpendingProposal>} - The published spending proposal.
    * 
-   * @param policy to spend from
-   * @param to_address destination address
-   * @param description spend proposal description
-   * @param amountDescriptor amount to spend, can be max or an amount in sats
-   * @param feeRatePriority can be low, medium, high or a numeric value for the target block
-   * @param policyPath map where the key is the policy node id and the value is the list of the indexes of the items that are intended to be satisfied from the policy node
+   * @throws {Error} - If invalid UTXOs are provided.
+   * @throws {Error} - If frozen UTXOs are provided but 'useFrozenUtxos' is not set to true.
+   * @throws {Error} - If an error occurs while building the transaction.
+   * @throws {Error} - If an error occurs while publishing the proposal.
+   *
+   * @example
+   * const payload = {
+   *   policy,
+   *   to_address: "abc123",
+   *   description: "A spending proposal",
+   *   amountDescriptor: 10,
+   *   feeRatePriority: 'high',
+   *   policyPath: new Map([['nodeId',[0,1,2]]]),
+   *   utxos: ["utxo1", "utxo2"],
+   *   useFrozenUtxos: false
+   * };
+   * const spendingProposal = await spend(payload);
    */
   async spend({
     policy,
@@ -484,6 +629,27 @@ export class SmartVaults {
 
   }
 
+  /**
+   * Subscribes to specified kinds of events and handles them using a provided callback function.
+   *
+   * @param {(SmartVaultsKind | Kind)[] | (SmartVaultsKind | Kind)} kinds - The event kinds to subscribe to. This can either be an array or a single value.
+   * @param {(eventKind: number, payload: any) => void} callback - The callback function to handle incoming events. It receives the kind of event and the associated payload.
+   *
+   * @returns {Sub<number>} - A subscription object that can be used to manage the subscription.
+   *
+   * @throws {Error} - If an error occurs while processing an event, the error is caught and logged, but does not break the subscription.
+   *
+   * @example
+   * const kindsToSubscribe = [SmartVaultsKind.Policy, SmartVaultsKind.Proposal];
+   * const myCallback = (kind, payload) => {
+   *   console.log(`Received event of kind ${kind} with payload:`, payload);
+   * };
+   *
+   * const mySubscription = subscribe(kindsToSubscribe, myCallback);
+   *
+   * // To unsubscribe
+   * mySubscription.disconnect();
+   */
   subscribe(kinds: (SmartVaultsKind | Kind)[] | (SmartVaultsKind | Kind), callback: (eventKind: number, payload: any) => void): Sub<number> {
     if (!Array.isArray(kinds)) {
       kinds = [kinds]
@@ -545,6 +711,15 @@ export class SmartVaults {
     return filters;
   }
 
+  /**
+   * Disconnects from the SmartVaults instance relay.
+   *
+   * @returns {void} - No return value.
+   *
+   * @example
+   * 
+   * smartVaults.disconnect();
+  */
   disconnect(): void {
     this.nostrClient.disconnect
   }
@@ -573,10 +748,28 @@ export class SmartVaults {
   }
 
   /**
-   * Fetch the signers the user has shared.
-   * 
-   * @param id - An array of ids or a single id
-   * @returns A map of MySharedSigners objects by signerId
+   * Asynchronously fetches signers the user has shared.
+   * If IDs are provided, the method fetches signers corresponding to those IDs.
+   * Otherwise, it fetches all shared signers based.
+   *
+   * @async
+   * @param {string | string[] | undefined} [id] - Optional ID(s) of the signers to fetch.
+   * @returns {Promise<Map<string, SmartVaultsTypes.MySharedSigner | Array<SmartVaultsTypes.MySharedSigner>>>} 
+   * - A promise that resolves to a Map of shared signers, mapped by their IDs.
+   *
+   * @throws Will throw an error if any issue occurs during the request to the relay.
+   *
+   * @example
+   * // Fetch a single shared signer by ID
+   * const result = await getMySharedSigners("some-signer-id");
+   *
+   * // Fetch multiple shared signers by IDs
+   * const result = await getMySharedSigners(["id1", "id2"]);
+   *
+   * // Fetch all shared signers
+   * const result = await getMySharedSigners();
+   *
+   * @see SmartVaultsTypes.MySharedSigner - For the structure of MySharedSigner objects.
    */
   getMySharedSigners = async (id?: string | string[]): Promise<Map<string, SmartVaultsTypes.MySharedSigner | Array<SmartVaultsTypes.MySharedSigner>>> => {
     const ids: string[] | undefined = Array.isArray(id) ? id : id ? [id] : undefined;
@@ -614,15 +807,26 @@ export class SmartVaults {
   }
 
   /**
-   * Fetches all signers that had been shared with the user and returns them as an array of BaseSharedSigner objects.
-   * 
-   *  
-   * @returns {Promise<BaseSharedSigner[]>} A promise that resolves to an array of BaseSharedSigner objects.
-   * Each BaseSharedSigner object represents an shared signer and contains all the properties of the base shared signer object, plus `ownerPubKey' and 'createdAt' properties.
-   * 
-   * @throws {Error} Throws an error if there's an issue in fetching signer events or decrypting content.
-   * 
+   * Asynchronously fetches signers shared with the user based on specified public keys.
+   * Returns them as an array of PublishedSharedSigner objects, each containing details such as owner's public key and creation time.
+   *
    * @async
+   * @param {string | string[] | undefined} [publicKeys] - Optional public keys to filter the fetched signers. Can be a single string or an array of strings.
+   * @returns {Promise<SmartVaultsTypes.PublishedSharedSigner[]>} - A promise that resolves to an array of PublishedSharedSigner objects.
+   *                                                              
+   * @throws {Error} - Throws an error if any issue occurs during the fetching of signer events or decryption of content.
+   *
+   * @example
+   * // Fetch shared signers by a specific public key
+   * const result = await getSharedSigners("some-public-key");
+   *
+   * // Fetch shared signers by multiple public keys
+   * const result = await getSharedSigners(["key1", "key2"]);
+   *
+   * // Fetch all shared signers
+   * const result = await getSharedSigners();
+   *
+   * @see SmartVaultsTypes.PublishedSharedSigner - For the structure of PublishedSharedSigner objects.
    */
   getSharedSigners = async (publicKeys?: string | string[]): Promise<SmartVaultsTypes.PublishedSharedSigner[]> => {
     const keysToFilter = Array.isArray(publicKeys) ? publicKeys : (publicKeys ? [publicKeys] : []);
@@ -684,7 +888,7 @@ export class SmartVaults {
   }
 
   /**
-   * Asynchronously creates and publishes a 'BaseSharedSigner' event.
+   * Asynchronously creates and publishes a 'SharedSigners' event.
    *
    * @async
    * @param {Object} params - Parameters for the shared signer, including `descriptor` and `fingerpring`
@@ -727,7 +931,7 @@ export class SmartVaults {
     return sharedSigners
   }
 
-  async sendDirectMsg(msg: string, publicKey: string): Promise<PubPool> {
+  private async sendDirectMsg(msg: string, publicKey: string): Promise<PubPool> {
     const content = await this.authenticator.encrypt(msg, publicKey)
     const directMsgEvent = await buildEvent({
       kind: Kind.EncryptedDirectMessage,
@@ -739,6 +943,7 @@ export class SmartVaults {
   }
 
   /**
+   * @ignore
    * Get direct messages
    * @returns {Promise<SmartVaultsTypes.PublishedDirectMessage[]>}
    */
@@ -832,6 +1037,29 @@ export class SmartVaults {
     return completedProposalHandler.handle(completedProposalEvents)
   }
 
+  /**
+   * Asynchronously fetches completed proposals by their IDs.
+   * 
+   * @async
+   * @param {string[] | string} ids - The IDs of the completed proposals to fetch. 
+   * 
+   * @param {PaginationOpts} [paginationOpts={}] - Optional pagination options to limit the number of returned proposals or to fetch from a specific offset.
+   *
+   * @returns {Promise<Map<string, SmartVaultsTypes.PublishedCompletedSpendingProposal | SmartVaultsTypes.PublishedCompletedProofOfReserveProposal>>} 
+   *          - A promise that resolves to a map where the keys are proposal IDs and the values are either PublishedCompletedSpendingProposal or PublishedCompletedProofOfReserveProposal objects.
+   * 
+   * @throws {Error} - Throws an error if the network request fails.
+   * 
+   * @example
+   * // Fetch a single proposal by ID
+   * const proposals = await getCompletedProposalsById("some-proposal-id");
+   *
+   * // Fetch multiple proposals by IDs with pagination
+   * const proposals = await getCompletedProposalsById(["id1", "id2"], {  since: new Date() });
+   *
+   * @see SmartVaultsTypes.PublishedCompletedSpendingProposal - For the structure of a PublishedCompletedSpendingProposal object.
+   * @see SmartVaultsTypes.PublishedCompletedProofOfReserveProposal - For the structure of a PublishedCompletedProofOfReserveProposal object.
+   */
   async getCompletedProposalsById(ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, SmartVaultsTypes.PublishedCompletedSpendingProposal | SmartVaultsTypes.PublishedCompletedProofOfReserveProposal>> {
     const completedProposalsIds = Array.isArray(ids) ? ids : [ids]
     const store = this.getStore(SmartVaultsKind.CompletedProposal);
@@ -843,6 +1071,32 @@ export class SmartVaults {
     return store.getMany(completedProposalsIds, "id");
   }
 
+  /**
+   * Asynchronously fetches completed proposals by their associated policy IDs.
+   * 
+   * @async
+   * @method
+   * @param {string[] | string} policy_ids - The policy IDs corresponding to the completed proposals to fetch.
+   * 
+   * @param {PaginationOpts} [paginationOpts={}] - Optional pagination options to limit the number of returned proposals or to fetch from a specific offset.
+   *
+   * @returns {Promise<Map<string, (SmartVaultsTypes.PublishedCompletedSpendingProposal | SmartVaultsTypes.PublishedCompletedProofOfReserveProposal)
+   *          | Array<SmartVaultsTypes.PublishedCompletedSpendingProposal | SmartVaultsTypes.PublishedCompletedProofOfReserveProposal>
+    *          >>} 
+    *          - A promise that resolves to a map where the keys are policy IDs and the values are either single or arrays of PublishedCompletedSpendingProposal or PublishedCompletedProofOfReserveProposal objects.
+    * 
+    * @throws {Error} - Throws an error if the network request fails or if the internal store is inconsistent.
+    * 
+    * @example
+    * // Fetch a single proposal by policy ID
+    * const proposals = await getCompletedProposalsByPolicyId("some-policy-id");
+    *
+    * // Fetch multiple proposals by policy IDs with pagination
+    * const proposals = await getCompletedProposalsByPolicyId(["policy-id1", "policy-id2"], { since : new Date() });
+    *
+    * @see SmartVaultsTypes.PublishedCompletedSpendingProposal - For the structure of a PublishedCompletedSpendingProposal object.
+    * @see SmartVaultsTypes.PublishedCompletedProofOfReserveProposal - For the structure of a PublishedCompletedProofOfReserveProposal object.
+    */
   getCompletedProposalsByPolicyId = async (policy_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, (SmartVaultsTypes.PublishedCompletedSpendingProposal | SmartVaultsTypes.PublishedCompletedProofOfReserveProposal)
     | Array<SmartVaultsTypes.PublishedCompletedSpendingProposal | SmartVaultsTypes.PublishedCompletedProofOfReserveProposal>
   >> => {
@@ -857,13 +1111,27 @@ export class SmartVaults {
   }
 
   /**
-  * Fetches all completed proposals.
-  *
-  * @returns A promise that resolves to an array of completed proposals, both spending and proof-of-reserve types.
-  * Each proposal is decrypted and augmented with additional data (e.g., policy_id, proposal_id, completed_by, completion_date).
-  *
-  * @async
-  */
+   * Asynchronously fetches all completed proposals, optionally with pagination.
+   * 
+   * @async
+   * @method
+   * @param {PaginationOpts} [paginationOpts={}] - Optional pagination options to control the returned data.
+   *
+   * @returns {Promise<(SmartVaultsTypes.PublishedCompletedSpendingProposal | SmartVaultsTypes.PublishedCompletedProofOfReserveProposal)[]>} 
+   *          - A promise that resolves to an array of either PublishedCompletedSpendingProposal or PublishedCompletedProofOfReserveProposal objects.
+   * 
+   * @throws {Error} - Throws an error if there is a failure in fetching the proposals.
+   * 
+   * @example
+   * // Fetch completed proposals with default settings
+   * const proposals = await getCompletedProposals();
+   *
+   * // Fetch completed proposals with pagination
+   * const proposals = await getCompletedProposals({ limit: 5 });
+   *
+   * @see SmartVaultsTypes.PublishedCompletedSpendingProposal - For the structure of a PublishedCompletedSpendingProposal object.
+   * @see SmartVaultsTypes.PublishedCompletedProofOfReserveProposal - For the structure of a PublishedCompletedProofOfReserveProposal object.
+   */
   async getCompletedProposals(paginationOpts: PaginationOpts = {}): Promise<(SmartVaultsTypes.PublishedCompletedSpendingProposal | SmartVaultsTypes.PublishedCompletedProofOfReserveProposal)[]> {
     const completedProposalsFilter = this.buildCompletedProposalsFilter().pagination(paginationOpts).toFilters()
     const completedProposals = await this._getCompletedProposals(completedProposalsFilter)
@@ -877,15 +1145,20 @@ export class SmartVaults {
   }
 
   /**
- * Fetches approved proposals by given proposal IDs.
- * 
- * @param proposalIds - Optional. An array of proposal IDs or a single proposal ID string.
- * If no proposal IDs are provided, the function fetches all approved proposals.
- * @returns A promise that resolves to a map where keys are proposal IDs and values are arrays of associated approved proposals.
- * Each proposal is decrypted and augmented with additional data (e.g., policy_id, proposal_id, approved_by, approval_date, expiration_date, status).
- * 
- * @async
- */
+   * Asynchronously fetches approvals associated with given proposal IDs.
+   * 
+   * @async
+   * @param {string[] | string} [proposal_ids] - Optional proposal IDs to filter the approvals by.
+   * @returns {Promise<Map<string, SmartVaultsTypes.PublishedApprovedProposal[]>>} - 
+   * A Promise that resolves to a Map. Each key in the map is a proposal ID, and the corresponding value is an array 
+   * of approved proposals associated with that proposal ID.
+   * 
+   * @example
+   * const approvalsMap = await getApprovals(['proposal1', 'proposal2']);
+   * const allApprovalsMap = await getApprovals();
+   * 
+   * @throws {Error} - Throws an error if there is a failure in fetching approvals.
+   */
   getApprovals = async (proposal_ids?: string[] | string): Promise<Map<string, SmartVaultsTypes.PublishedApprovedProposal[]>> => {
     const proposalIds = Array.isArray(proposal_ids) ? proposal_ids : proposal_ids ? [proposal_ids] : undefined;
     let approvedProposalsFilter = this.buildApprovedProposalsFilter();
@@ -905,7 +1178,29 @@ export class SmartVaults {
     return approvalsMap;
   }
 
-  getApprovalsByPolicyId = async (policy_ids: string[] | string | string): Promise<Map<string, (SmartVaultsTypes.PublishedApprovedProposal)
+  /**
+   * Asynchronously fetches approved proposals by their associated policy IDs.
+   *
+   * @async
+   * @method
+   * @param {string[] | string} policy_ids - A single policy ID or an array of policy IDs for which to fetch approved proposals.
+   *                                         If this is not specified, the function fetches approvals for all available policy IDs.
+   * @returns {Promise<Map<string, (SmartVaultsTypes.PublishedApprovedProposal) | Array<SmartVaultsTypes.PublishedApprovedProposal>>>} 
+   *          - A promise that resolves to a Map. Each key in the map corresponds to a policy ID. 
+   *            The value is either a single PublishedApprovedProposal object or an array of PublishedApprovedProposal objects.
+   *
+   * @throws {Error} - Throws an error if there is a failure in fetching the approved proposals.
+   *
+   * @example
+   * // Fetch approvals for a single policy ID
+   * const approvals = await getApprovalsByPolicyId('some-policy-id');
+   *
+   * // Fetch approvals for multiple policy IDs
+   * const approvals = await getApprovalsByPolicyId(['policy-id-1', 'policy-id-2']);
+   *
+   * @see SmartVaultsTypes.PublishedApprovedProposal - For the structure of a PublishedApprovedProposal object.
+   */
+  getApprovalsByPolicyId = async (policy_ids: string[] | string): Promise<Map<string, (SmartVaultsTypes.PublishedApprovedProposal)
     | Array<SmartVaultsTypes.PublishedApprovedProposal>>> => {
     const policyIds = Array.isArray(policy_ids) ? policy_ids : [policy_ids]
     let approvedProposalsFilter = this.buildApprovedProposalsFilter();
@@ -927,6 +1222,20 @@ export class SmartVaults {
     return proposalHandler.handle(proposalEvents)
   }
 
+  /**
+   * Asynchronously fetches proposals by their IDs.
+   *
+   * @async
+   * @param {string[] | string} proposal_ids - A single proposal ID or an array of proposal IDs to fetch.
+   * @param {PaginationOpts} [paginationOpts={}] - Optional pagination options.
+   * @returns {Promise<Map<string, SmartVaultsTypes.PublishedSpendingProposal | SmartVaultsTypes.PublishedProofOfReserveProposal>>} 
+   *          - A promise that resolves to a Map. Each key corresponds to a proposal ID, and the value is either a PublishedSpendingProposal or PublishedProofOfReserveProposal object.
+   *
+   * @throws {Error} - Throws an error if there is a failure in fetching the proposals.
+   *
+   * @example
+   * const proposalsById = await getProposalsById('some-proposal-id');
+   */
   async getProposalsById(proposal_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, SmartVaultsTypes.PublishedSpendingProposal | SmartVaultsTypes.PublishedProofOfReserveProposal>> {
     const proposalIds = Array.isArray(proposal_ids) ? proposal_ids : [proposal_ids]
     const store = this.getStore(SmartVaultsKind.Proposal);
@@ -935,6 +1244,21 @@ export class SmartVaults {
     return store.getMany(proposalIds, "proposal_id");
   }
 
+  /**
+   * Asynchronously fetches proposals by associated policy IDs.
+   *
+   * @async
+   * @param {string[] | string} policy_ids - A single policy ID or an array of policy IDs for which to fetch proposals.
+   * @param {PaginationOpts} [paginationOpts={}] - Optional pagination options.
+   * @returns {Promise<Map<string, (SmartVaultsTypes.PublishedSpendingProposal | SmartVaultsTypes.PublishedProofOfReserveProposal) 
+   *           | Array<SmartVaultsTypes.PublishedSpendingProposal | SmartVaultsTypes.PublishedProofOfReserveProposal>>>} 
+   *          - A promise that resolves to a Map. Each key corresponds to a policy ID, and the value is either a single PublishedSpendingProposal or PublishedProofOfReserveProposal object or an array of them.
+   *
+   * @throws {Error} - Throws an error if there is a failure in fetching the proposals.
+   *
+   * @example
+   * const proposalsByPolicyId = await getProposalsByPolicyId('some-policy-id');
+   */
   getProposalsByPolicyId = async (policy_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, (SmartVaultsTypes.PublishedSpendingProposal | SmartVaultsTypes.PublishedProofOfReserveProposal)
     | Array<SmartVaultsTypes.PublishedSpendingProposal | SmartVaultsTypes.PublishedProofOfReserveProposal>
   >> => {
@@ -949,8 +1273,7 @@ export class SmartVaults {
   /**
    * Method to retrieve and decrypt not completed proposals.
    * 
-   * This method retrieves all not completed proposals, decrypts them using shared keys corresponding to 
-   * each policy ID, and returns the decrypted proposals.
+   * This method retrieves all not completed proposals.
    * 
    * @returns A Promise that resolves to an array of decrypted proposals.
    */
@@ -1154,31 +1477,97 @@ export class SmartVaults {
     return completedProposal;
   }
 
+  /**
+   * Asynchronously deletes approvals with the given IDs.
+   *
+   * @async
+   * @param {string | string[]} ids - Single or multiple approval IDs to be deleted.
+   * @returns {Promise<void>} - A promise that resolves to `void` when the operation is successful.
+   * @throws {Error} - Throws an error if the deletion process fails.
+   *
+   * @example
+   * await deleteApprovals('some-approval-id');
+   */
   async deleteApprovals(ids: string | string[]): Promise<void> {
     const approvalIds = Array.isArray(ids) ? ids : [ids]
     await this.eventKindHandlerFactor.getHandler(SmartVaultsKind.ApprovedProposal).delete(approvalIds)
   }
 
+  /**
+   * Asynchronously deletes proposals with the given IDs.
+   *
+   * @async
+   * @param {string | string[]} ids - Single or multiple proposal IDs to be deleted.
+   * @returns {Promise<void>} - A promise that resolves to `void` when the operation is successful.
+   * @throws {Error} - Throws an error if the deletion process fails.
+   *
+   * @example
+   * await deleteProposals('some-proposal-id');
+   */
   async deleteProposals(ids: string | string[]): Promise<void> {
     const proposalIds = Array.isArray(ids) ? ids : [ids]
     await this.eventKindHandlerFactor.getHandler(SmartVaultsKind.Proposal).delete(proposalIds)
   }
 
+  /**
+   * Asynchronously deletes completed proposals with the given IDs.
+   *
+   * @async
+   * @param {string | string[]} ids - Single or multiple completed proposal IDs to be deleted.
+   * @returns {Promise<void>} - A promise that resolves to `void` when the operation is successful.
+   * @throws {Error} - Throws an error if the deletion process fails.
+   *
+   * @example
+   * await deleteCompletedProposals('some-completed-proposal-id');
+   */
   async deleteCompletedProposals(ids: string | string[]): Promise<void> {
     const completedProposalIds = Array.isArray(ids) ? ids : [ids]
     await this.eventKindHandlerFactor.getHandler(SmartVaultsKind.CompletedProposal).delete(completedProposalIds)
   }
 
+  /**
+   * Asynchronously deletes signers with the given IDs.
+   *
+   * @async
+   * @param {string | string[]} ids - Single or multiple signer IDs to be deleted.
+   * @returns {Promise<void>} - A promise that resolves to `void` when the operation is successful.
+   * @throws {Error} - Throws an error if the deletion process fails.
+   *
+   * @example
+   * await deleteSigners('some-signer-id');
+   */
   async deleteSigners(ids: string | string[]): Promise<void> {
     const signerIds = Array.isArray(ids) ? ids : [ids]
     await this.eventKindHandlerFactor.getHandler(SmartVaultsKind.Signers).delete(signerIds)
   }
 
+  /**
+   * Asynchronously deletes policies with the given IDs.
+   *
+   * @async
+   * @param {string | string[]} ids - Single or multiple policy IDs to be deleted.
+   * @returns {Promise<void>} - A promise that resolves to `void` when the operation is successful.
+   * @throws {Error} - Throws an error if the deletion process fails.
+   *
+   * @example
+   * await deletePolicies('some-policy-id');
+   */
   async deletePolicies(ids: string | string[]): Promise<void> {
     const policyIds = Array.isArray(ids) ? ids : [ids]
     await this.eventKindHandlerFactor.getHandler(SmartVaultsKind.Policy).delete(policyIds)
   }
 
+  /**
+   * Asynchronously revokes shared signers with the given IDs.
+   *
+   * @async
+   * @param {string | string[]} ids - Single or multiple shared signer IDs to be revoked ( not signer ids ).
+   * @returns {Promise<void>} - A promise that resolves to `void` when the operation is successful.
+   * @throws {Error} - Throws an error if the revocation process fails or if a shared signer with the given ID is not found.
+   *
+   * @example
+   * await revokeMySharedSigners('some-shared-signer-id');
+   */
   async revokeMySharedSigners(ids: string | string[]): Promise<void> {
     const mySharedSignersStore = this.getStore(StoreKind.MySharedSigners);
     const mySharedSignersToDelete: SmartVaultsTypes.MySharedSigner[] = [];
@@ -1360,12 +1749,27 @@ export class SmartVaults {
     return Array.from(new Uint8Array(digest)).map(x => x.toString(16).padStart(2, '0')).join('');
   }
 
-  async generateIdentifier(labelData: string, sharedKey: string): Promise<string> {
+  private async generateIdentifier(labelData: string, sharedKey: string): Promise<string> {
     const unhashedIdentifier = `${sharedKey}:${labelData}`
     const hashedIdentifier = await this.sha256(unhashedIdentifier)
     return hashedIdentifier.substring(0, 32)
   }
 
+  /**
+   * Asynchronously saves a label associated with a given policy ID.
+   *
+   * The method creates and publishes a Labels event.
+   *
+   * @async
+   * @param {string} policyId - The ID of the policy to which the label is to be associated.
+   * @param {SmartVaultsTypes.Label} label - The label object containing the data to be saved.
+   * @returns {Promise<SmartVaultsTypes.PublishedLabel>} - A promise that resolves to the published label.
+   * 
+   * @throws {Error} - Throws an error if the policy event retrieval fails, or if shared keys are not found.
+   * 
+   * @example
+   * const publishedLabel = await saveLabel('some-policy-id', { data: { 'Address': 'some-address' }, text: 'some-label-text' });
+   */
   async saveLabel(policyId: string, label: SmartVaultsTypes.Label): Promise<SmartVaultsTypes.PublishedLabel> {
     const policyEvent = await this.getPolicyEvent(policyId)
     const policyMembers = policyEvent.tags
@@ -1405,12 +1809,37 @@ export class SmartVaults {
     return labelHandler.handle(labelEvents)
   }
 
+  /**
+   * Asynchronously retrieves labels based on the given pagination options.
+   *
+   * @async
+   * @param {PaginationOpts} [paginationOpts={}] - Optional pagination options for fetching labels.
+   * @returns {Promise<SmartVaultsTypes.PublishedLabel[]>} - A promise that resolves to an array of published labels.
+   *
+   * @example
+   * const labels = await getLabels();
+   */
   async getLabels(paginationOpts: PaginationOpts = {}): Promise<SmartVaultsTypes.PublishedLabel[]> {
     const labelsFilter = this.buildLabelsFilter().pagination(paginationOpts).toFilters()
     const labels = await this._getLabels(labelsFilter)
     return labels
   }
 
+  /**
+   * Asynchronously retrieves labels associated with one or more policy IDs.
+   *
+   * This method first converts the input into an array of policy IDs (if not already), 
+   * builds the appropriate filter with pagination options, and then fetches the labels.
+   *
+   * @async
+   * @param {string[] | string} policy_ids - The policy IDs to filter labels by.
+   * @param {PaginationOpts} [paginationOpts={}] - Optional pagination options.
+   * @returns {Promise<Map<string, SmartVaultsTypes.PublishedLabel | Array<SmartVaultsTypes.PublishedLabel>>>} - 
+   * A promise that resolves to a map where the keys are policy IDs and the values are the associated labels.
+   *
+   * @example
+   * const labelsMap = await getLabelsByPolicyId(['policy1', 'policy2']);
+   */
   getLabelsByPolicyId = async (policy_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, SmartVaultsTypes.PublishedLabel | Array<SmartVaultsTypes.PublishedLabel>>> => {
     const policyIds = Array.isArray(policy_ids) ? policy_ids : [policy_ids]
     const store = this.getStore(SmartVaultsKind.Labels);
@@ -1419,6 +1848,18 @@ export class SmartVaults {
     return store.getMany(policyIds, "policy_id");
   }
 
+  /**
+   * Asynchronously retrieves one or more labels by their IDs.
+   *
+   * @async
+   * @param {string[] | string} label_ids - The label IDs to fetch.
+   * @param {PaginationOpts} [paginationOpts={}] - Optional pagination options.
+   * @returns {Promise<Map<string, SmartVaultsTypes.PublishedLabel>>} - 
+   * A promise that resolves to a map where the keys are label IDs and the values are the corresponding labels.
+   *
+   * @example
+   * const labelsMap = await getLabelById(['label1', 'label2']);
+   */
   async getLabelById(label_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, SmartVaultsTypes.PublishedLabel>> {
     const labelIds = Array.isArray(label_ids) ? label_ids : [label_ids]
     const store = this.getStore(SmartVaultsKind.Labels);
