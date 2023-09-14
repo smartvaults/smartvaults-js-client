@@ -19,12 +19,6 @@ jobs:
       with:
         node-version: latest
 
-    - name: Install Project Dependencies
-      run: npm install
-
-    - name: Generate Documentation
-      run: npx typedoc --out docs src
-
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v3
       with:
