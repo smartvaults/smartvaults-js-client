@@ -11,12 +11,14 @@ export class OwnedSignerHandler extends EventKindHandler {
   private readonly eventsStore: Store
   private readonly authenticator!: Authenticator
   private readonly nostrClient: NostrClient
-  constructor(authenticator: Authenticator, nostrClient: NostrClient, store: Store, eventsStore: Store) {
+  private readonly extractKey: (descriptor: string) => string
+  constructor(authenticator: Authenticator, nostrClient: NostrClient, store: Store, eventsStore: Store, extractKey: (descriptor: string) => string) {
     super()
     this.store = store
     this.eventsStore = eventsStore
     this.authenticator = authenticator
     this.nostrClient = nostrClient
+    this.extractKey = extractKey
   }
 
   protected async _handle<K extends number>(ownedSignersEvents: Array<Event<K>>): Promise<PublishedOwnedSigner[]> {
@@ -36,8 +38,10 @@ export class OwnedSignerHandler extends EventKindHandler {
 
       return this.authenticator.decryptObj(signersEvent.content, signersEvent.pubkey)
         .then(baseDecryptedSigner => {
+          const key = this.extractKey(baseDecryptedSigner.descriptor)
           const signer: PublishedOwnedSigner = {
             ...baseDecryptedSigner,
+            key,
             id: signersEvent.id,
             ownerPubKey: signersEvent.pubkey,
             createdAt: fromNostrDate(signersEvent.created_at)
@@ -78,14 +82,14 @@ export class OwnedSignerHandler extends EventKindHandler {
         continue
       }
       const baseDecryptedSigner: BaseOwnedSigner = await this.authenticator.decryptObj(signersEvent.content, signersEvent.pubkey)
-      signers.push({ ...baseDecryptedSigner, id: signersEvent.id, ownerPubKey: signersEvent.pubkey, createdAt: fromNostrDate(signersEvent.created_at) })
+      const key = this.extractKey(baseDecryptedSigner.descriptor)
+      signers.push({ ...baseDecryptedSigner, key, id: signersEvent.id, ownerPubKey: signersEvent.pubkey, createdAt: fromNostrDate(signersEvent.created_at) })
       rawSignersEvents.push(signersEvent)
     }
     this.store.store(signers)
     this.eventsStore.store(rawSignersEvents)
     return signers
   }
-
 
   protected async _delete<K extends number>(signersIds: string[]): Promise<void> {
     const pubKey = this.authenticator.getPublicKey()
