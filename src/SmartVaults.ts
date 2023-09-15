@@ -841,9 +841,10 @@ export class SmartVaults {
     return this._getSharedSigners(sharedSignersFilter.toFilters());
   }
 
-  private extractKey(descriptor: string): string {
+  extractKey(descriptor: string): string {
     const matches = descriptor.match(/\((.*?)\)/)
-    return matches ? matches[1] : ''
+    if (!matches) throw new Error('Invalid descriptor')
+    return matches[1]
   }
 
   /**

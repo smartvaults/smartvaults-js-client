@@ -11,12 +11,14 @@ export class OwnedSignerHandler extends EventKindHandler {
   private readonly eventsStore: Store
   private readonly authenticator!: Authenticator
   private readonly nostrClient: NostrClient
-  constructor(authenticator: Authenticator, nostrClient: NostrClient, store: Store, eventsStore: Store) {
+  private readonly extractKey: (descriptor: string) => string
+  constructor(authenticator: Authenticator, nostrClient: NostrClient, store: Store, eventsStore: Store, extractKey: (descriptor: string) => string) {
     super()
     this.store = store
     this.eventsStore = eventsStore
     this.authenticator = authenticator
     this.nostrClient = nostrClient
+    this.extractKey = extractKey
   }
 
   protected async _handle<K extends number>(ownedSignersEvents: Array<Event<K>>): Promise<PublishedOwnedSigner[]> {
@@ -87,11 +89,6 @@ export class OwnedSignerHandler extends EventKindHandler {
     this.store.store(signers)
     this.eventsStore.store(rawSignersEvents)
     return signers
-  }
-
-  private extractKey(descriptor: string): string {
-    const matches = descriptor.match(/\((.*?)\)/)
-    return matches ? matches[1] : ''
   }
 
   protected async _delete<K extends number>(signersIds: string[]): Promise<void> {

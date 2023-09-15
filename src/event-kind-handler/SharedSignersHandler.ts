@@ -10,11 +10,13 @@ export class SharedSignerHandler extends EventKindHandler {
   private readonly store: Store
   private readonly eventsStore: Store
   private readonly authenticator!: Authenticator
-  constructor(authenticator: Authenticator, store: Store, eventsStore: Store) {
+  private readonly extractKey: (descriptor: string) => string
+  constructor(authenticator: Authenticator, store: Store, eventsStore: Store, extractKey: (descriptor: string) => string) {
     super()
     this.store = store
     this.eventsStore = eventsStore
     this.authenticator = authenticator
+    this.extractKey = extractKey
   }
 
   protected async _handle<K extends number>(sharedSignersEvents: Array<Event<K>>): Promise<PublishedSharedSigner[]> {
@@ -79,8 +81,4 @@ export class SharedSignerHandler extends EventKindHandler {
     return signers
   }
 
-  private extractKey(descriptor: string): string {
-    const matches = descriptor.match(/\((.*?)\)/)
-    return matches ? matches[1] : ''
-  }
 }
