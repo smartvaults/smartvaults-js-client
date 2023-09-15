@@ -15,13 +15,13 @@ npx tsc
 ### Install
 
 ```shell
-npm install @smontero/coinstr-js-client @smontero/coinstr-wasm @smontero/nostr-ual --save
+npm install @smontero/smartvaults-js-client @smontero/smartvaults-wasm @smontero/nostr-ual --save
 ```
 
 ### Import modules
 
 ```javascript
-import { NostrClient, SmartVaults, Contact } from '@smontero/coinstr-js-client';
+import { NostrClient, SmartVaults, Contact } from '@smontero/smartvaults-js-client';
 import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import {
   Wallet,
@@ -32,7 +32,7 @@ import {
   MiniscriptBuilder,
   get_psbt_utxos as getPsbtUtxos,
   descriptor_to_miniscript as descriptorToMiniscript
-} from '@smontero/coinstr-wasm'
+} from '@smontero/smartvaults-wasm'
 import { generatePrivateKey } from 'nostr-tools'
 ```
 

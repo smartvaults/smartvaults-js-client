@@ -1,7 +1,7 @@
 {
-  "name": "@smontero/coinstr-js-client",
-  "version": "0.0.28",
-  "description": "Coinstr javascript client",
+  "name": "@smontero/smartvaults-js-client",
+  "version": "0.0.29",
+  "description": "SmartVaults javascript client",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {

@@ -1,5 +1,4 @@
 import type { Config } from 'jest';
-// import { TextEncoder, TextDecoder } from 'util';
 import 'websocket-polyfill'
 
 const config: Config = {
@@ -15,7 +14,6 @@ const config: Config = {
     "<rootDir>/node_modules",
     "<rootDir>/dist"
   ],
-  // transformIgnorePatterns: ["/node_modules/(?!(@smontero/coinstr-wasm))/"],
   testRegex: "(/src/.*(\\.|/)(test|spec))\\.(jsx?|tsx?)$",
   testEnvironment: "./jest-environment-jsdom.js"
 };
