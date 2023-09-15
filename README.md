@@ -10,14 +10,6 @@ npm install
 npx tsc
 ```
 
-## Generate comprehensive documentation
-
-``` shell
-npx typedoc --out docs src
-```
-
-documentation will be generated at /docs
-
 ## Usage examples
 
 ### Install
