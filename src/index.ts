@@ -1,6 +1,0 @@
-export * from './SmartVaults'
-export * from './types'
-export * from './enum'
-export * from './service'
-export * from './util'
-export { Contact } from './models/Contact'
