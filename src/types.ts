@@ -27,17 +27,16 @@ export type DirectMessage = {
 
 export type PublishedDirectMessage = DirectMessage & Published
 
-export type SharedSigner = BaseSharedSigner & {
+
+export type PublishedSharedSigner = BaseSharedSigner & Published & {
   ownerPubKey?: string;
-};
+  key: string;
+}
 
-export type PublishedSharedSigner = SharedSigner & Published;
-
-export type OwnedSigner = BaseOwnedSigner & {
+export type PublishedOwnedSigner = BaseOwnedSigner & Published & {
   ownerPubKey?: string;
-};
-
-export type PublishedOwnedSigner = OwnedSigner & Published;
+  key: string;
+}
 
 
 export type SavePolicyPayload = BasePolicy & {

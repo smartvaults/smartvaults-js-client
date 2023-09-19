@@ -10,11 +10,13 @@ export class SharedSignerHandler extends EventKindHandler {
   private readonly store: Store
   private readonly eventsStore: Store
   private readonly authenticator!: Authenticator
-  constructor(authenticator: Authenticator, store: Store, eventsStore: Store) {
+  private readonly extractKey: (descriptor: string) => string
+  constructor(authenticator: Authenticator, store: Store, eventsStore: Store, extractKey: (descriptor: string) => string) {
     super()
     this.store = store
     this.eventsStore = eventsStore
     this.authenticator = authenticator
+    this.extractKey = extractKey
   }
 
   protected async _handle<K extends number>(sharedSignersEvents: Array<Event<K>>): Promise<PublishedSharedSigner[]> {
@@ -35,7 +37,8 @@ export class SharedSignerHandler extends EventKindHandler {
       }
 
       const baseDecryptedSigner: BaseSharedSigner = await this.authenticator.decryptObj(event.content, event.pubkey)
-      const signer: PublishedSharedSigner = { ...baseDecryptedSigner, id: event.id, ownerPubKey: event.pubkey, createdAt: fromNostrDate(event.created_at) }
+      const key = this.extractKey(baseDecryptedSigner.descriptor)
+      const signer: PublishedSharedSigner = { ...baseDecryptedSigner, key, id: event.id, ownerPubKey: event.pubkey, createdAt: fromNostrDate(event.created_at) }
 
       return { signer, rawEvent: event }
     })
@@ -68,7 +71,8 @@ export class SharedSignerHandler extends EventKindHandler {
         continue
       }
       const baseDecryptedSigner: BaseSharedSigner = await this.authenticator.decryptObj(event.content, event.pubkey)
-      const signer: PublishedSharedSigner = { ...baseDecryptedSigner, id: event.id, ownerPubKey: event.pubkey, createdAt: fromNostrDate(event.created_at) }
+      const key = this.extractKey(baseDecryptedSigner.descriptor)
+      const signer: PublishedSharedSigner = { ...baseDecryptedSigner, key, id: event.id, ownerPubKey: event.pubkey, createdAt: fromNostrDate(event.created_at) }
       signers.push(signer)
       rawSignersEvents.push(event)
     }

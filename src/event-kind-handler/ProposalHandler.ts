@@ -1,5 +1,5 @@
 import { type Event, Kind } from 'nostr-tools'
-import { TagType, ProposalType, ProposalStatus, CoinstrKind } from '../enum'
+import { TagType, ProposalType, ProposalStatus, SmartVaultsKind } from '../enum'
 import { type SpendingProposal, type ProofOfReserveProposal, type PublishedSpendingProposal, type PublishedProofOfReserveProposal, type SharedKeyAuthenticator, type PublishedOwnedSigner, type PublishedApprovedProposal } from '../types'
 import { type Store, type NostrClient } from '../service'
 import { getTagValues, fromNostrDate, buildEvent } from '../util'
@@ -127,10 +127,10 @@ export class ProposalHandler extends EventKindHandler {
     return decryptedProposals
   }
 
-  private async getProposalRelatedEvents(proposalIds: string[]): Promise<Map<CoinstrKind, any[]>> {
-    const map: Map<CoinstrKind, any[]> = new Map()
+  private async getProposalRelatedEvents(proposalIds: string[]): Promise<Map<SmartVaultsKind, any[]>> {
+    const map: Map<SmartVaultsKind, any[]> = new Map()
     const approvals = Array.from((await this.getApprovalsByProposalId(proposalIds)).values()).flat()
-    map.set(CoinstrKind.ApprovedProposal, approvals)
+    map.set(SmartVaultsKind.ApprovedProposal, approvals)
     return map
   }
 
@@ -144,7 +144,7 @@ export class ProposalHandler extends EventKindHandler {
       const proposalEvent = this.eventsStore.get(proposalId)
       if (!proposalEvent) continue
       const proposalRelatedEvents = await this.getProposalRelatedEvents([proposalId])
-      const approvalsRelatedEvents: PublishedApprovedProposal[] | undefined = (proposalRelatedEvents.get(CoinstrKind.ApprovedProposal))?.filter(approval => approval.approved_by === pubKey)
+      const approvalsRelatedEvents: PublishedApprovedProposal[] | undefined = (proposalRelatedEvents.get(SmartVaultsKind.ApprovedProposal))?.filter(approval => approval.approved_by === pubKey)
       const proposalParticipants = getTagValues(proposalEvent, TagType.PubKey)
       const policyId = getTagValues(proposalEvent, TagType.Event)[0]
       const sharedKeyAuth = await this.getSharedKeysById([policyId])

@@ -24,8 +24,8 @@ describe('generateUiMetadata', () => {
 
         it('generateBlocklyJson works', async () => {
             const createdAt = new Date();
-            const ownedSigner = [{ "fingerprint": "7c997e72", "descriptor": "", "description": "", "name": "", "t": "", "id": "", createdAt }]
-            const ownedSigner2 = [{ "fingerprint": "5f2bef9b", "descriptor": "", "description": "", "name": "", "t": "", "id": "", createdAt }]
+            const ownedSigner = [{ "fingerprint": "7c997e72", "descriptor": "", "key": "", "description": "", "name": "", "t": "", "id": "", createdAt }]
+            const ownedSigner2 = [{ "fingerprint": "5f2bef9b", "descriptor": "", "key": "", "description": "", "name": "", "t": "", "id": "", createdAt }]
             const hold = '{ "blocks": { "languageVersion": 0, "blocks": [ { "type": "begin", "id": "mockId", "x": 293, "y": 10, "fields": { "SPACE": " " }, "next": { "block": { "type": "and", "id": "mockId", "fields": { "A_weight": 1, "SPACE": " ", "B_weight": 1 }, "inputs": { "A": { "block": { "type": "pk", "id": "mockId", "inputs": { "Key": { "block": { "type": "my_key", "id": "mockId", "fields": { "Key": "[7c997e72/86\'/1\'/784923\']tpubDDTGvzeqbVUeCApGdB84rXDoQeqvZWmeLyNcUVHs34e913aCNBmj3tsGdXTt5Sn3o7RWcBsRsjUyoSB2ih2krVxe64FjX3C52yzEh7U5Qoh/0/\*" } } } } } }, "B": { "block": { "type": "after", "id": "mockId", "fields": { "value": 10000 } } } } } } } ] } }'
             const holdJson = JSON.stringify(JSON.parse(hold))
             const holdN = JSON.stringify(generateBlocklyJson(miniscriptHold, ownedSigner)[0]).replace(/"id":\s*"[^"]*"/g, '"id":"mockId"');
