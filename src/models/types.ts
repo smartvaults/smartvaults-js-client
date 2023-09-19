@@ -91,3 +91,26 @@ export type Utxo = {
   address: string,
   utxo: LocalUtxo
 }
+
+export type BaseSharedSigner = {
+  descriptor: string;
+  fingerprint: string;
+};
+
+export type BaseOwnedSigner = {
+  description: any,
+  descriptor: string,
+  fingerprint: string,
+  name: string,
+  t: string,
+}
+
+export type PolicyPathSelector = {
+  Partial?: {
+    selected_path: Map<String, Array<number>>,
+    missing_to_select: Map<String, Array<String>>,
+  },
+  Complete?: {
+    path: Map<String, Array<number>>,
+  }
+}

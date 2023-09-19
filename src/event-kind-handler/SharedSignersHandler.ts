@@ -1,5 +1,6 @@
 import { type Event } from 'nostr-tools'
-import { type PublishedSharedSigner, type BaseSharedSigner } from '../types'
+import {  type BaseSharedSigner } from '../models'
+import { type PublishedSharedSigner } from '../types'
 import { type Store } from '../service'
 import { fromNostrDate } from '../util'
 import { EventKindHandler } from './EventKindHandler'

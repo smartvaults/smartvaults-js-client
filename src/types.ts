@@ -1,19 +1,6 @@
 import { ProposalType } from './enum';
-import { BasePolicy, PublishedPolicy, Utxo } from './models'
+import { BasePolicy, PublishedPolicy, Utxo, BaseOwnedSigner, BaseSharedSigner } from './models'
 import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
-
-export type BaseSharedSigner = {
-  descriptor: string;
-  fingerprint: string;
-};
-
-export type BaseOwnedSigner = {
-  description: any,
-  descriptor: string,
-  fingerprint: string,
-  name: string,
-  t: string,
-}
 
 export type Published = {
   id: string

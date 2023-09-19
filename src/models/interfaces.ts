@@ -1,4 +1,4 @@
-import { Trx, FinalizeTrxResponse, UndecoratedBasicTrxDetails, UndecoratedTrxDetails, Utxo } from "./types"
+import { BaseOwnedSigner, Trx, FinalizeTrxResponse, UndecoratedBasicTrxDetails, UndecoratedTrxDetails, Utxo, PolicyPathSelector } from "./types"
 
 
 type BalancePayload = {
@@ -46,6 +46,11 @@ export interface Wallet {
   get_utxos(): Array<Utxo>;
   
   network(): string;
+
+  get_policy_path_from_signer(signer: BaseOwnedSigner): PolicyPathSelector | null
+  
+  search_used_signer(signers: Array<BaseOwnedSigner>): BaseOwnedSigner
+
 }
 
 

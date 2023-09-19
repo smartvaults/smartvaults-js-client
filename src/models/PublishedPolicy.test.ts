@@ -323,5 +323,34 @@ describe('PublishedPolicy', () => {
       expect(wallet.get_utxos).toHaveBeenCalledTimes(1)
     })
   })
+
+  describe('getPolicyPathFromSigner', () => {
+
+    it('should correctly call the get_policy_path_from_signer method of the wallet instance', async () => {
+      const signer = { description: null, descriptor: "tr([f57a6b99/86'/1'/784923']tpubDC45v32EZGP2U4qVTKayC3kkdKmFAFDxxA7wnCCVgUuPXRFNms1W1LZq2LiCUBk5XmNvTZcEtbexZUMtY4ubZGS74kQftEGibUxUpybMan7/0/*)#jakwhh0u", fingerprint: 'f57a6b99', name: 'SmartVaults', t: 'Seed' }
+      const expected = {
+        Complete: {
+          path: new Map([
+            [
+              "fx0z8u06",
+              [
+                0
+              ]
+            ],
+            [
+              "y46gds64",
+              [
+                1
+              ]
+            ]
+          ])
+        }
+      }
+      wallet.get_policy_path_from_signer.mockReturnValue(expected)
+      let actual = policy.getPolicyPathFromSigner(signer)
+      expect(expected).toEqual(actual)
+      expect(wallet.get_policy_path_from_signer).toHaveBeenNthCalledWith(1, signer)
+    })
+  })
 })
 

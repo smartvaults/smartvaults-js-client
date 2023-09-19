@@ -1,7 +1,7 @@
 import { Authenticator } from '@smontero/nostr-ual'
 import { Event } from 'nostr-tools'
 import { Balance } from './Balance'
-import { Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails, Utxo } from './types'
+import { BaseOwnedSigner, PolicyPathSelector, Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails, Utxo } from './types'
 import { BitcoinUtil, Wallet } from './interfaces'
 import { PaginationOpts, TimeUtil, fromNostrDate, toPublished } from '../util'
 import { generateUiMetadata, UIMetadata, Key } from '../util/GenerateUiMetadata'
@@ -208,6 +208,14 @@ export class PublishedPolicy {
     return (await this.synced()).get_utxos()
   }
 
+  getPolicyPathFromSigner(signer: BaseOwnedSigner): PolicyPathSelector | null {
+    return this.wallet.get_policy_path_from_signer(signer)
+  }
+
+  searchUsedSigner(signers: Array<BaseOwnedSigner>): BaseOwnedSigner {
+    return this.wallet.search_used_signer(signers)
+  }
+
   async getLabeledUtxos(): Promise<Array<LabeledUtxo>> {
     let utxos: Array<Utxo> = [];
     try {
@@ -254,6 +262,7 @@ export class PublishedPolicy {
     const frozenBalance = frozenUtxos.reduce((accumulator, current) => accumulator + current.utxo.txout.value, 0);
     return frozenBalance;
   }
+
 
   private decorateTrxDetails(trxDetails: any): any {
     trxDetails.net = trxDetails.received - trxDetails.sent

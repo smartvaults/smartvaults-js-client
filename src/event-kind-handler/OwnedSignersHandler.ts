@@ -1,5 +1,6 @@
 import { Kind, type Event } from 'nostr-tools'
-import { type PublishedOwnedSigner, type BaseOwnedSigner } from '../types'
+import { type BaseOwnedSigner } from '../models'
+import { type PublishedOwnedSigner } from '../types'
 import { type Store, type NostrClient } from '../service'
 import { buildEvent, fromNostrDate } from '../util'
 import { EventKindHandler } from './EventKindHandler'
