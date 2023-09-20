@@ -106,11 +106,11 @@ export type BaseOwnedSigner = {
 }
 
 export type PolicyPathSelector = {
-  Partial?: {
+  partial?: {
     selected_path: Map<String, Array<number>>,
     missing_to_select: Map<String, Array<String>>,
   },
-  Complete?: {
+  complete?: {
     path: Map<String, Array<number>>,
   }
 }

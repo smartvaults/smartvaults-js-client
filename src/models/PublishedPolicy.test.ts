@@ -329,7 +329,7 @@ describe('PublishedPolicy', () => {
     it('should correctly call the get_policy_path_from_signer method of the wallet instance', async () => {
       const signer = { description: null, descriptor: "tr([f57a6b99/86'/1'/784923']tpubDC45v32EZGP2U4qVTKayC3kkdKmFAFDxxA7wnCCVgUuPXRFNms1W1LZq2LiCUBk5XmNvTZcEtbexZUMtY4ubZGS74kQftEGibUxUpybMan7/0/*)#jakwhh0u", fingerprint: 'f57a6b99', name: 'SmartVaults', t: 'Seed' }
       const expected = {
-        Complete: {
+        complete: {
           path: new Map([
             [
               "fx0z8u06",
@@ -350,6 +350,80 @@ describe('PublishedPolicy', () => {
       let actual = policy.getPolicyPathFromSigner(signer)
       expect(expected).toEqual(actual)
       expect(wallet.get_policy_path_from_signer).toHaveBeenNthCalledWith(1, signer)
+    })
+  })
+
+  describe('getPolicyPathsFromSigners', () => {
+
+    it('should correctly call the get_policy_paths_from_signers method of the wallet instance', async () => {
+      const signer1 = { name: 'SmartVaults', description: undefined, fingerprint: 'f57a6b99', descriptor: "tr([f57a6b99/86'/1'/784923']tpubDC45v32EZGP2U4qVTK…tbexZUMtY4ubZGS74kQftEGibUxUpybMan7/0/*)#jakwhh0u", t: 'Seed' }
+      const signer2 = { name: 'SmartVaults', description: undefined, fingerprint: 'f3ab64d8', descriptor: "tr([f3ab64d8/86'/1'/784923']tpubDCh4uyVDVretfgTNka…91gN5LYtuSCbr1Vo6mzQmD49sF2vGpReZp2/0/*)#yavh9uq5", t: 'Seed' }
+      const expected = new Map(
+        [
+          [
+            signer1.fingerprint, {
+              complete: {
+                path: new Map([
+                  [
+                    "fx0z8u06",
+                    [
+                      0
+                    ]
+                  ],
+                  [
+                    "y46gds64",
+                    [
+                      1
+                    ]
+                  ]
+                ])
+              }
+            }
+          ],
+          [
+            signer2.fingerprint, {
+              partial: {
+                missing_to_select: new Map([
+                  [
+                    "fx0z8u06",
+                    [
+                      '0e36xhlc',
+                      'm4n7s285'
+                    ]
+                  ]
+                ]),
+                selected_path: new Map([
+                  [
+                    "y46gds64",
+                    [
+                      1
+                    ]
+                  ]
+                ])
+              }
+            }
+          ]
+        ]
+      )
+      wallet.get_policy_paths_from_signers.mockReturnValue(expected)
+      let signers = [signer1, signer2]
+      let actual = policy.getPolicyPathsFromSigners(signers)
+      expect(expected).toEqual(actual)
+      expect(wallet.get_policy_paths_from_signers).toHaveBeenNthCalledWith(1, signers)
+    })
+  })
+
+  describe('searchUsedSigners', () => {
+
+    it('should correctly call the search_used_signers method of the wallet instance', async () => {
+      const signer1 = { name: 'SmartVaults', description: undefined, fingerprint: 'f57a6b99', descriptor: "tr([f57a6b99/86'/1'/784923']tpubDC45v32EZGP2U4qVTK…tbexZUMtY4ubZGS74kQftEGibUxUpybMan7/0/*)#jakwhh0u", t: 'Seed' }
+      const signer2 = { name: 'SmartVaults', description: undefined, fingerprint: 'f3ab64d8', descriptor: "tr([f3ab64d8/86'/1'/784923']tpubDCh4uyVDVretfgTNka…91gN5LYtuSCbr1Vo6mzQmD49sF2vGpReZp2/0/*)#yavh9uq5", t: 'Seed' }
+      const expected = [signer2]
+      wallet.search_used_signers.mockReturnValue(expected)
+      let signers = [signer1, signer2]
+      let actual = policy.searchUsedSigners(signers)
+      expect(expected).toEqual(actual)
+      expect(wallet.search_used_signers).toHaveBeenNthCalledWith(1, signers)
     })
   })
 })

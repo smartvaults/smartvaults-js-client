@@ -44,12 +44,14 @@ export interface Wallet {
   get_trx(txid: string): Promise<UndecoratedTrxDetails>;
 
   get_utxos(): Array<Utxo>;
-  
+
   network(): string;
 
   get_policy_path_from_signer(signer: BaseOwnedSigner): PolicyPathSelector | null
-  
-  search_used_signer(signers: Array<BaseOwnedSigner>): BaseOwnedSigner
+
+  get_policy_paths_from_signers(signers: Array<BaseOwnedSigner>): Map<string, PolicyPathSelector>
+
+  search_used_signers(signers: Array<BaseOwnedSigner>): Array<BaseOwnedSigner>
 
 }
 

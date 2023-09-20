@@ -212,8 +212,12 @@ export class PublishedPolicy {
     return this.wallet.get_policy_path_from_signer(signer)
   }
 
-  searchUsedSigner(signers: Array<BaseOwnedSigner>): BaseOwnedSigner {
-    return this.wallet.search_used_signer(signers)
+  getPolicyPathsFromSigners(signers: Array<BaseOwnedSigner>): Map<string, PolicyPathSelector> {
+    return this.wallet.get_policy_paths_from_signers(signers)
+  }
+
+  searchUsedSigners(signers: Array<BaseOwnedSigner>): Array<BaseOwnedSigner> {
+    return this.wallet.search_used_signers(signers)
   }
 
   async getLabeledUtxos(): Promise<Array<LabeledUtxo>> {
