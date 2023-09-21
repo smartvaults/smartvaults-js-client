@@ -72,6 +72,15 @@ describe('PublishedPolicy', () => {
     })
   })
 
+  describe('getVaultData', () => {
+
+    it('it should return the vault data', () => {
+      const expected = JSON.stringify({ description: policy.description, descriptor: policy.descriptor, name: policy.name, publicKeys: policy.nostrPublicKeys }, null, 2)
+      expect(policy.getVaultData()).toEqual(expected)
+      expect(policy.vaultData).toEqual(expected)
+    })
+  })
+
   describe('sync', () => {
 
     it('should call wallet sync again if there is one in progress', async () => {
