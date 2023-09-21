@@ -54,6 +54,7 @@ describe('PublishedPolicy', () => {
       smartVaults.getLabelsByPolicyId,
       smartVaults.getStore(SmartVaultsKind.Labels),
     )
+    policy.getVaultData()
   })
 
   describe('fromPolicyAndEvent', () => {
@@ -68,6 +69,15 @@ describe('PublishedPolicy', () => {
       expect(policy.sharedKeyAuth).toEqual(sharedKeyAuth)
       expect(policy.nostrPublicKeys).toEqual(nostrPublicKeys)
       expect(bitcoinUtil.createWallet).toHaveBeenCalledWith(policyContent.descriptor)
+    })
+  })
+
+  describe('getVaultData', () => {
+
+    it('it should return the vault data', () => {
+      const expected = JSON.stringify({ description: policy.description, descriptor: policy.descriptor, name: policy.name, publicKeys: policy.nostrPublicKeys }, null, 2)
+      expect(policy.getVaultData()).toEqual(expected)
+      expect(policy.vaultData).toEqual(expected)
     })
   })
 
