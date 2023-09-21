@@ -18,6 +18,7 @@ export class PublishedPolicy {
   nostrPublicKeys: string[]
   lastSyncTime?: Date
   generatedUiMetadata?: UIMetadata
+  vaultData?: string
   private wallet: Wallet
   private syncTimeGap: number
   private syncPromise?: Promise<void>
@@ -253,6 +254,25 @@ export class PublishedPolicy {
     const frozenUtxos = utxos.filter(utxo => utxo.frozen);
     const frozenBalance = frozenUtxos.reduce((accumulator, current) => accumulator + current.utxo.txout.value, 0);
     return frozenBalance;
+  }
+
+  getVaultData(): string {
+    if (this.vaultData) {
+      return this.vaultData
+    }
+    const vaultData = {
+      description: this.description,
+      descriptor: this.descriptor,
+      name: this.name,
+      publicKeys: this.nostrPublicKeys,
+    }
+    try {
+      const vaultDataJSON = JSON.stringify(vaultData, null, 2)
+      this.vaultData = vaultDataJSON
+      return vaultDataJSON
+    } catch (error) {
+      throw new Error(`Error while parsing vault data: ${error}`)
+    }
   }
 
   private decorateTrxDetails(trxDetails: any): any {

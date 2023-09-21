@@ -54,6 +54,7 @@ describe('PublishedPolicy', () => {
       smartVaults.getLabelsByPolicyId,
       smartVaults.getStore(SmartVaultsKind.Labels),
     )
+    policy.getVaultData()
   })
 
   describe('fromPolicyAndEvent', () => {

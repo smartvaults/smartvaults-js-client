@@ -27,7 +27,7 @@ jobs:
       run: npm install
   
     - name: Generate Documentation
-      run: npx typedoc --out docs src
+      run: npx typedoc --out docs --excludePrivate src
 
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v3
