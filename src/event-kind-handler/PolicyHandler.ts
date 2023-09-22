@@ -148,6 +148,10 @@ export class PolicyHandler extends EventKindHandler {
     for (const id of ids) {
       const policy: PublishedPolicy = this.store.get(id)
       if (policy) {
+        const policyBalance = (await policy.getBalance()).totalBalance()
+        if (policyBalance > 0) {
+          throw new Error(`Cannot delete vault ${id} with non-zero balance ${policyBalance}`)
+        }
         const sharedKeyAuthenticator = policy.sharedKeyAuth
         const policyRelatedEvents = await this.getPolicyRelatedEvents(id)
         if (sharedKeyAuthenticator) {
