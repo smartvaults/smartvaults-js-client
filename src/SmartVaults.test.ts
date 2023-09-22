@@ -205,8 +205,18 @@ describe('SmartVaults', () => {
     let policy1: PublishedPolicy
     let policy2: PublishedPolicy
     let policy3: PublishedPolicy
+    let wallet: MockProxy<Wallet>
 
     beforeAll(async () => {
+      wallet = mock<Wallet>()
+      wallet.sync.mockResolvedValue()
+      wallet.get_balance.mockReturnValue({
+        confirmed: 0,
+        immature: 0,
+        trusted_pending: 0,
+        untrusted_pending: 0
+      })
+      bitcoinUtil.createWallet.mockReturnValue(wallet)
       let savePayload = getSavePolicyPayload(1, keySet1.getPublicKeys(), -20)
       policy1 = await smartVaults.savePolicy(savePayload)
       savePayload = getSavePolicyPayload(2, keySet1.getPublicKeys(), -10)
