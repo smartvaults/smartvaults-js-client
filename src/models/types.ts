@@ -42,6 +42,10 @@ export type BasicTrxDetails = UndecoratedBasicTrxDetails & {
   net: number
 }
 
+export type LabeledTrxDetails = BasicTrxDetails & {
+  label?: string
+}
+
 export type TrxInput = {
   txid: string,
   amount: number

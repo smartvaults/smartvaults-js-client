@@ -1400,6 +1400,8 @@ export class SmartVaults {
       sharedKeyAuthenticator)
 
     await this.nostrClient.publish(completedProposalEvent).onFirstOkOrCompleteFailure()
+    const label: SmartVaultsTypes.Label = { data: { 'Spend': txId }, text: proposal.description }
+    await this.saveLabel(policyId, label)
     const proposalsIdsToDelete: string[] = (await this.getProposalsWithCommonUtxos(proposal)).map(({ proposal_id }) => proposal_id);
     await this.deleteProposals(proposalsIdsToDelete)
 

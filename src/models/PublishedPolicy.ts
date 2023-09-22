@@ -1,7 +1,7 @@
 import { Authenticator } from '@smontero/nostr-ual'
 import { Event } from 'nostr-tools'
 import { Balance } from './Balance'
-import { Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails, Utxo } from './types'
+import { Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails, Utxo, LabeledTrxDetails } from './types'
 import { BitcoinUtil, Wallet } from './interfaces'
 import { PaginationOpts, TimeUtil, fromNostrDate, toPublished } from '../util'
 import { generateUiMetadata, UIMetadata, Key } from '../util/GenerateUiMetadata'
@@ -273,6 +273,30 @@ export class PublishedPolicy {
     } catch (error) {
       throw new Error(`Error while parsing vault data: ${error}`)
     }
+  }
+
+  async getLabeledTransactions(): Promise<Array<LabeledTrxDetails>> {
+    let trxs: Array<BasicTrxDetails> = [];
+    try {
+      [trxs] = await Promise.all([
+        this.getTrxs(),
+        this.getLabelsByPolicyId(this.id, {})
+      ]);
+    } catch (error) {
+      console.error("Error while fetching labeled transactions:", error);
+      return [];
+    }
+    const indexKey = "unhashed";
+
+    const maybeLabeledTrxs: Array<LabeledTrxDetails> = trxs.map(trx => {
+      const label: PublishedLabel | undefined = this.labelStore.get(trx.txid, indexKey);
+      if (label) {
+        return { ...trx, labelText: label.label.text, labelId: label.label_id };
+      }
+      return trx;
+    });
+
+    return maybeLabeledTrxs;
   }
 
   private decorateTrxDetails(trxDetails: any): any {
