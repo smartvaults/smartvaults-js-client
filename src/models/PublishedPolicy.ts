@@ -1,7 +1,7 @@
 import { Authenticator } from '@smontero/nostr-ual'
 import { Event } from 'nostr-tools'
 import { Balance } from './Balance'
-import { BaseOwnedSigner, PolicyPathSelector, Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails, Utxo } from './types'
+import { BaseOwnedSigner, PolicyPathSelector, Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails, Utxo, PolicyPathsResult } from './types'
 import { BitcoinUtil, Wallet } from './interfaces'
 import { PaginationOpts, TimeUtil, fromNostrDate, toPublished } from '../util'
 import { generateUiMetadata, UIMetadata, Key } from '../util/GenerateUiMetadata'
@@ -213,7 +213,8 @@ export class PublishedPolicy {
     return this.wallet.get_policy_path_from_signer(signer)
   }
 
-  getPolicyPathsFromSigners(signers: Array<BaseOwnedSigner>): Map<string, PolicyPathSelector> {
+  async getPolicyPathsFromSigners(): Promise<PolicyPathsResult | null> {
+    const signers = await this.getOwnedSigners()
     return this.wallet.get_policy_paths_from_signers(signers)
   }
 

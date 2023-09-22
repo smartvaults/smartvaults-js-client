@@ -18,9 +18,10 @@ describe('PublishedPolicy', () => {
   let nostrPublicKeys: string[]
   let sharedKeyAuth: DirectPrivateKeyAuthenticator
   let policy: PublishedPolicy
+  let smartVaults: MockProxy<SmartVaults>
 
   beforeEach(() => {
-    const smartVaults = mock<SmartVaults>()
+    smartVaults = mock<SmartVaults>()
     policyContent = {
       description: "desc",
       descriptor: "descriptor",
@@ -366,9 +367,10 @@ describe('PublishedPolicy', () => {
   describe('getPolicyPathsFromSigners', () => {
 
     it('should correctly call the get_policy_paths_from_signers method of the wallet instance', async () => {
-      const signer1 = { name: 'SmartVaults', description: undefined, fingerprint: 'f57a6b99', descriptor: "tr([f57a6b99/86'/1'/784923']tpubDC45v32EZGP2U4qVTK…tbexZUMtY4ubZGS74kQftEGibUxUpybMan7/0/*)#jakwhh0u", t: 'Seed' }
-      const signer2 = { name: 'SmartVaults', description: undefined, fingerprint: 'f3ab64d8', descriptor: "tr([f3ab64d8/86'/1'/784923']tpubDCh4uyVDVretfgTNka…91gN5LYtuSCbr1Vo6mzQmD49sF2vGpReZp2/0/*)#yavh9uq5", t: 'Seed' }
-      const expected = new Map(
+      const signer1 = { name: 'SmartVaults', description: undefined, fingerprint: 'f57a6b99', descriptor: "tr([f57a6b99/86'/1'/784923']tpubDC45v32EZGP2U4qVTK…tbexZUMtY4ubZGS74kQftEGibUxUpybMan7/0/*)#jakwhh0u", t: 'Seed', id: "1", createdAt: new Date(10000), key: "key1", ownerPubKey1: "ownerPubKey1" }
+      const signer2 = { name: 'SmartVaults', description: undefined, fingerprint: 'f3ab64d8', descriptor: "tr([f3ab64d8/86'/1'/784923']tpubDCh4uyVDVretfgTNka…91gN5LYtuSCbr1Vo6mzQmD49sF2vGpReZp2/0/*)#yavh9uq5", t: 'Seed', id: "2", createdAt: new Date(10000), key: "key2", ownerPubKey: "ownerPubKey2" }
+      smartVaults.getOwnedSigners.mockResolvedValue([signer1, signer2])
+      const policy_paths = new Map(
         [
           [
             signer1.fingerprint, {
@@ -415,10 +417,15 @@ describe('PublishedPolicy', () => {
           ]
         ]
       )
+      const expected = {
+        policy_paths,
+        are_paths_equal: false
+      }
       wallet.get_policy_paths_from_signers.mockReturnValue(expected)
       let signers = [signer1, signer2]
-      let actual = policy.getPolicyPathsFromSigners(signers)
+      let actual = await policy.getPolicyPathsFromSigners()
       expect(expected).toEqual(actual)
+      expect(smartVaults.getOwnedSigners).toHaveBeenCalledTimes(1)
       expect(wallet.get_policy_paths_from_signers).toHaveBeenNthCalledWith(1, signers)
     })
   })
