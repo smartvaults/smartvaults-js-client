@@ -1,6 +1,6 @@
 {
-  "name": "@smontero/smartvaults-js-client",
-  "version": "0.0.30",
+  "name": "@smontero/smartvaults-js-client-alpha",
+  "version": "0.0.1",
   "description": "SmartVaults javascript client",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
