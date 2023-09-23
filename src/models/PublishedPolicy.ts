@@ -222,6 +222,10 @@ export class PublishedPolicy {
     return this.wallet.search_used_signers(signers)
   }
 
+  hasTimelock(): boolean {
+    return this.wallet.has_timelock()
+  }
+
   async getLabeledUtxos(): Promise<Array<LabeledUtxo>> {
     let utxos: Array<Utxo> = [];
     try {

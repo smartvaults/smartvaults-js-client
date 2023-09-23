@@ -443,5 +443,15 @@ describe('PublishedPolicy', () => {
       expect(wallet.search_used_signers).toHaveBeenNthCalledWith(1, signers)
     })
   })
+
+  describe('hasTimelock', () => {
+
+    it('should correctly call the has_timelock method of the wallet instance', async () => {
+      wallet.has_timelock.mockReturnValue(true)
+      let actual = policy.hasTimelock()
+      expect(true).toEqual(actual)
+      expect(wallet.has_timelock).toHaveBeenCalledTimes(1)
+    })
+  })
 })
 

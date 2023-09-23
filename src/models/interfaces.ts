@@ -53,6 +53,8 @@ export interface Wallet {
 
   search_used_signers(signers: Array<BaseOwnedSigner>): Array<BaseOwnedSigner>
 
+  has_timelock(): boolean
+
 }
 
 
