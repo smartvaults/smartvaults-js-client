@@ -116,6 +116,6 @@ export type PolicyPathSelector = {
 }
 
 export type PolicyPathsResult = {
-  policy_paths: Map<String, PolicyPathSelector>,
+  policy_paths: Map<String, PolicyPathSelector | null>,
   are_paths_equal: boolean,
 }
