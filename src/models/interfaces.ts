@@ -49,7 +49,7 @@ export interface Wallet {
 
   get_policy_path_from_signer(signer: BaseOwnedSigner): PolicyPathSelector | null
 
-  get_policy_paths_from_signers(signers: Array<BaseOwnedSigner>): PolicyPathsResult | null
+  get_policy_paths_from_signers(signers: Array<BaseOwnedSigner>): PolicyPathsResult | string | null
 
   search_used_signers(signers: Array<BaseOwnedSigner>): Array<BaseOwnedSigner>
 

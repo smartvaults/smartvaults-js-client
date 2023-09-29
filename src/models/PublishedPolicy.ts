@@ -7,6 +7,7 @@ import { PaginationOpts, TimeUtil, fromNostrDate, toPublished } from '../util'
 import { generateUiMetadata, UIMetadata, Key } from '../util/GenerateUiMetadata'
 import { LabeledUtxo, PublishedLabel, PublishedOwnedSigner, PublishedProofOfReserveProposal, PublishedSharedSigner, PublishedSpendingProposal } from '../types'
 import { type Store } from '../service'
+import { StringUtil } from '../util'
 
 export class PublishedPolicy {
   id: string
@@ -215,7 +216,11 @@ export class PublishedPolicy {
 
   async getPolicyPathsFromSigners(): Promise<PolicyPathsResult | null> {
     const signers = await this.getOwnedSigners()
-    return this.wallet.get_policy_paths_from_signers(signers)
+    const result = this.wallet.get_policy_paths_from_signers(signers)
+    if (StringUtil.isString(result)){
+      return {none: true}
+    }
+    return result
   }
 
   searchUsedSigners(signers: Array<BaseOwnedSigner>): Array<BaseOwnedSigner> {
