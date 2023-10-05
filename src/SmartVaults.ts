@@ -133,29 +133,30 @@ export class SmartVaults {
    */
   async setProfile(metadata: SmartVaultsTypes.Metadata): Promise<SmartVaultsTypes.Profile> {
     if (metadata?.nip05) {
-      const [name, url] = metadata.nip05.split('@');
+      const nip05: string = metadata.nip05;
+      const nip05Array: string[] = nip05.split('@');
+      const isNip05Valid = nip05Array.length === 2 && nip05Array[1].includes('.');
+      if (!isNip05Valid) {
+        throw new Error('Invalid NIP05 string');
+      }
+      const [name, url] = nip05Array;
 
-      let isNip05Valid = false;
+      let isNip05Verifed = false;
       const URL_ENDPOINT = `https://${url}/.well-known/nostr.json?name=${name}`;
       try {
 
         const urlResponse = await fetch(URL_ENDPOINT);
-        console.log(urlResponse);
-
         const HTTP_OK = 200;
 
         if (urlResponse.ok && urlResponse.status === HTTP_OK) {
           const urlMetadata = await urlResponse.json();
-          console.log(urlMetadata);
-
-          isNip05Valid = urlMetadata.names[name] === this.authenticator.getPublicKey();
-          console.log(isNip05Valid)
+          isNip05Verifed = urlMetadata.names[name] === this.authenticator.getPublicKey();
         }
       } catch (fetchError) {
         console.error(`Error fetching the URL ${URL_ENDPOINT} to validate NIP05:`, fetchError);
       }
-      if (!isNip05Valid) {
-        throw new Error('Invalid NIP05');
+      if (!isNip05Verifed) {
+        throw new Error('Cannot verify NIP05');
       }
     }
     const setMetadataEvent = await buildEvent({
