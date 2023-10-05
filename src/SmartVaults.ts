@@ -132,6 +132,32 @@ export class SmartVaults {
    * await setProfile({ name: 'Alice', about: 'Learning about Smart Vaults' });
    */
   async setProfile(metadata: SmartVaultsTypes.Metadata): Promise<SmartVaultsTypes.Profile> {
+    if (metadata?.nip05) {
+      const [name, url] = metadata.nip05.split('@');
+
+      let isNip05Valid = false;
+      const URL_ENDPOINT = `https://${url}/.well-known/nostr.json?name=${name}`;
+      try {
+
+        const urlResponse = await fetch(URL_ENDPOINT);
+        console.log(urlResponse);
+
+        const HTTP_OK = 200;
+
+        if (urlResponse.ok && urlResponse.status === HTTP_OK) {
+          const urlMetadata = await urlResponse.json();
+          console.log(urlMetadata);
+
+          isNip05Valid = urlMetadata.names[name] === this.authenticator.getPublicKey();
+          console.log(isNip05Valid)
+        }
+      } catch (fetchError) {
+        console.error(`Error fetching the URL ${URL_ENDPOINT} to validate NIP05:`, fetchError);
+      }
+      if (!isNip05Valid) {
+        throw new Error('Invalid NIP05');
+      }
+    }
     const setMetadataEvent = await buildEvent({
       kind: Kind.Metadata,
       content: JSON.stringify(metadata),
