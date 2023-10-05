@@ -6,4 +6,8 @@ export class StringUtil {
     }
     return str
   }
+
+  static isString(value: any): value is string {
+    return typeof value === 'string';
+  }
 }

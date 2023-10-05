@@ -34,11 +34,13 @@ export type UndecoratedBasicTrxDetails = {
   received: number,
   sent: number,
   fee: number,
+  unconfirmed_last_seen?: number,
   confirmation_time?: UndecoratedBasicConfirmationTime
 }
 
 export type BasicTrxDetails = UndecoratedBasicTrxDetails & {
   confirmation_time?: BasicConfirmationTime
+  unconfirmedLastSeenAt?: Date,
   net: number
 }
 
@@ -92,4 +94,33 @@ export type LocalUtxo = {
 export type Utxo = {
   address: string,
   utxo: LocalUtxo
+}
+
+export type BaseSharedSigner = {
+  descriptor: string;
+  fingerprint: string;
+};
+
+export type BaseOwnedSigner = {
+  description: any,
+  descriptor: string,
+  fingerprint: string,
+  name: string,
+  t: string,
+}
+
+export type PolicyPathSelector = {
+  partial?: {
+    selected_path: Map<String, Array<number>>,
+    missing_to_select: Map<String, Array<String>>,
+  },
+  complete?: {
+    path: Map<String, Array<number>>,
+  }
+}
+
+export type PolicyPathsResult = {
+  multiple?: Map<String, PolicyPathSelector | null>,
+  single?: PolicyPathSelector,
+  none?: boolean,
 }

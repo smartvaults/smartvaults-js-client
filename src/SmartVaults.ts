@@ -3,7 +3,7 @@ import { generatePrivateKey, Kind, Event, Filter, Sub } from 'nostr-tools'
 import { SmartVaultsKind, TagType, ProposalType, ProposalStatus, ApprovalStatus, StoreKind, AuthenticatorType } from './enum'
 import { NostrClient, PubPool, Store } from './service'
 import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished, nostrDate } from './util'
-import { BasicTrxDetails, BitcoinUtil, Contact, Policy, PublishedPolicy, TrxDetails } from './models'
+import { BasicTrxDetails, BaseOwnedSigner, BaseSharedSigner, BitcoinUtil, Contact, Policy, PublishedPolicy, TrxDetails } from './models'
 import * as SmartVaultsTypes from './types'
 import { EventKindHandlerFactory } from './event-kind-handler'
 
@@ -892,10 +892,10 @@ export class SmartVaults {
     fingerprint,
     name,
     t,
-  }: SmartVaultsTypes.BaseOwnedSigner): Promise<SmartVaultsTypes.PublishedOwnedSigner> {
+  }: BaseOwnedSigner): Promise<SmartVaultsTypes.PublishedOwnedSigner> {
     let ownerPubKey = this.authenticator.getPublicKey()
 
-    const signer: SmartVaultsTypes.BaseOwnedSigner = {
+    const signer: BaseOwnedSigner = {
       description,
       descriptor,
       fingerprint,
@@ -924,7 +924,7 @@ export class SmartVaults {
    * @async
    * @param {Object} params - Parameters for the shared signer, including `descriptor` and `fingerpring`
    * @param {string} pubKey - Public key of the user with whom the signer is being shared.
-   * @returns {Promise<SmartVaultsTypes.BaseSharedSigner>} A promise that resolves to a PublishedSharedSigner object, includes 
+   * @returns {Promise<BaseSharedSigner>} A promise that resolves to a PublishedSharedSigner object, includes 
    * the owner's public key and shared date.
    * @throws Will throw an error if the event publishing fails or if the user tries to share a signer with themselves.
    * @example
@@ -936,7 +936,7 @@ export class SmartVaults {
       pubKeys = [pubKeys]
     }
     const ownerPubKey = this.authenticator.getPublicKey()
-    const BaseSharedSigner: SmartVaultsTypes.BaseSharedSigner = {
+    const BaseSharedSigner: BaseSharedSigner = {
       descriptor: ownedSigner.descriptor,
       fingerprint: ownedSigner.fingerprint,
     }

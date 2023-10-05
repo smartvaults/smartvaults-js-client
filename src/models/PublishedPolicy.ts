@@ -1,12 +1,13 @@
 import { Authenticator } from '@smontero/nostr-ual'
 import { Event } from 'nostr-tools'
 import { Balance } from './Balance'
-import { Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails, Utxo, LabeledTrxDetails } from './types'
+import { BaseOwnedSigner, PolicyPathSelector, Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails, Utxo, PolicyPathsResult, LabeledTrxDetails } from './types'
 import { BitcoinUtil, Wallet } from './interfaces'
 import { PaginationOpts, TimeUtil, fromNostrDate, toPublished } from '../util'
 import { generateUiMetadata, UIMetadata, Key } from '../util/GenerateUiMetadata'
 import { LabeledUtxo, PublishedLabel, PublishedOwnedSigner, PublishedProofOfReserveProposal, PublishedSharedSigner, PublishedSpendingProposal } from '../types'
 import { type Store } from '../service'
+import { StringUtil } from '../util'
 
 export class PublishedPolicy {
   id: string
@@ -196,7 +197,7 @@ export class PublishedPolicy {
   }
 
   async getTrxs(): Promise<Array<BasicTrxDetails>> {
-    const trxs = (await this.synced()).get_trxs()
+    const trxs = await (await this.synced()).get_trxs()
     return trxs.map(this.decorateTrxDetails)
   }
 
@@ -207,6 +208,27 @@ export class PublishedPolicy {
 
   async getUtxos(): Promise<Array<Utxo>> {
     return (await this.synced()).get_utxos()
+  }
+
+  getPolicyPathFromSigner(signer: BaseOwnedSigner): PolicyPathSelector | null {
+    return this.wallet.get_policy_path_from_signer(signer)
+  }
+
+  async getPolicyPathsFromSigners(): Promise<PolicyPathsResult | null> {
+    const signers = await this.getOwnedSigners()
+    const result = this.wallet.get_policy_paths_from_signers(signers)
+    if (StringUtil.isString(result)){
+      return {none: true}
+    }
+    return result
+  }
+
+  searchUsedSigners(signers: Array<BaseOwnedSigner>): Array<BaseOwnedSigner> {
+    return this.wallet.search_used_signers(signers)
+  }
+
+  hasTimelock(): boolean {
+    return this.wallet.has_timelock()
   }
 
   async getLabeledUtxos(): Promise<Array<LabeledUtxo>> {
@@ -303,6 +325,9 @@ export class PublishedPolicy {
     trxDetails.net = trxDetails.received - trxDetails.sent
     if (trxDetails.confirmation_time) {
       trxDetails.confirmation_time.confirmedAt = fromNostrDate(trxDetails.confirmation_time.timestamp)
+    }
+    if (trxDetails.unconfirmed_last_seen != null) {
+      trxDetails.unconfirmedLastSeenAt = fromNostrDate(trxDetails.unconfirmed_last_seen)
     }
     return trxDetails
   }

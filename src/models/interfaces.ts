@@ -1,4 +1,4 @@
-import { Trx, FinalizeTrxResponse, UndecoratedBasicTrxDetails, UndecoratedTrxDetails, Utxo } from "./types"
+import { BaseOwnedSigner, Trx, FinalizeTrxResponse, UndecoratedBasicTrxDetails, UndecoratedTrxDetails, Utxo, PolicyPathSelector, PolicyPathsResult } from "./types"
 
 
 type BalancePayload = {
@@ -39,13 +39,22 @@ export interface Wallet {
 
   finalize_trx(psbts: string[], broadcast: boolean): Promise<FinalizeTrxResponse>;
 
-  get_trxs(): Array<UndecoratedBasicTrxDetails>;
+  get_trxs(): Promise<Array<UndecoratedBasicTrxDetails>>;
 
   get_trx(txid: string): Promise<UndecoratedTrxDetails>;
 
   get_utxos(): Array<Utxo>;
-  
+
   network(): string;
+
+  get_policy_path_from_signer(signer: BaseOwnedSigner): PolicyPathSelector | null
+
+  get_policy_paths_from_signers(signers: Array<BaseOwnedSigner>): PolicyPathsResult | string | null
+
+  search_used_signers(signers: Array<BaseOwnedSigner>): Array<BaseOwnedSigner>
+
+  has_timelock(): boolean
+
 }
 
 
