@@ -132,29 +132,10 @@ export class SmartVaults {
    * await setProfile({ name: 'Alice', about: 'Learning about Smart Vaults' });
    */
   async setProfile(metadata: SmartVaultsTypes.Metadata): Promise<SmartVaultsTypes.Profile> {
+    const publicKey = this.authenticator.getPublicKey()
     if (metadata?.nip05) {
       const nip05: string = metadata.nip05;
-      const nip05Array: string[] = nip05.split('@');
-      const isNip05Valid = nip05Array.length === 2 && nip05Array[1].includes('.');
-      if (!isNip05Valid) {
-        throw new Error('Invalid NIP05 string');
-      }
-      const [name, url] = nip05Array;
-
-      let isNip05Verifed = false;
-      const URL_ENDPOINT = `https://${url}/.well-known/nostr.json?name=${name}`;
-      try {
-
-        const urlResponse = await fetch(URL_ENDPOINT);
-        const HTTP_OK = 200;
-
-        if (urlResponse.ok && urlResponse.status === HTTP_OK) {
-          const urlMetadata = await urlResponse.json();
-          isNip05Verifed = urlMetadata.names[name] === this.authenticator.getPublicKey();
-        }
-      } catch (fetchError) {
-        console.error(`Error fetching the URL ${URL_ENDPOINT} to validate NIP05:`, fetchError);
-      }
+      const isNip05Verifed = await this.isNip05Verified(nip05, publicKey);
       if (!isNip05Verifed) {
         throw new Error('Cannot verify NIP05');
       }
@@ -168,7 +149,7 @@ export class SmartVaults {
     const pub = this.nostrClient.publish(setMetadataEvent)
     await pub.onFirstOkOrCompleteFailure()
     return {
-      publicKey: this.authenticator.getPublicKey(),
+      publicKey: publicKey,
       ...metadata
     }
   }
@@ -1900,6 +1881,56 @@ export class SmartVaults {
     const labelsFilter = this.buildLabelsFilter().ids(labelIds).pagination(paginationOpts).toFilters();
     await this._getLabels(labelsFilter);
     return store.getMany(labelIds, "label_id");
+  }
+
+  /**
+   * Asynchronously tries to verify NIP05.
+   *
+   * @async
+   * @param {string} nip05 - The nip05 string.
+   * @param {string} publicKey - The public key string to verify against.
+   * @returns {Promise<boolean>} - 
+   * A promise that resolves to a boolean that indicates if the nip05 has been verified.
+   *
+   * @example
+   * const isNip05Verified = await isNip05Verified(alice@smartvaults.app, aliciesPublicKey);
+   */
+  isNip05Verified = async (nip05: string, publicKey: string): Promise<boolean> => {
+
+    const HTTP_OK = 200;
+    const nip05Array = nip05.split('@');
+    const isNip05Valid = nip05Array.length === 2 && nip05Array[1].includes('.');
+
+    if (!isNip05Valid) {
+      console.error(`Invalid NIP05 string for ${publicKey}`);
+      return false;
+    }
+
+    const [name, url] = nip05Array;
+    const URL_ENDPOINT = `https://${url}/.well-known/nostr.json?name=${name}`;
+
+    try {
+      const urlResponse = await this.fetchWithTimeout(URL_ENDPOINT);
+      if (urlResponse.ok && urlResponse.status === HTTP_OK) {
+        const urlResponseJson = await urlResponse.json();
+        return urlResponseJson.names[name] === publicKey;
+      }
+    } catch (fetchError) {
+      console.error(`Error fetching the URL ${URL_ENDPOINT} to validate NIP05:`, fetchError);
+    }
+
+    return false;
+  }
+
+
+  private async fetchWithTimeout(url: string, timeout = 2000): Promise<Response> {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(id);
+
+    return response;
   }
 
 }

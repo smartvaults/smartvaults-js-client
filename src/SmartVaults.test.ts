@@ -5,7 +5,7 @@ import { SmartVaults } from './SmartVaults'
 import { NostrClient, Keys, Store } from './service'
 import { TimeUtil, buildEvent } from './util'
 import { BaseOwnedSigner, Contact, PublishedPolicy, BitcoinUtil, Wallet, type FinalizeTrxResponse } from './models'
-import { Metadata, Profile, SavePolicyPayload, SpendProposalPayload, PublishedDirectMessage, PublishedSpendingProposal, PublishedApprovedProposal, PublishedSharedSigner, PublishedOwnedSigner, MySharedSigner} from './types'
+import { Metadata, Profile, SavePolicyPayload, SpendProposalPayload, PublishedDirectMessage, PublishedSpendingProposal, PublishedApprovedProposal, PublishedSharedSigner, PublishedOwnedSigner, MySharedSigner } from './types'
 import { SmartVaultsKind, ProposalStatus } from './enum'
 import { Kind } from 'nostr-tools'
 jest.setTimeout(1000000);

@@ -5,9 +5,11 @@ import { EventKindHandler } from './EventKindHandler'
 
 export class MetadataHandler extends EventKindHandler {
   private readonly store: Store
-  constructor(store: Store) {
+  private readonly isNip05Verified: (nip05: string, publicKey: string) => Promise<boolean>
+  constructor(store: Store, isNip05Verified: (nip05: string, publicKey: string) => Promise<boolean>) {
     super()
     this.store = store
+    this.isNip05Verified = isNip05Verified
   }
 
   protected async _handle<K extends number>(metadataEvents: Array<Event<K>>): Promise<Profile[]> {
@@ -30,55 +32,28 @@ export class MetadataHandler extends EventKindHandler {
       try {
         metadata = JSON.parse(event.content);
       } catch (e) {
-        console.error(`Invalid JSON content for ${publicKey}`);
+        console.error(`Invalid Metadata content for ${publicKey}`);
         return;
       }
 
       if (metadata?.nip05) {
-        const HTTP_OK = 200;
-        const nip05Array = metadata.nip05.split('@');
-        const isNip05Valid = nip05Array.length === 2 && nip05Array[1].includes('.');
-
-        if (!isNip05Valid) {
-          console.error(`Invalid NIP05 string for ${publicKey}`);
+        const isNip05Verified = await this.isNip05Verified(metadata.nip05, publicKey);
+        if (!isNip05Verified) {
+          console.error(`Cannot verify NIP05 for ${publicKey}`);
           metadata.nip05 = undefined;
-        } else {
-          const [name, url] = nip05Array;
-          const URL_ENDPOINT = `https://${url}/.well-known/nostr.json?name=${name}`;
-
-          let isNip05Verifed = false;
-          try {
-            const urlResponse = await this.fetchWithTimeout(URL_ENDPOINT);
-            if (urlResponse.ok && urlResponse.status === HTTP_OK) {
-              const urlMetadata = await urlResponse.json();
-              isNip05Verifed = urlMetadata.names[name] === publicKey;
-            }
-          } catch (fetchError) {
-            console.error(`Error fetching the URL ${URL_ENDPOINT} to validate NIP05:`, fetchError);
-          }
-
-          if (!isNip05Verifed) {
-            metadata.nip05 = undefined;
-          }
         }
       }
 
       this.store.store({ content: { publicKey, ...metadata }, id: event.id });
     });
 
-    await Promise.all(fetchPromises);
+    const results = await Promise.allSettled(fetchPromises);
+    results.forEach((result, index) => {
+      if (result.status === "rejected") {
+        console.error(`Fetch promise #${index + 1} failed with ${result.reason}`);
+      }
+    });
 
     return this.store.getManyAsArray(metadataIds).map(metadata => metadata.content);
   }
-
-  private async fetchWithTimeout(url: string, timeout = 2000): Promise<Response> {
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeout);
-
-    const response = await fetch(url, { signal: controller.signal });
-    clearTimeout(id);
-
-    return response;
-  }
-
 }
