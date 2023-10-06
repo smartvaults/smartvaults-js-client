@@ -2,7 +2,7 @@ import { Authenticator, DirectPrivateKeyAuthenticator } from '@smontero/nostr-ua
 import { generatePrivateKey, Kind, Event, Filter, Sub } from 'nostr-tools'
 import { SmartVaultsKind, TagType, ProposalType, ProposalStatus, ApprovalStatus, StoreKind, AuthenticatorType } from './enum'
 import { NostrClient, PubPool, Store } from './service'
-import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished, nostrDate } from './util'
+import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished, nostrDate, isNip05Verified } from './util'
 import { BasicTrxDetails, BaseOwnedSigner, BaseSharedSigner, BitcoinUtil, Contact, Policy, PublishedPolicy, TrxDetails } from './models'
 import * as SmartVaultsTypes from './types'
 import { EventKindHandlerFactory } from './event-kind-handler'
@@ -135,7 +135,7 @@ export class SmartVaults {
     const publicKey = this.authenticator.getPublicKey()
     if (metadata?.nip05) {
       const nip05: string = metadata.nip05;
-      const isNip05Verifed = await this.isNip05Verified(nip05, publicKey);
+      const isNip05Verifed = await isNip05Verified(nip05, publicKey);
       if (!isNip05Verifed) {
         throw new Error('Cannot verify NIP05');
       }
@@ -1882,55 +1882,4 @@ export class SmartVaults {
     await this._getLabels(labelsFilter);
     return store.getMany(labelIds, "label_id");
   }
-
-  /**
-   * Asynchronously tries to verify NIP05.
-   *
-   * @async
-   * @param {string} nip05 - The nip05 string.
-   * @param {string} publicKey - The public key string to verify against.
-   * @returns {Promise<boolean>} - 
-   * A promise that resolves to a boolean that indicates if the nip05 has been verified.
-   *
-   * @example
-   * const isNip05Verified = await isNip05Verified(alice@smartvaults.app, aliciesPublicKey);
-   */
-  isNip05Verified = async (nip05: string, publicKey: string): Promise<boolean> => {
-
-    const HTTP_OK = 200;
-    const nip05Array = nip05.split('@');
-    const isNip05Valid = nip05Array.length === 2 && nip05Array[1].includes('.');
-
-    if (!isNip05Valid) {
-      console.error(`Invalid NIP05 string for ${publicKey}`);
-      return false;
-    }
-
-    const [name, url] = nip05Array;
-    const URL_ENDPOINT = `https://${url}/.well-known/nostr.json?name=${name}`;
-
-    try {
-      const urlResponse = await this.fetchWithTimeout(URL_ENDPOINT);
-      if (urlResponse.ok && urlResponse.status === HTTP_OK) {
-        const urlResponseJson = await urlResponse.json();
-        return urlResponseJson.names[name] === publicKey;
-      }
-    } catch (fetchError) {
-      console.error(`Error fetching the URL ${URL_ENDPOINT} to validate NIP05:`, fetchError);
-    }
-
-    return false;
-  }
-
-
-  private async fetchWithTimeout(url: string, timeout = 2000): Promise<Response> {
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeout);
-
-    const response = await fetch(url, { signal: controller.signal });
-    clearTimeout(id);
-
-    return response;
-  }
-
 }

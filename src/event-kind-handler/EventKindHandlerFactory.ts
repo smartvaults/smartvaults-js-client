@@ -39,7 +39,6 @@ export class EventKindHandlerFactory {
       const getSharedSigners = this.smartVaults.getSharedSigners
       const getLabelsByPolicyId = this.smartVaults.getLabelsByPolicyId
       const extractKey = this.smartVaults.extractKey
-      const isNip05Verified = this.smartVaults.isNip05Verified
       const eventsStore = stores.get(StoreKind.Events)!
       const completedProposalsStore = stores.get(SmartVaultsKind.CompletedProposal)!
       const proposalsStore = stores.get(SmartVaultsKind.Proposal)!
@@ -70,7 +69,7 @@ export class EventKindHandlerFactory {
           this.handlers.set(eventKind, new OwnedSignerHandler(authenticator, nostrClient, stores.get(eventKind)!, eventsStore, extractKey))
           break
         case Kind.Metadata:
-          this.handlers.set(eventKind, new MetadataHandler(stores.get(eventKind)!, isNip05Verified))
+          this.handlers.set(eventKind, new MetadataHandler(stores.get(eventKind)!))
           break
         case Kind.Contacts:
           this.handlers.set(eventKind, new ContactsHandler())

@@ -63,3 +63,54 @@ export function getTagValue(
   }
   return values[0]
 }
+
+/**
+ * Asynchronously tries to verify NIP05.
+ *
+ * @async
+ * @param {string} nip05 - The nip05 string.
+ * @param {string} publicKey - The public key string to verify against.
+ * @param {number} timeout - The fetch timeout in milliseconds (Optional).
+ * @returns {Promise<boolean>} - 
+ * A promise that resolves to a boolean that indicates if the nip05 has been verified.
+ *
+ * @example
+ * const isNip05Verified = await isNip05Verified(alice@smartvaults.app, aliciesPublicKey);
+ */
+export async function isNip05Verified(nip05: string, publicKey: string, timeout = 2000): Promise<boolean> {
+
+  const HTTP_OK = 200;
+  const nip05Array = nip05.split('@');
+  const isNip05Valid = nip05Array.length === 2 && nip05Array[1].includes('.');
+
+  if (!isNip05Valid) {
+    console.error(`Invalid NIP05 string for ${publicKey}`);
+    return false;
+  }
+
+  const [name, url] = nip05Array;
+  const URL_ENDPOINT = `https://${url}/.well-known/nostr.json?name=${name}`;
+
+  try {
+    const urlResponse = await fetchWithTimeout(URL_ENDPOINT, timeout);
+    if (urlResponse.ok && urlResponse.status === HTTP_OK) {
+      const urlResponseJson = await urlResponse.json();
+      return urlResponseJson.names[name] === publicKey;
+    }
+  } catch (fetchError) {
+    console.error(`Error fetching the URL ${URL_ENDPOINT} to validate NIP05:`, fetchError);
+  }
+
+  return false;
+}
+
+
+async function fetchWithTimeout(url: string, timeout: number): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+
+  const response = await fetch(url, { signal: controller.signal });
+  clearTimeout(id);
+
+  return response;
+}

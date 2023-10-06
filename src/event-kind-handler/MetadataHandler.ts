@@ -2,14 +2,12 @@ import { type Event, type Kind } from 'nostr-tools'
 import { type Profile } from '../types'
 import { type Store } from '../service'
 import { EventKindHandler } from './EventKindHandler'
-
+import { isNip05Verified } from '../util'
 export class MetadataHandler extends EventKindHandler {
   private readonly store: Store
-  private readonly isNip05Verified: (nip05: string, publicKey: string) => Promise<boolean>
-  constructor(store: Store, isNip05Verified: (nip05: string, publicKey: string) => Promise<boolean>) {
+  constructor(store: Store) {
     super()
     this.store = store
-    this.isNip05Verified = isNip05Verified
   }
 
   protected async _handle<K extends number>(metadataEvents: Array<Event<K>>): Promise<Profile[]> {
@@ -37,8 +35,8 @@ export class MetadataHandler extends EventKindHandler {
       }
 
       if (metadata?.nip05) {
-        const isNip05Verified = await this.isNip05Verified(metadata.nip05, publicKey);
-        if (!isNip05Verified) {
+        const isVerified = await isNip05Verified(metadata.nip05, publicKey);
+        if (!isVerified) {
           console.error(`Cannot verify NIP05 for ${publicKey}`);
           metadata.nip05 = undefined;
         }
