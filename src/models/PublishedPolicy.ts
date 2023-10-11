@@ -217,8 +217,8 @@ export class PublishedPolicy {
   async getPolicyPathsFromSigners(): Promise<PolicyPathsResult | null> {
     const signers = await this.getOwnedSigners()
     const result = this.wallet.get_policy_paths_from_signers(signers)
-    if (StringUtil.isString(result)){
-      return {none: true}
+    if (StringUtil.isString(result)) {
+      return { none: true }
     }
     return result
   }
@@ -242,7 +242,7 @@ export class PublishedPolicy {
       console.error("An error occurred:", error);
       return [];
     }
-    const indexKey = "unhashed";
+    const indexKey = "labelData";
     const frozenUtxos = await this.getFrozenUtxosOutpoints();
 
     const maybeLabeledUtxos: Array<LabeledUtxo> = utxos.map(utxo => {
@@ -308,7 +308,7 @@ export class PublishedPolicy {
       console.error("Error while fetching labeled transactions:", error);
       return [];
     }
-    const indexKey = "unhashed";
+    const indexKey = "labelData";
 
     const maybeLabeledTrxs: Array<LabeledTrxDetails> = trxs.map(trx => {
       const label: PublishedLabel | undefined = this.labelStore.get(trx.txid, indexKey);

@@ -42,7 +42,7 @@ export class SmartVaults {
     this.stores.set(Kind.Metadata, Store.createSingleIndexStore("id"))
     this.stores.set(StoreKind.Events, Store.createSingleIndexStore("id"))
     this.stores.set(StoreKind.MySharedSigners, Store.createMultiIndexStore(["id", "signerId"], "id"))
-    this.stores.set(SmartVaultsKind.Labels, Store.createMultiIndexStore(["id", "policy_id", "label_id", "unhashed"], "id"))
+    this.stores.set(SmartVaultsKind.Labels, Store.createMultiIndexStore(["id", "policy_id", "label_id", "labelData"], "id"))
   }
   initEventKindHandlerFactory() {
     this.eventKindHandlerFactor = new EventKindHandlerFactory(this)
@@ -1408,7 +1408,7 @@ export class SmartVaults {
       sharedKeyAuthenticator)
 
     await this.nostrClient.publish(completedProposalEvent).onFirstOkOrCompleteFailure()
-    const label: SmartVaultsTypes.Label = { data: { 'Spend': txId }, text: proposal.description }
+    const label: SmartVaultsTypes.Label = { data: { 'trxid': txId }, text: proposal.description }
     await this.saveLabel(policyId, label)
     const proposalsIdsToDelete: string[] = (await this.getProposalsWithCommonUtxos(proposal)).map(({ proposal_id }) => proposal_id);
     await this.deleteProposals(proposalsIdsToDelete)
@@ -1812,7 +1812,7 @@ export class SmartVaults {
       policy_id: policyId,
       createdAt: fromNostrDate(labelEvent.created_at),
       id: labelEvent.id,
-      unhashed: Object.values(label.data)[0]
+      labelData: Object.values(label.data)[0]
     }
 
     return publishedLabel
@@ -1881,5 +1881,26 @@ export class SmartVaults {
     const labelsFilter = this.buildLabelsFilter().ids(labelIds).pagination(paginationOpts).toFilters();
     await this._getLabels(labelsFilter);
     return store.getMany(labelIds, "label_id");
+  }
+
+  /**
+   * Asynchronously retrieves a label given its label data.
+   *
+   * @async
+   * @param {string} labelData - The label data (could be an address a trxid, etc).
+   * @returns {Promise<SmartVaultsTypes.PublishedLabel>} - 
+   * A promise that resolves to a PublishedLabel.
+   *
+   * @example
+   * const labels = await getLabelByLabelData("trxid");
+   */
+  async getLabelByLabelData(labelData: string): Promise<SmartVaultsTypes.PublishedLabel> {
+    await this.getLabels()
+    const store = this.getStore(SmartVaultsKind.Labels);
+    const label: SmartVaultsTypes.PublishedLabel | undefined = store.get(labelData, "labelData");
+    if (!label) {
+      throw new Error(`Label with label data ${labelData} not found`)
+    }
+    return label
   }
 }
