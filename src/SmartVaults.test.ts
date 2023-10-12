@@ -6,7 +6,7 @@ import { NostrClient, Keys, Store } from './service'
 import { TimeUtil, buildEvent } from './util'
 import { BaseOwnedSigner, Contact, PublishedPolicy, BitcoinUtil, Wallet, type FinalizeTrxResponse } from './models'
 import { Metadata, Profile, SavePolicyPayload, SpendProposalPayload, PublishedDirectMessage, PublishedSpendingProposal, PublishedApprovedProposal, PublishedSharedSigner, PublishedOwnedSigner, MySharedSigner } from './types'
-import { SmartVaultsKind, ProposalStatus } from './enum'
+import { SmartVaultsKind, ProposalStatus, NetworkType } from './enum'
 import { Kind } from 'nostr-tools'
 jest.setTimeout(1000000);
 
@@ -14,6 +14,7 @@ describe('SmartVaults', () => {
   let smartVaults: SmartVaults
   let nostrClient: NostrClient
   let authenticator: DirectPrivateKeyAuthenticator
+  let network: NetworkType
   let bitcoinUtil: MockProxy<BitcoinUtil>
   let keySet1
   let keySet2
@@ -31,10 +32,12 @@ describe('SmartVaults', () => {
     bitcoinUtil = mock<BitcoinUtil>()
     bitcoinUtil.toDescriptor.mockReturnValue("Descriptor")
     authenticator = new DirectPrivateKeyAuthenticator(keySet1.mainKey().privateKey)
+    network = NetworkType.Bitcoin
     smartVaults = new SmartVaults({
       authenticator,
       bitcoinUtil,
-      nostrClient
+      nostrClient,
+      network
     })
 
   })
@@ -317,7 +320,8 @@ describe('SmartVaults', () => {
       smartVaults = new SmartVaults({
         authenticator: new DirectPrivateKeyAuthenticator(keySet.mainKey().privateKey),
         bitcoinUtil,
-        nostrClient
+        nostrClient,
+        network
       })
       const wallet = mock<Wallet>()
       wallet.sync.mockResolvedValue()
@@ -783,6 +787,7 @@ describe('SmartVaults', () => {
     let ownedSigner4: PublishedOwnedSigner;
     let ownedSigner5: PublishedOwnedSigner;
     let smartVaultsWithAuthenticator2: SmartVaults // New instance of SmartVaults
+    let smartVaultsWithAuthenticator3: SmartVaults
     let pubKey: string
     let pubKey2: string
 
@@ -792,7 +797,8 @@ describe('SmartVaults', () => {
       smartVaultsWithAuthenticator2 = new SmartVaults({ // New instance of SmartVaults with different authenticator
         authenticator: authenticator2,
         bitcoinUtil,
-        nostrClient
+        nostrClient,
+        network
       });
 
       pubKey = keySet1.keys[1].publicKey
@@ -808,10 +814,11 @@ describe('SmartVaults', () => {
       sharedSignerResult = await smartVaults.saveSharedSigner(ownedSigner3, pubKey)
       sharedSigner3 = sharedSignerResult[0]
 
-      let smartVaultsWithAuthenticator3 = new SmartVaults({ // New instance of SmartVaults with different authenticator
+      smartVaultsWithAuthenticator3 = new SmartVaults({ // New instance of SmartVaults with different authenticator
         authenticator: authenticator3,
         bitcoinUtil,
-        nostrClient
+        nostrClient,
+        network
       });
 
       ownedSigner4 = await saveSharedSignerPayload(smartVaultsWithAuthenticator3, 6)
@@ -886,6 +893,23 @@ describe('SmartVaults', () => {
       expected1.set(ownedSigner3.id, mySharedSigner3);
       expected1.set(ownedSigner2.id, mySharedSigner2);
       expect(mySharedSigners).toEqual(expected1)
+    })
+
+    it('getContactSignersCount', async () => {
+      const myPubKey = smartVaultsWithAuthenticator2.authenticator.getPublicKey()
+      const count = await smartVaults.getContactSignersCount(myPubKey);
+      expect(count).toEqual(0)
+      const contact = new Contact({ publicKey: pubKey2 })
+      await smartVaultsWithAuthenticator2.upsertContacts(contact);
+      const count2 = await smartVaultsWithAuthenticator2.getContactSignersCount(myPubKey);
+      expect(count2).toEqual(1)
+      await smartVaultsWithAuthenticator3.saveSharedSigner(ownedSigner4, myPubKey)
+      const count3 = await smartVaultsWithAuthenticator2.getContactSignersCount(myPubKey);
+      expect(count3).toEqual(1)
+      const contact2 = new Contact({ publicKey: smartVaults.authenticator.getPublicKey() })
+      await smartVaultsWithAuthenticator2.upsertContacts(contact2);
+      const count4 = await smartVaultsWithAuthenticator2.getContactSignersCount(myPubKey);
+      expect(count4).toEqual(2)
     })
 
   });
@@ -1214,7 +1238,8 @@ describe('SmartVaults', () => {
     return new SmartVaults({
       authenticator: new DirectPrivateKeyAuthenticator(keys.privateKey),
       bitcoinUtil,
-      nostrClient
+      nostrClient,
+      network
     })
   }
 
@@ -1334,7 +1359,7 @@ async function setProfile(id: number, smartVaults: SmartVaults): Promise<Profile
 async function saveSharedSignerPayload(smartVaults: SmartVaults, id: number): Promise<PublishedOwnedSigner> {
   const ownedSigner = await smartVaults.saveOwnedSigner({
     description: `description${id}`,
-    descriptor: `tr(descriptor${id}/*)#123`,
+    descriptor: `tr(xpubdescriptor${id}/*)#123`,
     fingerprint: `fingerprint${id}`,
     name: `name${id}`,
     t: `t${id}`,
@@ -1344,7 +1369,7 @@ async function saveSharedSignerPayload(smartVaults: SmartVaults, id: number): Pr
 
 function saveOwnedSignerPayload(id: number, ownerPubKey: string) {
   return {
-    descriptor: `tr(descriptor${id}/*)#123`,
+    descriptor: `tr(xpubdescriptor${id}/*)#123`,
     fingerprint: `fingerprint${id}`,
     ownerPubKey,
     name: `name${id}`,
@@ -1366,7 +1391,7 @@ function spendProposalPayload(id: number, policy: PublishedPolicy): SpendProposa
 function saveProofOfReserveProposalPayload(id: number) {
   return {
     "ProofOfReserve": {
-      descriptor: `descriptor${id}`,
+      descriptor: `xpubdescriptor${id}`,
       message: `message${id}`,
       psbt: `psbt${id}`,
     }

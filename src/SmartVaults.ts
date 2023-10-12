@@ -1,6 +1,6 @@
 import { Authenticator, DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { generatePrivateKey, Kind, Event, Filter, Sub } from 'nostr-tools'
-import { SmartVaultsKind, TagType, ProposalType, ProposalStatus, ApprovalStatus, StoreKind, AuthenticatorType } from './enum'
+import { SmartVaultsKind, TagType, ProposalType, ProposalStatus, ApprovalStatus, StoreKind, AuthenticatorType, NetworkType } from './enum'
 import { NostrClient, PubPool, Store } from './service'
 import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished, nostrDate, isNip05Verified } from './util'
 import { BasicTrxDetails, BaseOwnedSigner, BaseSharedSigner, BitcoinUtil, Contact, Policy, PublishedPolicy, TrxDetails } from './models'
@@ -12,20 +12,24 @@ export class SmartVaults {
   bitcoinUtil: BitcoinUtil
   nostrClient: NostrClient
   stores!: Map<number, Store>
+  network: NetworkType
   private eventKindHandlerFactor!: EventKindHandlerFactory
 
   constructor({
     authenticator,
     bitcoinUtil,
     nostrClient,
+    network,
   }: {
     authenticator: Authenticator,
     bitcoinUtil: BitcoinUtil,
     nostrClient: NostrClient,
+    network: NetworkType,
   }) {
     this.authenticator = authenticator
     this.bitcoinUtil = bitcoinUtil
     this.nostrClient = nostrClient
+    this.network = network
     this.initStores()
     this.initEventKindHandlerFactory()
   }
@@ -1408,7 +1412,7 @@ export class SmartVaults {
       sharedKeyAuthenticator)
 
     await this.nostrClient.publish(completedProposalEvent).onFirstOkOrCompleteFailure()
-    const label: SmartVaultsTypes.Label = { data: { 'trxid': txId }, text: proposal.description }
+    const label: SmartVaultsTypes.Label = { data: { 'txid': txId }, text: proposal.description }
     await this.saveLabel(policyId, label)
     const proposalsIdsToDelete: string[] = (await this.getProposalsWithCommonUtxos(proposal)).map(({ proposal_id }) => proposal_id);
     await this.deleteProposals(proposalsIdsToDelete)
@@ -1903,4 +1907,33 @@ export class SmartVaults {
     }
     return label
   }
+
+  /**
+   * Returns the number of contacts that have shared their signer.
+   *
+   * @async
+   * @param {string} pubKey - The Nostr hex public key of user for which to fetch the number of contacts that have shared their signer.
+   * @returns {Promise<number>} - 
+   * A promise that resolves to the number of contacts that have shared their signer.
+   *
+   * @example
+   * const howManySigners = await getContactSignersCount("hexPubKey");
+   */
+  async getContactSignersCount(pubKey: string): Promise<number> {
+    const contactsFilter = filterBuilder()
+      .kinds(Kind.Contacts)
+      .authors(pubKey)
+      .toFilters()
+    const contactsEvents = await this.nostrClient.list(contactsFilter)
+    if (contactsEvents.length === 0) return 0
+    const contactsEvent = contactsEvents[0]
+    const contactsPubkeys: string[] = getTagValues(contactsEvent, TagType.PubKey)
+    const sharedSigners = await this.getSharedSigners(contactsPubkeys)
+    if (sharedSigners.length === 0) return 0
+    const sharedSignerPubkeys = sharedSigners.map(({ ownerPubKey }) => ownerPubKey)
+    // remove duplicates
+    const uniqueSharedSigners = new Set(sharedSignerPubkeys)
+    return uniqueSharedSigners.size
+  }
+
 }

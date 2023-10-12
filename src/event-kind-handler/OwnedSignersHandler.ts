@@ -5,20 +5,22 @@ import { type Store, type NostrClient } from '../service'
 import { buildEvent, fromNostrDate } from '../util'
 import { EventKindHandler } from './EventKindHandler'
 import { type Authenticator } from '@smontero/nostr-ual'
-import { TagType, AuthenticatorType } from '../enum'
+import { TagType, AuthenticatorType, NetworkType } from '../enum'
 
 export class OwnedSignerHandler extends EventKindHandler {
   private readonly store: Store
   private readonly eventsStore: Store
   private readonly authenticator!: Authenticator
   private readonly nostrClient: NostrClient
+  private readonly network: NetworkType
   private readonly extractKey: (descriptor: string) => string
-  constructor(authenticator: Authenticator, nostrClient: NostrClient, store: Store, eventsStore: Store, extractKey: (descriptor: string) => string) {
+  constructor(authenticator: Authenticator, nostrClient: NostrClient, store: Store, eventsStore: Store, network: NetworkType, extractKey: (descriptor: string) => string) {
     super()
     this.store = store
     this.eventsStore = eventsStore
     this.authenticator = authenticator
     this.nostrClient = nostrClient
+    this.network = network
     this.extractKey = extractKey
   }
 
@@ -31,6 +33,7 @@ export class OwnedSignerHandler extends EventKindHandler {
   }
 
   private async getSignersAsync<K extends number>(ownedSignersEvents: Array<Event<K>>): Promise<PublishedOwnedSigner[]> {
+    const networkFilter = this.network === NetworkType.Bitcoin ? 'xpub' : 'tpub'
     const signerPromises = ownedSignersEvents.map(signersEvent => {
       const storeValue = this.store.get(signersEvent.id)
       if (storeValue) {
@@ -39,6 +42,7 @@ export class OwnedSignerHandler extends EventKindHandler {
 
       return this.authenticator.decryptObj(signersEvent.content, signersEvent.pubkey)
         .then(baseDecryptedSigner => {
+          if (!baseDecryptedSigner.descriptor.includes(networkFilter)) return null
           const key = this.extractKey(baseDecryptedSigner.descriptor)
           const signer: PublishedOwnedSigner = {
             ...baseDecryptedSigner,
@@ -75,6 +79,7 @@ export class OwnedSignerHandler extends EventKindHandler {
     if (!ownedSignersEvents.length) return []
     const signers: PublishedOwnedSigner[] = []
     const rawSignersEvents: Array<Event<K>> = []
+    const networkFilter = this.network === NetworkType.Bitcoin ? 'xpub' : 'tpub'
     for (const signersEvent of ownedSignersEvents) {
       const storeValue = this.store.get(signersEvent.id)
       if (storeValue) {
@@ -83,6 +88,7 @@ export class OwnedSignerHandler extends EventKindHandler {
         continue
       }
       const baseDecryptedSigner: BaseOwnedSigner = await this.authenticator.decryptObj(signersEvent.content, signersEvent.pubkey)
+      if (!baseDecryptedSigner.descriptor.includes(networkFilter)) continue
       const key = this.extractKey(baseDecryptedSigner.descriptor)
       signers.push({ ...baseDecryptedSigner, key, id: signersEvent.id, ownerPubKey: signersEvent.pubkey, createdAt: fromNostrDate(signersEvent.created_at) })
       rawSignersEvents.push(signersEvent)

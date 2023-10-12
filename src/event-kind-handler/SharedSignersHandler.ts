@@ -1,22 +1,24 @@
 import { type Event } from 'nostr-tools'
-import {  type BaseSharedSigner } from '../models'
+import { type BaseSharedSigner } from '../models'
 import { type PublishedSharedSigner } from '../types'
 import { type Store } from '../service'
 import { fromNostrDate } from '../util'
 import { EventKindHandler } from './EventKindHandler'
 import { Authenticator } from '@smontero/nostr-ual'
-import { AuthenticatorType } from '../enum'
+import { AuthenticatorType, NetworkType } from '../enum'
 
 export class SharedSignerHandler extends EventKindHandler {
   private readonly store: Store
   private readonly eventsStore: Store
   private readonly authenticator!: Authenticator
   private readonly extractKey: (descriptor: string) => string
-  constructor(authenticator: Authenticator, store: Store, eventsStore: Store, extractKey: (descriptor: string) => string) {
+  private readonly network: NetworkType
+  constructor(authenticator: Authenticator, store: Store, eventsStore: Store, network: NetworkType, extractKey: (descriptor: string) => string) {
     super()
     this.store = store
     this.eventsStore = eventsStore
     this.authenticator = authenticator
+    this.network = network
     this.extractKey = extractKey
   }
 
@@ -38,6 +40,8 @@ export class SharedSignerHandler extends EventKindHandler {
       }
 
       const baseDecryptedSigner: BaseSharedSigner = await this.authenticator.decryptObj(event.content, event.pubkey)
+      const networkFilter = this.network === NetworkType.Bitcoin ? 'xpub' : 'tpub'
+      if (!baseDecryptedSigner.descriptor.includes(networkFilter)) return null
       const key = this.extractKey(baseDecryptedSigner.descriptor)
       const signer: PublishedSharedSigner = { ...baseDecryptedSigner, key, id: event.id, ownerPubKey: event.pubkey, createdAt: fromNostrDate(event.created_at) }
 
@@ -72,6 +76,8 @@ export class SharedSignerHandler extends EventKindHandler {
         continue
       }
       const baseDecryptedSigner: BaseSharedSigner = await this.authenticator.decryptObj(event.content, event.pubkey)
+      const networkFilter = this.network === NetworkType.Bitcoin ? 'xpub' : 'tpub'
+      if (!baseDecryptedSigner.descriptor.includes(networkFilter)) continue
       const key = this.extractKey(baseDecryptedSigner.descriptor)
       const signer: PublishedSharedSigner = { ...baseDecryptedSigner, key, id: event.id, ownerPubKey: event.pubkey, createdAt: fromNostrDate(event.created_at) }
       signers.push(signer)
