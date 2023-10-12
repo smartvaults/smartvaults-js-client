@@ -1794,9 +1794,9 @@ export class SmartVaults {
     const policyMembers = policyEvent.tags
 
     const publishedSharedKeyAuthenticator: SmartVaultsTypes.SharedKeyAuthenticator | undefined = (await this.getSharedKeysById([policyId])).get(policyId)
-    if (!publishedSharedKeyAuthenticator) return {} as SmartVaultsTypes.PublishedLabel
-    const sharedKeyAuthenticator = publishedSharedKeyAuthenticator?.sharedKeyAuthenticator
-    const privateKey = publishedSharedKeyAuthenticator?.privateKey
+    if (!publishedSharedKeyAuthenticator) throw new Error(`Shared key for policy with id ${policyId} not found`)
+    const sharedKeyAuthenticator = publishedSharedKeyAuthenticator.sharedKeyAuthenticator
+    const privateKey = publishedSharedKeyAuthenticator.privateKey
     const labelId = await this.generateIdentifier(Object.values(label.data)[0], privateKey)
     const content = await sharedKeyAuthenticator.encryptObj(label)
 
@@ -1891,17 +1891,20 @@ export class SmartVaults {
    * Asynchronously retrieves a label given its label data.
    *
    * @async
+   * @param {string} policyId - The policy ID associaded with the label.
    * @param {string} labelData - The label data (could be an address a trxid, etc).
    * @returns {Promise<SmartVaultsTypes.PublishedLabel>} - 
    * A promise that resolves to a PublishedLabel.
    *
    * @example
-   * const labels = await getLabelByLabelData("trxid");
+   * const labels = await getLabelByLabelData("policyId","trxid");
    */
-  async getLabelByLabelData(labelData: string): Promise<SmartVaultsTypes.PublishedLabel> {
-    await this.getLabels()
-    const store = this.getStore(SmartVaultsKind.Labels);
-    const label: SmartVaultsTypes.PublishedLabel | undefined = store.get(labelData, "labelData");
+  async getLabelByLabelData(policyId: string, labelData: string): Promise<SmartVaultsTypes.PublishedLabel> {
+    const publishedSharedKeyAuthenticator: SmartVaultsTypes.SharedKeyAuthenticator | undefined = (await this.getSharedKeysById([policyId])).get(policyId)
+    if (!publishedSharedKeyAuthenticator) throw new Error(`Shared key for policy with id ${policyId} not found`)
+    const privateKey = publishedSharedKeyAuthenticator.privateKey
+    const labelId = await this.generateIdentifier(labelData, privateKey)
+    const label = (await this.getLabelById(labelId)).get(labelId)
     if (!label) {
       throw new Error(`Label with label data ${labelData} not found`)
     }
