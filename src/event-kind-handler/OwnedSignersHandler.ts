@@ -25,15 +25,16 @@ export class OwnedSignerHandler extends EventKindHandler {
   }
 
   protected async _handle<K extends number>(ownedSignersEvents: Array<Event<K>>): Promise<PublishedOwnedSigner[]> {
+    const networkFilter = this.network === NetworkType.Bitcoin ? 'xpub' : 'tpub'
     if (this.authenticator.getName() === AuthenticatorType.WebExtension) {
-      return this.getSignersSync(ownedSignersEvents)
+      return this.getSignersSync(ownedSignersEvents, networkFilter)
     } else {
-      return this.getSignersAsync(ownedSignersEvents)
+      return this.getSignersAsync(ownedSignersEvents, networkFilter)
     }
   }
 
-  private async getSignersAsync<K extends number>(ownedSignersEvents: Array<Event<K>>): Promise<PublishedOwnedSigner[]> {
-    const networkFilter = this.network === NetworkType.Bitcoin ? 'xpub' : 'tpub'
+  private async getSignersAsync<K extends number>(ownedSignersEvents: Array<Event<K>>, networkFilter: string): Promise<PublishedOwnedSigner[]> {
+
     const signerPromises = ownedSignersEvents.map(signersEvent => {
       const storeValue = this.store.get(signersEvent.id)
       if (storeValue) {
@@ -75,11 +76,10 @@ export class OwnedSignerHandler extends EventKindHandler {
   }
 
 
-  private async getSignersSync<K extends number>(ownedSignersEvents: Array<Event<K>>): Promise<PublishedOwnedSigner[]> {
+  private async getSignersSync<K extends number>(ownedSignersEvents: Array<Event<K>>, networkFilter: string): Promise<PublishedOwnedSigner[]> {
     if (!ownedSignersEvents.length) return []
     const signers: PublishedOwnedSigner[] = []
     const rawSignersEvents: Array<Event<K>> = []
-    const networkFilter = this.network === NetworkType.Bitcoin ? 'xpub' : 'tpub'
     for (const signersEvent of ownedSignersEvents) {
       const storeValue = this.store.get(signersEvent.id)
       if (storeValue) {

@@ -27,7 +27,7 @@ describe('SmartVaults', () => {
     nostrClient = new NostrClient([
       //'wss://relay.rip',
       // 'wss://test.relay.report'
-      'ws://localhost:7777'
+      'wss://armnd.net'
     ])
     bitcoinUtil = mock<BitcoinUtil>()
     bitcoinUtil.toDescriptor.mockReturnValue("Descriptor")

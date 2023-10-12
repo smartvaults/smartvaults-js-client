@@ -24,14 +24,15 @@ export class SharedSignerHandler extends EventKindHandler {
 
   protected async _handle<K extends number>(sharedSignersEvents: Array<Event<K>>): Promise<PublishedSharedSigner[]> {
     if (!sharedSignersEvents.length) return []
+    const networkFilter = this.network === NetworkType.Bitcoin ? 'xpub' : 'tpub'
     if (this.authenticator.getName() === AuthenticatorType.WebExtension) {
-      return this.getSharedSignersSync(sharedSignersEvents)
+      return this.getSharedSignersSync(sharedSignersEvents, networkFilter)
     } else {
-      return this.getSharedSignersAsync(sharedSignersEvents)
+      return this.getSharedSignersAsync(sharedSignersEvents, networkFilter)
     }
   }
 
-  private async getSharedSignersAsync<K extends number>(sharedSignersEvents: Array<Event<K>>): Promise<PublishedSharedSigner[]> {
+  private async getSharedSignersAsync<K extends number>(sharedSignersEvents: Array<Event<K>>, networkFilter: string): Promise<PublishedSharedSigner[]> {
 
     const signerPromises = sharedSignersEvents.map(async event => {
       const storeValue = this.store.get(event.id)
@@ -40,7 +41,6 @@ export class SharedSignerHandler extends EventKindHandler {
       }
 
       const baseDecryptedSigner: BaseSharedSigner = await this.authenticator.decryptObj(event.content, event.pubkey)
-      const networkFilter = this.network === NetworkType.Bitcoin ? 'xpub' : 'tpub'
       if (!baseDecryptedSigner.descriptor.includes(networkFilter)) return null
       const key = this.extractKey(baseDecryptedSigner.descriptor)
       const signer: PublishedSharedSigner = { ...baseDecryptedSigner, key, id: event.id, ownerPubKey: event.pubkey, createdAt: fromNostrDate(event.created_at) }
@@ -65,7 +65,7 @@ export class SharedSignerHandler extends EventKindHandler {
     return signers
   }
 
-  private async getSharedSignersSync<K extends number>(sharedSignersEvents: Array<Event<K>>): Promise<PublishedSharedSigner[]> {
+  private async getSharedSignersSync<K extends number>(sharedSignersEvents: Array<Event<K>>, networkFilter: string): Promise<PublishedSharedSigner[]> {
     const signers: PublishedSharedSigner[] = []
     const rawSignersEvents: Array<Event<K>> = []
     for (const event of sharedSignersEvents) {
@@ -76,7 +76,6 @@ export class SharedSignerHandler extends EventKindHandler {
         continue
       }
       const baseDecryptedSigner: BaseSharedSigner = await this.authenticator.decryptObj(event.content, event.pubkey)
-      const networkFilter = this.network === NetworkType.Bitcoin ? 'xpub' : 'tpub'
       if (!baseDecryptedSigner.descriptor.includes(networkFilter)) continue
       const key = this.extractKey(baseDecryptedSigner.descriptor)
       const signer: PublishedSharedSigner = { ...baseDecryptedSigner, key, id: event.id, ownerPubKey: event.pubkey, createdAt: fromNostrDate(event.created_at) }
