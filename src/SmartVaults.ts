@@ -46,7 +46,7 @@ export class SmartVaults {
     this.stores.set(Kind.Metadata, Store.createSingleIndexStore("id"))
     this.stores.set(StoreKind.Events, Store.createSingleIndexStore("id"))
     this.stores.set(StoreKind.MySharedSigners, Store.createMultiIndexStore(["id", "signerId"], "id"))
-    this.stores.set(SmartVaultsKind.Labels, Store.createMultiIndexStore(["id", "policy_id", "label_id", "labelData"], "id"))
+    this.stores.set(SmartVaultsKind.Labels, Store.createMultiIndexStore(["id", "policy_id", "label_id", "unhashed"], "id"))
   }
   initEventKindHandlerFactory() {
     this.eventKindHandlerFactor = new EventKindHandlerFactory(this)
@@ -1816,7 +1816,7 @@ export class SmartVaults {
       policy_id: policyId,
       createdAt: fromNostrDate(labelEvent.created_at),
       id: labelEvent.id,
-      labelData: Object.values(label.data)[0]
+      unhashed: Object.values(label.data)[0]
     }
 
     return publishedLabel
