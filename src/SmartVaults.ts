@@ -1931,9 +1931,13 @@ export class SmartVaults {
     if (contactsEvents.length === 0) return 0
     const contactsEvent = contactsEvents[0]
     const contactsPubkeys: string[] = getTagValues(contactsEvent, TagType.PubKey)
-    const sharedSigners = await this.getSharedSigners(contactsPubkeys)
-    if (sharedSigners.length === 0) return 0
-    const sharedSignerPubkeys = sharedSigners.map(({ ownerPubKey }) => ownerPubKey)
+    const sharedSignersFilter = filterBuilder()
+      .kinds(SmartVaultsKind.SharedSigners)
+      .authors(contactsPubkeys)
+      .toFilters()
+    const sharedSignersEvents = await this.nostrClient.list(sharedSignersFilter)
+    if (sharedSignersEvents.length === 0) return 0
+    const sharedSignerPubkeys = sharedSignersEvents.map(({ pubkey }) => pubkey)
     // remove duplicates
     const uniqueSharedSigners = new Set(sharedSignerPubkeys)
     return uniqueSharedSigners.size
