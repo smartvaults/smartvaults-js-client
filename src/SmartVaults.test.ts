@@ -1229,6 +1229,10 @@ describe('SmartVaults', () => {
       expect(new Set(fetchedLabels2)).toEqual(new Set([TrxLabel, label3, label2]))
       const labelByLabelId = await smartVaults.getLabelById(label3.label_id)
       expect(labelByLabelId.get(label3.label_id)).toEqual(label3)
+      const labelByLabelData = await smartVaults.getLabelByLabelData(spendProposal1.policy_id, label3.label.data.address)
+      const labelByLabelData2 = await smartVaults.getLabelByLabelData(spendProposal1.policy_id, label2.label.data.address)
+      expect(labelByLabelData).toEqual(label3)
+      expect(labelByLabelData2).toEqual(label2)
     }
     )
 
