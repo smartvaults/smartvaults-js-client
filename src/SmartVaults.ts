@@ -1934,6 +1934,7 @@ export class SmartVaults {
     const sharedSignersFilter = filterBuilder()
       .kinds(SmartVaultsKind.SharedSigners)
       .authors(contactsPubkeys)
+      .pubkeys(pubKey)
       .toFilters()
     const sharedSignersEvents = await this.nostrClient.list(sharedSignersFilter)
     if (sharedSignersEvents.length === 0) return 0
