@@ -45,8 +45,3 @@ export enum FiatCurrency {
     VietnameseDong = 'vnd',
     SouthAfricanRand = 'zar'
 }
-
-export enum BitcoinCurrency {
-    BTC = 'bitcoin',
-    SAT = 'satoshi'
-}

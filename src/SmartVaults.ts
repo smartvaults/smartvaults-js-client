@@ -1963,7 +1963,7 @@ export class SmartVaults {
   }
 
   /**
-   * Fetches and updates the bitcoin exchange rate against the a fiat currency (defaults to the active currency).
+   * Fetches and updates the bitcoin exchange rate against a fiat currency (defaults to the active currency).
    *
    * @async
    * @param {FiatCurrency} currency - The (optional) fiat currency to use
