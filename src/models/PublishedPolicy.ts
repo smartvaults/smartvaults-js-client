@@ -350,7 +350,7 @@ export class PublishedPolicy {
     trxDetails.net = trxDetails.received - trxDetails.sent
     const currency = this.currency.get("currency") || FiatCurrency.USD
     if (this.bitcoinExchangeRate.has(currency)) {
-      trxDetails.fiatNet = ((trxDetails.net * this.bitcoinExchangeRate.get(currency)!) / 100_000_000).toFixed(2)
+      trxDetails.netFiat = ((trxDetails.net * this.bitcoinExchangeRate.get(currency)!) / 100_000_000).toFixed(2)
     }
     if (trxDetails.confirmation_time) {
       trxDetails.confirmation_time.confirmedAt = fromNostrDate(trxDetails.confirmation_time.timestamp)
