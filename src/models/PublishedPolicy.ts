@@ -172,7 +172,7 @@ export class PublishedPolicy {
     let bitcoinExchangeRate: number | undefined;
 
     if (!this.bitcoinExchangeRate.has(currency)) {
-      console.log(`Fetching exchange rate for ${currency}`);
+      console.log(`Fetching Bitcoin exchange rate for currency: ${currency}`);
       try {
         const rate = await fetchBitcoinExchangeRate(currency);
         this.bitcoinExchangeRate.set(currency, rate);
@@ -220,9 +220,7 @@ export class PublishedPolicy {
 
   async getTrxs(): Promise<Array<BasicTrxDetails>> {
     const trxs = await (await this.synced()).get_trxs()
-    console.log('trying to get trxs')
     let decoratedTrxs = trxs.map(this.decorateTrxDetails)
-    console.log('decoratedTrxs', decoratedTrxs)
     return decoratedTrxs
   }
 
