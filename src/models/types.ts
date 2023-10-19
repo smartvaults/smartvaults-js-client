@@ -42,6 +42,7 @@ export type BasicTrxDetails = UndecoratedBasicTrxDetails & {
   confirmation_time?: BasicConfirmationTime
   unconfirmedLastSeenAt?: Date,
   net: number
+  fiatNet?: number
 }
 
 export type LabeledTrxDetails = BasicTrxDetails & {

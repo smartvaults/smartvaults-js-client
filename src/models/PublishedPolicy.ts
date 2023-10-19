@@ -8,7 +8,8 @@ import { generateUiMetadata, UIMetadata, Key } from '../util/GenerateUiMetadata'
 import { LabeledUtxo, PublishedLabel, PublishedOwnedSigner, PublishedProofOfReserveProposal, PublishedSharedSigner, PublishedSpendingProposal } from '../types'
 import { type Store } from '../service'
 import { StringUtil } from '../util'
-
+import { fetchBitcoinExchangeRate } from '../util/BitcoinRate'
+import { FiatCurrency } from '../enum'
 export class PublishedPolicy {
   id: string
   name: string
@@ -20,6 +21,8 @@ export class PublishedPolicy {
   lastSyncTime?: Date
   generatedUiMetadata?: UIMetadata
   vaultData?: string
+  currency: Map<string, FiatCurrency>
+  bitcoinExchangeRate: Map<FiatCurrency, number>
   private wallet: Wallet
   private syncTimeGap: number
   private syncPromise?: Promise<void>
@@ -103,6 +106,8 @@ export class PublishedPolicy {
     this.getProposalsByPolicyId = getProposalsByPolicyId
     this.getLabelsByPolicyId = getLabelsByPolicyId
     this.labelStore = labelStore
+    this.bitcoinExchangeRate = bitcoinUtil.bitcoinExchangeRate
+    this.currency = bitcoinUtil.currency
   }
 
   async getUiMetadata(): Promise<UIMetadata> {
@@ -163,7 +168,19 @@ export class PublishedPolicy {
 
   async getBalance(): Promise<Balance> {
     let balance = (await this.synced()).get_balance()
+    const currency = this.currency.get("currency")
+    if (currency && (this.requiresSync() || !this.bitcoinExchangeRate.has(currency))) {
+      console.log(`Fetching exchange rate for ${currency}`)
+      const rate = await fetchBitcoinExchangeRate(currency);
+      this.bitcoinExchangeRate.set(currency, rate);
+    }
     return new Balance(balance)
+  }
+
+  async getConfirmedFiatBalance(): Promise<number> {
+    const balance = await this.getBalance()
+    const fiatBalance = this.convertToFiat(balance.confirmed)
+    return fiatBalance
   }
 
   async getNewAddress(): Promise<string> {
@@ -198,7 +215,14 @@ export class PublishedPolicy {
 
   async getTrxs(): Promise<Array<BasicTrxDetails>> {
     const trxs = await (await this.synced()).get_trxs()
-    return trxs.map(this.decorateTrxDetails)
+    let decoratedTrxs = trxs.map(this.decorateTrxDetails)
+    const currency = this.currency.get("currency")
+    if (currency && this.bitcoinExchangeRate.get(currency)) {
+      decoratedTrxs.forEach(trx => {
+        trx.fiatNet = ((trx.net * this.bitcoinExchangeRate.get(currency)!) / 100_000_000).toFixed(2)
+      })
+    }
+    return decoratedTrxs
   }
 
   async getTrx(txid: string): Promise<TrxDetails> {
@@ -217,8 +241,8 @@ export class PublishedPolicy {
   async getPolicyPathsFromSigners(): Promise<PolicyPathsResult | null> {
     const signers = await this.getOwnedSigners()
     const result = this.wallet.get_policy_paths_from_signers(signers)
-    if (StringUtil.isString(result)){
-      return {none: true}
+    if (StringUtil.isString(result)) {
+      return { none: true }
     }
     return result
   }
@@ -356,5 +380,23 @@ export class PublishedPolicy {
       }
       return accumulator;
     }, []);
+  }
+
+  private convertToFiat(amount: number, unit: string = 'SAT'): number {
+    const currency = this.currency.get("currency")!
+    const rate = this.bitcoinExchangeRate.get(currency)
+    if (!rate) {
+      throw new Error(`No exchange rate found for ${currency}`)
+    }
+    let fiatBalance: number
+    if (unit === 'SAT') {
+      fiatBalance = parseFloat(((amount * rate) / 100_000_000).toFixed(2))
+      return fiatBalance
+    } else if (unit === 'BTC') {
+      fiatBalance = parseFloat((amount * rate).toFixed(2))
+      return fiatBalance
+    } else {
+      throw new Error(`Unit ${unit} not supported`)
+    }
   }
 }

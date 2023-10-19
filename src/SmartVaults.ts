@@ -1,12 +1,12 @@
 import { Authenticator, DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { generatePrivateKey, Kind, Event, Filter, Sub } from 'nostr-tools'
-import { SmartVaultsKind, TagType, ProposalType, ProposalStatus, ApprovalStatus, StoreKind, AuthenticatorType, NetworkType } from './enum'
+import { SmartVaultsKind, TagType, ProposalType, ProposalStatus, ApprovalStatus, StoreKind, AuthenticatorType, NetworkType, FiatCurrency } from './enum'
 import { NostrClient, PubPool, Store } from './service'
 import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished, nostrDate, isNip05Verified } from './util'
 import { BasicTrxDetails, BaseOwnedSigner, BaseSharedSigner, BitcoinUtil, Contact, Policy, PublishedPolicy, TrxDetails } from './models'
 import * as SmartVaultsTypes from './types'
 import { EventKindHandlerFactory } from './event-kind-handler'
-
+import { fetchBitcoinExchangeRate } from './util/BitcoinRate'
 export class SmartVaults {
   authenticator: Authenticator
   bitcoinUtil: BitcoinUtil
@@ -32,6 +32,7 @@ export class SmartVaults {
     this.network = network
     this.initStores()
     this.initEventKindHandlerFactory()
+    this.initCurrency(FiatCurrency.USD)
   }
 
   initStores() {
@@ -50,6 +51,10 @@ export class SmartVaults {
   }
   initEventKindHandlerFactory() {
     this.eventKindHandlerFactor = new EventKindHandlerFactory(this)
+  }
+
+  initCurrency(currency: FiatCurrency) {
+    this.bitcoinUtil.currency.set('currency', currency)
   }
 
   setAuthenticator(authenticator: Authenticator): void {
@@ -1942,6 +1947,16 @@ export class SmartVaults {
     // remove duplicates
     const uniqueSharedSigners = new Set(sharedSignerPubkeys)
     return uniqueSharedSigners.size
+  }
+
+  changeCurrency = (currency: FiatCurrency): void => {
+    this.bitcoinUtil.currency.set("currency", currency)
+  }
+
+  updateBitcoinExchangeRate = async (): Promise<void> => {
+    const currency = this.bitcoinUtil.currency.get("currency")!
+    const rate = await fetchBitcoinExchangeRate(currency)
+    this.bitcoinUtil.bitcoinExchangeRate.set(currency, rate)
   }
 
 }

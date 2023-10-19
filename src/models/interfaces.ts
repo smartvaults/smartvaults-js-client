@@ -1,5 +1,5 @@
 import { BaseOwnedSigner, Trx, FinalizeTrxResponse, UndecoratedBasicTrxDetails, UndecoratedTrxDetails, Utxo, PolicyPathSelector, PolicyPathsResult } from "./types"
-
+import { FiatCurrency } from "../enum";
 
 type BalancePayload = {
   confirmed: number
@@ -67,5 +67,7 @@ export interface BitcoinUtil {
   getTrxId(trx: any): string
   getFee(psbt: string): number
   getPsbtUtxos(psbt: string): Array<string>
+  currency: Map<string, FiatCurrency>
+  bitcoinExchangeRate: Map<FiatCurrency, number>
 }
 
