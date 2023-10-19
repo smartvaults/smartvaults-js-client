@@ -3,7 +3,11 @@ export class Balance {
   immature: number
   trustedPending: number
   untrustedPending: number
-
+  confirmedFiat?: number
+  immatureFiat?: number
+  trustedPendingFiat?: number
+  untrustedPendingFiat?: number
+  private bitcoinExchangeRate?: number
   constructor({
     confirmed,
     immature,
@@ -14,11 +18,19 @@ export class Balance {
     immature: number
     trusted_pending: number
     untrusted_pending: number
-  }) {
+  },
+    bitcoinExchangeRate: number | undefined,
+  ) {
     this.confirmed = confirmed
     this.immature = immature
     this.trustedPending = trusted_pending
     this.untrustedPending = untrusted_pending
+    this.bitcoinExchangeRate = bitcoinExchangeRate
+    if (this.bitcoinExchangeRate) {
+      this.calculateFiatValues();
+    } else {
+      console.warn('bitcoinExchangeRate not available. Fiat values will not be calculated.');
+    }
   }
 
   totalBalance() {
@@ -27,5 +39,29 @@ export class Balance {
 
   spendableBalance() {
     return this.confirmed + this.trustedPending
+  }
+
+  private calculateFiatValues() {
+    this.confirmedFiat = this.convertToFiat(this.confirmed);
+    this.immatureFiat = this.convertToFiat(this.immature);
+    this.trustedPendingFiat = this.convertToFiat(this.trustedPending);
+    this.untrustedPendingFiat = this.convertToFiat(this.untrustedPending);
+  }
+
+
+  private convertToFiat(amount: number, unit: string = 'SAT'): number {
+    if (!this.bitcoinExchangeRate) {
+      throw new Error("No exchange rate found");
+    }
+    if (amount === 0 || this.bitcoinExchangeRate === 0) return 0;
+    let fiatBalance: number;
+    if (unit === 'SAT') {
+      fiatBalance = parseFloat(((amount * this.bitcoinExchangeRate) / 100_000_000).toFixed(2));
+    } else if (unit === 'BTC') {
+      fiatBalance = parseFloat((amount * this.bitcoinExchangeRate).toFixed(2));
+    } else {
+      throw new Error(`Unit ${unit} not supported`);
+    }
+    return fiatBalance;
   }
 }

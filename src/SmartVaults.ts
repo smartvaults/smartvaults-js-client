@@ -1949,14 +1949,33 @@ export class SmartVaults {
     return uniqueSharedSigners.size
   }
 
-  changeCurrency = (currency: FiatCurrency): void => {
+  /**
+   * Changes the fiat currency used to fetch the Bitcoin exchange rate.
+   *
+   * @param {FiatCurrency} currency - The fiat currency to use. 
+   * @returns {void}
+   *
+   * @example
+   * changeFiatCurrency("usd");
+   */
+  changeFiatCurrency = (currency: FiatCurrency): void => {
     this.bitcoinUtil.currency.set("currency", currency)
   }
 
-  updateBitcoinExchangeRate = async (): Promise<void> => {
-    const currency = this.bitcoinUtil.currency.get("currency")!
-    const rate = await fetchBitcoinExchangeRate(currency)
-    this.bitcoinUtil.bitcoinExchangeRate.set(currency, rate)
+  /**
+   * Fetches and updates the bitcoin exchange rate against the a fiat currency (defaults to the active currency).
+   *
+   * @async
+   * @param {FiatCurrency} currency - The (optional) fiat currency to use
+   * @returns {Promise<void>}
+   *
+   * @example
+   * updateBitcoinExchangeRate();
+   */
+  updateBitcoinExchangeRate = async (currency?: FiatCurrency): Promise<void> => {
+    const FiatCurrency = currency || this.bitcoinUtil.currency.get("currency")!
+    const rate = await fetchBitcoinExchangeRate(FiatCurrency)
+    this.bitcoinUtil.bitcoinExchangeRate.set(FiatCurrency, rate)
   }
 
 }

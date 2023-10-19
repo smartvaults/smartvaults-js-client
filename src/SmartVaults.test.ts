@@ -31,6 +31,11 @@ describe('SmartVaults', () => {
     ])
     bitcoinUtil = mock<BitcoinUtil>()
     bitcoinUtil.toDescriptor.mockReturnValue("Descriptor")
+    bitcoinUtil.currency.set = jest.fn()
+    bitcoinUtil.currency.get = jest.fn()
+    bitcoinUtil.bitcoinExchangeRate.set = jest.fn()
+    bitcoinUtil.bitcoinExchangeRate.get = jest.fn()
+    bitcoinUtil.bitcoinExchangeRate.has = jest.fn()
     authenticator = new DirectPrivateKeyAuthenticator(keySet1.mainKey().privateKey)
     network = NetworkType.Bitcoin
     smartVaults = new SmartVaults({

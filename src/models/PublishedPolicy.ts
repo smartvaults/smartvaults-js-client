@@ -168,20 +168,25 @@ export class PublishedPolicy {
 
   async getBalance(): Promise<Balance> {
     let balance = (await this.synced()).get_balance()
-    const currency = this.currency.get("currency")
-    if (currency && (this.requiresSync() || !this.bitcoinExchangeRate.has(currency))) {
-      console.log(`Fetching exchange rate for ${currency}`)
-      const rate = await fetchBitcoinExchangeRate(currency);
-      this.bitcoinExchangeRate.set(currency, rate);
+    const currency = this.currency.get("currency") || FiatCurrency.USD
+    let bitcoinExchangeRate: number | undefined;
+
+    if (!this.bitcoinExchangeRate.has(currency)) {
+      console.log(`Fetching exchange rate for ${currency}`);
+      try {
+        const rate = await fetchBitcoinExchangeRate(currency);
+        this.bitcoinExchangeRate.set(currency, rate);
+        bitcoinExchangeRate = rate;
+      } catch (error) {
+        console.warn(`Failed to fetch exchange rate for ${currency}: ${error}`);
+      }
+    } else {
+      bitcoinExchangeRate = this.bitcoinExchangeRate.get(currency);
     }
-    return new Balance(balance)
+
+    return new Balance(balance, bitcoinExchangeRate)
   }
 
-  async getConfirmedFiatBalance(): Promise<number> {
-    const balance = await this.getBalance()
-    const fiatBalance = this.convertToFiat(balance.confirmed)
-    return fiatBalance
-  }
 
   async getNewAddress(): Promise<string> {
     return (await this.synced()).get_new_address()
@@ -215,13 +220,9 @@ export class PublishedPolicy {
 
   async getTrxs(): Promise<Array<BasicTrxDetails>> {
     const trxs = await (await this.synced()).get_trxs()
+    console.log('trying to get trxs')
     let decoratedTrxs = trxs.map(this.decorateTrxDetails)
-    const currency = this.currency.get("currency")
-    if (currency && this.bitcoinExchangeRate.get(currency)) {
-      decoratedTrxs.forEach(trx => {
-        trx.fiatNet = ((trx.net * this.bitcoinExchangeRate.get(currency)!) / 100_000_000).toFixed(2)
-      })
-    }
+    console.log('decoratedTrxs', decoratedTrxs)
     return decoratedTrxs
   }
 
@@ -345,8 +346,12 @@ export class PublishedPolicy {
     return maybeLabeledTrxs;
   }
 
-  private decorateTrxDetails(trxDetails: any): any {
+  private decorateTrxDetails = (trxDetails: any) : any =>  {
     trxDetails.net = trxDetails.received - trxDetails.sent
+    const currency = this.currency.get("currency") || FiatCurrency.USD
+    if (this.bitcoinExchangeRate.has(currency)) {
+      trxDetails.fiatNet = ((trxDetails.net * this.bitcoinExchangeRate.get(currency)!) / 100_000_000).toFixed(2)
+    }
     if (trxDetails.confirmation_time) {
       trxDetails.confirmation_time.confirmedAt = fromNostrDate(trxDetails.confirmation_time.timestamp)
     }
@@ -382,21 +387,4 @@ export class PublishedPolicy {
     }, []);
   }
 
-  private convertToFiat(amount: number, unit: string = 'SAT'): number {
-    const currency = this.currency.get("currency")!
-    const rate = this.bitcoinExchangeRate.get(currency)
-    if (!rate) {
-      throw new Error(`No exchange rate found for ${currency}`)
-    }
-    let fiatBalance: number
-    if (unit === 'SAT') {
-      fiatBalance = parseFloat(((amount * rate) / 100_000_000).toFixed(2))
-      return fiatBalance
-    } else if (unit === 'BTC') {
-      fiatBalance = parseFloat((amount * rate).toFixed(2))
-      return fiatBalance
-    } else {
-      throw new Error(`Unit ${unit} not supported`)
-    }
-  }
 }

@@ -40,6 +40,11 @@ describe('PublishedPolicy', () => {
     bitcoinUtil = mock<BitcoinUtil>()
     wallet = mock<Wallet>()
     bitcoinUtil.createWallet.mockReturnValue(wallet)
+    bitcoinUtil.currency.set = jest.fn()
+    bitcoinUtil.currency.get = jest.fn()
+    bitcoinUtil.bitcoinExchangeRate.set = jest.fn()
+    bitcoinUtil.bitcoinExchangeRate.get = jest.fn()
+    bitcoinUtil.bitcoinExchangeRate.has = jest.fn()
     nostrPublicKeys = ["pub1", "pub2"]
     sharedKeyAuth = new DirectPrivateKeyAuthenticator(new Keys().privateKey)
     policy = PublishedPolicy.fromPolicyAndEvent({
