@@ -1,3 +1,4 @@
+import { CurrencyUtil } from "../util"
 export class Balance {
   confirmed: number
   immature: number
@@ -54,14 +55,15 @@ export class Balance {
       throw new Error("No exchange rate found");
     }
     if (amount === 0 || this.bitcoinExchangeRate === 0) return 0;
-    let fiatBalance: number;
+    let bitcoin: number;
     if (unit === 'SAT') {
-      fiatBalance = parseFloat(((amount * this.bitcoinExchangeRate) / 100_000_000).toFixed(2));
+      bitcoin = CurrencyUtil.fromSatsToBitcoin(amount);
     } else if (unit === 'BTC') {
-      fiatBalance = parseFloat((amount * this.bitcoinExchangeRate).toFixed(2));
+      bitcoin = amount;
     } else {
       throw new Error(`Unit ${unit} not supported`);
     }
-    return fiatBalance;
+    const fiat = bitcoin * this.bitcoinExchangeRate;
+    return CurrencyUtil.toRoundedFloat(fiat);
   }
 }

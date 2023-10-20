@@ -8,4 +8,16 @@ export class TimeUtil {
     date.setSeconds(date.getSeconds() + seconds)
     return date
   }
+
+  static toMilliSeconds(minutes: number): number {
+    return minutes * 60 * 1000
+  }
+
+  static toSeconds(milliseconds: number): number {
+    return milliseconds / 1000
+  }
+
+  static toMinutes(milliseconds: number): number {
+    return this.toSeconds(milliseconds) / 60
+  }
 }

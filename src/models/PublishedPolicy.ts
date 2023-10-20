@@ -1,15 +1,14 @@
 import { Authenticator } from '@smontero/nostr-ual'
 import { Event } from 'nostr-tools'
 import { Balance } from './Balance'
-import { BaseOwnedSigner, PolicyPathSelector, Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails, Utxo, PolicyPathsResult, LabeledTrxDetails } from './types'
+import { BaseOwnedSigner, PolicyPathSelector, Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails, Utxo, PolicyPathsResult, LabeledTrxDetails, UndecoratedBasicTrxDetails } from './types'
 import { BitcoinUtil, Wallet } from './interfaces'
-import { PaginationOpts, TimeUtil, fromNostrDate, toPublished } from '../util'
+import { CurrencyUtil, PaginationOpts, TimeUtil, fromNostrDate, toPublished } from '../util'
 import { generateUiMetadata, UIMetadata, Key } from '../util/GenerateUiMetadata'
 import { LabeledUtxo, PublishedLabel, PublishedOwnedSigner, PublishedProofOfReserveProposal, PublishedSharedSigner, PublishedSpendingProposal } from '../types'
 import { type Store } from '../service'
 import { StringUtil } from '../util'
-import { fetchBitcoinExchangeRate } from '../util/BitcoinRate'
-import { FiatCurrency } from '../enum'
+import { type BitcoinExchangeRate } from '../util'
 export class PublishedPolicy {
   id: string
   name: string
@@ -21,8 +20,7 @@ export class PublishedPolicy {
   lastSyncTime?: Date
   generatedUiMetadata?: UIMetadata
   vaultData?: string
-  currency: Map<string, FiatCurrency>
-  bitcoinExchangeRate: Map<FiatCurrency, number>
+  bitcoinExchangeRate: BitcoinExchangeRate
   private wallet: Wallet
   private syncTimeGap: number
   private syncPromise?: Promise<void>
@@ -107,7 +105,6 @@ export class PublishedPolicy {
     this.getLabelsByPolicyId = getLabelsByPolicyId
     this.labelStore = labelStore
     this.bitcoinExchangeRate = bitcoinUtil.bitcoinExchangeRate
-    this.currency = bitcoinUtil.currency
   }
 
   async getUiMetadata(): Promise<UIMetadata> {
@@ -168,22 +165,12 @@ export class PublishedPolicy {
 
   async getBalance(): Promise<Balance> {
     let balance = (await this.synced()).get_balance()
-    const currency = this.currency.get("currency") || FiatCurrency.USD
     let bitcoinExchangeRate: number | undefined;
-
-    if (!this.bitcoinExchangeRate.has(currency)) {
-      console.log(`Fetching Bitcoin exchange rate for currency: ${currency}`);
-      try {
-        const rate = await fetchBitcoinExchangeRate(currency);
-        this.bitcoinExchangeRate.set(currency, rate);
-        bitcoinExchangeRate = rate;
-      } catch (error) {
-        console.warn(`Failed to fetch exchange rate for ${currency}: ${error}`);
-      }
-    } else {
-      bitcoinExchangeRate = this.bitcoinExchangeRate.get(currency);
+    try {
+      bitcoinExchangeRate = await this.bitcoinExchangeRate.getExchangeRate();
+    } catch (error) {
+      console.warn(`Failed to fetch exchange rate for ${error}`);
     }
-
     return new Balance(balance, bitcoinExchangeRate)
   }
 
@@ -220,13 +207,15 @@ export class PublishedPolicy {
 
   async getTrxs(): Promise<Array<BasicTrxDetails>> {
     const trxs = await (await this.synced()).get_trxs()
-    let decoratedTrxs = trxs.map(this.decorateTrxDetails)
+    const exchangeRate = await this.bitcoinExchangeRate.getExchangeRate();
+    let decoratedTrxs: Array<BasicTrxDetails> = trxs.map((trx: UndecoratedBasicTrxDetails) => this.decorateTrxDetails(trx, exchangeRate))
     return decoratedTrxs
   }
 
   async getTrx(txid: string): Promise<TrxDetails> {
     const trx = await (await this.synced()).get_trx(txid)
-    return this.decorateTrxDetails(trx)
+    const exchangeRate = await this.bitcoinExchangeRate.getExchangeRate();
+    return this.decorateTrxDetails(trx, exchangeRate)
   }
 
   async getUtxos(): Promise<Array<Utxo>> {
@@ -344,11 +333,12 @@ export class PublishedPolicy {
     return maybeLabeledTrxs;
   }
 
-  private decorateTrxDetails = (trxDetails: any) : any =>  {
+  private decorateTrxDetails = (trxDetails: any, exchangeRate?: number): any => {
     trxDetails.net = trxDetails.received - trxDetails.sent
-    const currency = this.currency.get("currency") || FiatCurrency.USD
-    if (this.bitcoinExchangeRate.has(currency)) {
-      trxDetails.netFiat = ((trxDetails.net * this.bitcoinExchangeRate.get(currency)!) / 100_000_000).toFixed(2)
+    if (exchangeRate) {
+      const bitcoin = CurrencyUtil.fromSatsToBitcoin(trxDetails.net)
+      const fiat = bitcoin * exchangeRate
+      trxDetails.netFiat = CurrencyUtil.toRoundedFloat(fiat)
     }
     if (trxDetails.confirmation_time) {
       trxDetails.confirmation_time.confirmedAt = fromNostrDate(trxDetails.confirmation_time.timestamp)

@@ -6,7 +6,6 @@ import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate,
 import { BasicTrxDetails, BaseOwnedSigner, BaseSharedSigner, BitcoinUtil, Contact, Policy, PublishedPolicy, TrxDetails } from './models'
 import * as SmartVaultsTypes from './types'
 import { EventKindHandlerFactory } from './event-kind-handler'
-import { fetchBitcoinExchangeRate } from './util/BitcoinRate'
 export class SmartVaults {
   authenticator: Authenticator
   bitcoinUtil: BitcoinUtil
@@ -32,7 +31,6 @@ export class SmartVaults {
     this.network = network
     this.initStores()
     this.initEventKindHandlerFactory()
-    this.initCurrency(FiatCurrency.USD)
   }
 
   initStores() {
@@ -53,9 +51,6 @@ export class SmartVaults {
     this.eventKindHandlerFactor = new EventKindHandlerFactory(this)
   }
 
-  initCurrency(currency: FiatCurrency) {
-    this.bitcoinUtil.currency.set('currency', currency)
-  }
 
   setAuthenticator(authenticator: Authenticator): void {
     if (authenticator !== this.authenticator) {
@@ -1958,24 +1953,29 @@ export class SmartVaults {
    * @example
    * changeFiatCurrency("usd");
    */
-  changeFiatCurrency = (currency: FiatCurrency): void => {
-    this.bitcoinUtil.currency.set("currency", currency)
+  changeActiveFiatCurrency = (currency: FiatCurrency): void => {
+    this.bitcoinUtil.bitcoinExchangeRate.setActiveFiatCurrency(currency)
   }
 
   /**
-   * Fetches and updates the bitcoin exchange rate against a fiat currency (defaults to the active currency).
+   * Fetches and updates the bitcoin exchange rate against the active fiat currency
    *
    * @async
-   * @param {FiatCurrency} currency - The (optional) fiat currency to use
-   * @returns {Promise<void>}
+   * @returns {Promise<number>}
    *
    * @example
-   * updateBitcoinExchangeRate();
+   * const rate = await forceUpdateBitcoinExchangeRate();
    */
-  updateBitcoinExchangeRate = async (currency?: FiatCurrency): Promise<void> => {
-    const FiatCurrency = currency || this.bitcoinUtil.currency.get("currency")!
-    const rate = await fetchBitcoinExchangeRate(FiatCurrency)
-    this.bitcoinUtil.bitcoinExchangeRate.set(FiatCurrency, rate)
+  forceUpdateBitcoinExchangeRate = async (): Promise<number> => {
+    const rate = await this.bitcoinUtil.bitcoinExchangeRate.getExchangeRate(true)
+    if (!rate) {
+      throw new Error('Could not update bitcoin exchange rate')
+    }
+    return rate
+  }
+
+  getActiveFiatCurrency = (): FiatCurrency => {
+    return this.bitcoinUtil.bitcoinExchangeRate.getActiveFiatCurrency()
   }
 
 }

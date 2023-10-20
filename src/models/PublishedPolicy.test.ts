@@ -40,11 +40,7 @@ describe('PublishedPolicy', () => {
     bitcoinUtil = mock<BitcoinUtil>()
     wallet = mock<Wallet>()
     bitcoinUtil.createWallet.mockReturnValue(wallet)
-    bitcoinUtil.currency.set = jest.fn()
-    bitcoinUtil.currency.get = jest.fn()
-    bitcoinUtil.bitcoinExchangeRate.set = jest.fn()
-    bitcoinUtil.bitcoinExchangeRate.get = jest.fn()
-    bitcoinUtil.bitcoinExchangeRate.has = jest.fn()
+    bitcoinUtil.bitcoinExchangeRate.getExchangeRate = jest.fn().mockReturnValue(100_000_000)
     nostrPublicKeys = ["pub1", "pub2"]
     sharedKeyAuth = new DirectPrivateKeyAuthenticator(new Keys().privateKey)
     policy = PublishedPolicy.fromPolicyAndEvent({
@@ -223,6 +219,7 @@ describe('PublishedPolicy', () => {
         sent: 4000,
         fee: 305,
         net: -1305,
+        netFiat: -1305,
         confirmation_time: {
           height: 2441712,
           timestamp: 1689279109,
@@ -235,6 +232,7 @@ describe('PublishedPolicy', () => {
         sent: 0,
         fee: 153,
         net: 4000,
+        netFiat: 4000,
         unconfirmed_last_seen: 1689279110,
         unconfirmedLastSeenAt: new Date(1689279110 * 1000)
       }]
@@ -283,6 +281,7 @@ describe('PublishedPolicy', () => {
         sent: 4000,
         fee: 305,
         net: -1305,
+        netFiat: -1305,
         inputs: [
           {
             txid: "5b5a1db10af26adc77912e2db053489df2f82ec4a5836ee722b5f2feabbdccba",
@@ -440,7 +439,7 @@ describe('PublishedPolicy', () => {
       wallet.get_policy_paths_from_signers.mockReturnValue("none")
       let signers = [signer1, signer2]
       let actual = await policy.getPolicyPathsFromSigners()
-      expect({none:true}).toEqual(actual)
+      expect({ none: true }).toEqual(actual)
       expect(smartVaults.getOwnedSigners).toHaveBeenCalledTimes(1)
       expect(wallet.get_policy_paths_from_signers).toHaveBeenNthCalledWith(1, signers)
     })

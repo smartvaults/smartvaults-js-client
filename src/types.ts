@@ -126,6 +126,7 @@ export type PublishedApprovedProposal = {
 export type PublishedSpendingProposal = PublishedProposal & BaseProposal & {
   to_address: string
   amount: number
+  amountFiat?: number
   description: string,
   utxos: string[]
 }
