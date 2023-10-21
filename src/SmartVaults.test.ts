@@ -27,11 +27,10 @@ describe('SmartVaults', () => {
     nostrClient = new NostrClient([
       //'wss://relay.rip',
       // 'wss://test.relay.report'
-      'ws://localhost:7777'
+      'wss://armnd.net'
     ])
     bitcoinUtil = mock<BitcoinUtil>()
     bitcoinUtil.toDescriptor.mockReturnValue("Descriptor")
-    bitcoinUtil.bitcoinExchangeRate.getExchangeRate = jest.fn().mockReturnValue(undefined) // TODO: update tests to account for a defined exchange rate
     authenticator = new DirectPrivateKeyAuthenticator(keySet1.mainKey().privateKey)
     network = NetworkType.Bitcoin
     smartVaults = new SmartVaults({
@@ -40,7 +39,10 @@ describe('SmartVaults', () => {
       nostrClient,
       network
     })
-
+    global.fetch = jest.fn().mockReturnValue(Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({ bitcoin: { usd: 100_000_000 } }),
+    }));
   })
 
   afterEach(() => {

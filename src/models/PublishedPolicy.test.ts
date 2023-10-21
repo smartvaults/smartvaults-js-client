@@ -20,6 +20,14 @@ describe('PublishedPolicy', () => {
   let policy: PublishedPolicy
   let smartVaults: MockProxy<SmartVaults>
 
+  beforeAll(() => {
+    global.fetch = jest.fn().mockReturnValue(Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({ bitcoin: { usd: 100_000_000 } }),
+    }));
+  }
+  )
+
   beforeEach(() => {
     smartVaults = mock<SmartVaults>()
     policyContent = {
@@ -40,7 +48,6 @@ describe('PublishedPolicy', () => {
     bitcoinUtil = mock<BitcoinUtil>()
     wallet = mock<Wallet>()
     bitcoinUtil.createWallet.mockReturnValue(wallet)
-    bitcoinUtil.bitcoinExchangeRate.getExchangeRate = jest.fn().mockReturnValue(100_000_000)
     nostrPublicKeys = ["pub1", "pub2"]
     sharedKeyAuth = new DirectPrivateKeyAuthenticator(new Keys().privateKey)
     policy = PublishedPolicy.fromPolicyAndEvent({

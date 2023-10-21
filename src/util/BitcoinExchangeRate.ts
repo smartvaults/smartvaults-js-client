@@ -1,10 +1,13 @@
 import { FiatCurrency } from "../enum";
+import { CurrencyUtil } from "./CurrencyUtil";
 import { TimeUtil } from "./TimeUtil";
+
 type DatedRate = {
     date: Date,
     rate: number
 }
 
+type BitcoinUnit = 'SAT' | 'BTC';
 export class BitcoinExchangeRate {
     private static instance: BitcoinExchangeRate;
     private bitcoinExchangeRates: Map<FiatCurrency, DatedRate> = new Map<FiatCurrency, DatedRate>();
@@ -106,6 +109,33 @@ export class BitcoinExchangeRate {
         } catch (error) {
             throw new Error(`An error occurred while fetching BTC price: ${error}`);
         }
+    }
+
+    public async convertToFiat(amounts: number[], rate?: number, unit: BitcoinUnit = 'SAT'): Promise<number[]> {
+        const exchangeRate = rate || await this.getExchangeRate();
+        if (!exchangeRate) throw new Error("Exchange rate not available");
+
+        const fiatAmounts: number[] = [];
+
+        for (const amount of amounts) {
+            if (!amount) {
+                fiatAmounts.push(0);
+                continue;
+            }
+            let bitcoin: number;
+            if (unit === 'SAT') {
+                bitcoin = CurrencyUtil.fromSatsToBitcoin(amount);
+            } else if (unit === 'BTC') {
+                bitcoin = amount;
+            } else {
+                throw new Error(`Unit ${unit} not supported`);
+            }
+
+            const fiat = bitcoin * exchangeRate;
+            fiatAmounts.push(CurrencyUtil.toRoundedFloat(fiat));
+        }
+
+        return fiatAmounts;
     }
 
 

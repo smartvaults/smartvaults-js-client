@@ -1,4 +1,4 @@
-import { CurrencyUtil } from "../util"
+import { BitcoinExchangeRate } from "../util"
 export class Balance {
   confirmed: number
   immature: number
@@ -8,7 +8,7 @@ export class Balance {
   immatureFiat?: number
   trustedPendingFiat?: number
   untrustedPendingFiat?: number
-  private bitcoinExchangeRate?: number
+  private readonly bitcoinExchangeRate: BitcoinExchangeRate = BitcoinExchangeRate.getInstance();
   constructor({
     confirmed,
     immature,
@@ -19,18 +19,16 @@ export class Balance {
     immature: number
     trusted_pending: number
     untrusted_pending: number
-  },
-    bitcoinExchangeRate: number | undefined,
+  }
   ) {
     this.confirmed = confirmed
     this.immature = immature
     this.trustedPending = trusted_pending
     this.untrustedPending = untrusted_pending
-    this.bitcoinExchangeRate = bitcoinExchangeRate
-    if (this.bitcoinExchangeRate) {
+    try {
       this.calculateFiatValues();
-    } else {
-      console.warn('bitcoinExchangeRate not available. Fiat values will not be calculated.');
+    } catch (e) {
+      console.warn(`Failed to calculate fiat values: ${e}`);
     }
   }
 
@@ -42,28 +40,9 @@ export class Balance {
     return this.confirmed + this.trustedPending
   }
 
-  private calculateFiatValues() {
-    this.confirmedFiat = this.convertToFiat(this.confirmed);
-    this.immatureFiat = this.convertToFiat(this.immature);
-    this.trustedPendingFiat = this.convertToFiat(this.trustedPending);
-    this.untrustedPendingFiat = this.convertToFiat(this.untrustedPending);
+  private async calculateFiatValues() {
+    [this.confirmedFiat, this.immatureFiat, this.trustedPendingFiat, this.untrustedPendingFiat] = await this.bitcoinExchangeRate.convertToFiat([this.confirmed, this.immature, this.trustedPending, this.untrustedPending]);
   }
 
 
-  private convertToFiat(amount: number, unit: string = 'SAT'): number {
-    if (!this.bitcoinExchangeRate) {
-      throw new Error("No exchange rate found");
-    }
-    if (amount === 0 || this.bitcoinExchangeRate === 0) return 0;
-    let bitcoin: number;
-    if (unit === 'SAT') {
-      bitcoin = CurrencyUtil.fromSatsToBitcoin(amount);
-    } else if (unit === 'BTC') {
-      bitcoin = amount;
-    } else {
-      throw new Error(`Unit ${unit} not supported`);
-    }
-    const fiat = bitcoin * this.bitcoinExchangeRate;
-    return CurrencyUtil.toRoundedFloat(fiat);
-  }
 }

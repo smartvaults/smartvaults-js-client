@@ -3,12 +3,12 @@ import { Event } from 'nostr-tools'
 import { Balance } from './Balance'
 import { BaseOwnedSigner, PolicyPathSelector, Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails, Utxo, PolicyPathsResult, LabeledTrxDetails, UndecoratedBasicTrxDetails } from './types'
 import { BitcoinUtil, Wallet } from './interfaces'
-import { CurrencyUtil, PaginationOpts, TimeUtil, fromNostrDate, toPublished } from '../util'
+import { PaginationOpts, TimeUtil, fromNostrDate, toPublished } from '../util'
 import { generateUiMetadata, UIMetadata, Key } from '../util/GenerateUiMetadata'
 import { LabeledUtxo, PublishedLabel, PublishedOwnedSigner, PublishedProofOfReserveProposal, PublishedSharedSigner, PublishedSpendingProposal } from '../types'
 import { type Store } from '../service'
 import { StringUtil } from '../util'
-import { type BitcoinExchangeRate } from '../util'
+import { BitcoinExchangeRate } from '../util'
 export class PublishedPolicy {
   id: string
   name: string
@@ -20,7 +20,7 @@ export class PublishedPolicy {
   lastSyncTime?: Date
   generatedUiMetadata?: UIMetadata
   vaultData?: string
-  bitcoinExchangeRate: BitcoinExchangeRate
+  private readonly bitcoinExchangeRate: BitcoinExchangeRate = BitcoinExchangeRate.getInstance();
   private wallet: Wallet
   private syncTimeGap: number
   private syncPromise?: Promise<void>
@@ -104,7 +104,6 @@ export class PublishedPolicy {
     this.getProposalsByPolicyId = getProposalsByPolicyId
     this.getLabelsByPolicyId = getLabelsByPolicyId
     this.labelStore = labelStore
-    this.bitcoinExchangeRate = bitcoinUtil.bitcoinExchangeRate
   }
 
   async getUiMetadata(): Promise<UIMetadata> {
@@ -165,13 +164,7 @@ export class PublishedPolicy {
 
   async getBalance(): Promise<Balance> {
     let balance = (await this.synced()).get_balance()
-    let bitcoinExchangeRate: number | undefined;
-    try {
-      bitcoinExchangeRate = await this.bitcoinExchangeRate.getExchangeRate();
-    } catch (error) {
-      console.warn(`Failed to fetch exchange rate for ${error}`);
-    }
-    return new Balance(balance, bitcoinExchangeRate)
+    return new Balance(balance)
   }
 
 
@@ -208,7 +201,8 @@ export class PublishedPolicy {
   async getTrxs(): Promise<Array<BasicTrxDetails>> {
     const trxs = await (await this.synced()).get_trxs()
     const exchangeRate = await this.bitcoinExchangeRate.getExchangeRate();
-    let decoratedTrxs: Array<BasicTrxDetails> = trxs.map((trx: UndecoratedBasicTrxDetails) => this.decorateTrxDetails(trx, exchangeRate))
+    const decoratedTrxPromises: Promise<BasicTrxDetails>[] = trxs.map((trx: UndecoratedBasicTrxDetails) => this.decorateTrxDetails(trx, exchangeRate));
+    const decoratedTrxs: Array<BasicTrxDetails> = await Promise.all(decoratedTrxPromises);
     return decoratedTrxs
   }
 
@@ -333,12 +327,10 @@ export class PublishedPolicy {
     return maybeLabeledTrxs;
   }
 
-  private decorateTrxDetails = (trxDetails: any, exchangeRate?: number): any => {
+  private decorateTrxDetails = async (trxDetails: any, exchangeRate?: number): Promise<any> => {
     trxDetails.net = trxDetails.received - trxDetails.sent
     if (exchangeRate) {
-      const bitcoin = CurrencyUtil.fromSatsToBitcoin(trxDetails.net)
-      const fiat = bitcoin * exchangeRate
-      trxDetails.netFiat = CurrencyUtil.toRoundedFloat(fiat)
+      [trxDetails.netFiat] = await this.bitcoinExchangeRate.convertToFiat([trxDetails.net], exchangeRate)
     }
     if (trxDetails.confirmation_time) {
       trxDetails.confirmation_time.confirmedAt = fromNostrDate(trxDetails.confirmation_time.timestamp)

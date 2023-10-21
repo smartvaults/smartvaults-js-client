@@ -1,5 +1,4 @@
 import { BaseOwnedSigner, Trx, FinalizeTrxResponse, UndecoratedBasicTrxDetails, UndecoratedTrxDetails, Utxo, PolicyPathSelector, PolicyPathsResult } from "./types"
-import { BitcoinExchangeRate } from "../util";
 
 type BalancePayload = {
   confirmed: number
@@ -67,6 +66,5 @@ export interface BitcoinUtil {
   getTrxId(trx: any): string
   getFee(psbt: string): number
   getPsbtUtxos(psbt: string): Array<string>
-  bitcoinExchangeRate: BitcoinExchangeRate
 }
 

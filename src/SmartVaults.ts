@@ -6,6 +6,7 @@ import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate,
 import { BasicTrxDetails, BaseOwnedSigner, BaseSharedSigner, BitcoinUtil, Contact, Policy, PublishedPolicy, TrxDetails } from './models'
 import * as SmartVaultsTypes from './types'
 import { EventKindHandlerFactory } from './event-kind-handler'
+import { BitcoinExchangeRate } from './util'
 export class SmartVaults {
   authenticator: Authenticator
   bitcoinUtil: BitcoinUtil
@@ -13,6 +14,7 @@ export class SmartVaults {
   stores!: Map<number, Store>
   network: NetworkType
   private eventKindHandlerFactor!: EventKindHandlerFactory
+  private bitcoinExchangeRate: BitcoinExchangeRate = BitcoinExchangeRate.getInstance();
 
   constructor({
     authenticator,
@@ -630,9 +632,11 @@ export class SmartVaults {
     const signer = 'Unknown'
     const fee = this.bitcoinUtil.getFee(psbt)
     const utxo = this.bitcoinUtil.getPsbtUtxos(psbt)
+    const [amountFiat] = await this.bitcoinExchangeRate.convertToFiat([amount])
     Promise.all(promises)
     return {
       ...proposalContent[type],
+      amountFiat,
       signer,
       fee,
       utxos: utxo,
@@ -1954,7 +1958,7 @@ export class SmartVaults {
    * changeFiatCurrency("usd");
    */
   changeActiveFiatCurrency = (currency: FiatCurrency): void => {
-    this.bitcoinUtil.bitcoinExchangeRate.setActiveFiatCurrency(currency)
+    this.bitcoinExchangeRate.setActiveFiatCurrency(currency)
   }
 
   /**
@@ -1967,7 +1971,7 @@ export class SmartVaults {
    * const rate = await forceUpdateBitcoinExchangeRate();
    */
   forceUpdateBitcoinExchangeRate = async (): Promise<number> => {
-    const rate = await this.bitcoinUtil.bitcoinExchangeRate.getExchangeRate(true)
+    const rate = await this.bitcoinExchangeRate.getExchangeRate(true)
     if (!rate) {
       throw new Error('Could not update bitcoin exchange rate')
     }
@@ -1975,7 +1979,7 @@ export class SmartVaults {
   }
 
   getActiveFiatCurrency = (): FiatCurrency => {
-    return this.bitcoinUtil.bitcoinExchangeRate.getActiveFiatCurrency()
+    return this.bitcoinExchangeRate.getActiveFiatCurrency()
   }
 
 }

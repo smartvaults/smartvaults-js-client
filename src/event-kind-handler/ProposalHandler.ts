@@ -6,7 +6,7 @@ import { getTagValues, fromNostrDate, buildEvent } from '../util'
 import { EventKindHandler } from './EventKindHandler'
 import { type BitcoinUtil } from '../models'
 import { type Authenticator } from '@smontero/nostr-ual'
-import { CurrencyUtil } from '../util'
+import { BitcoinExchangeRate } from '../util'
 export class ProposalHandler extends EventKindHandler {
   private readonly store: Store
   private readonly eventsStore: Store
@@ -18,6 +18,7 @@ export class ProposalHandler extends EventKindHandler {
   private readonly checkPsbts: (proposalId: string) => Promise<boolean>
   private readonly getOwnedSigners: () => Promise<PublishedOwnedSigner[]>
   private readonly getApprovalsByProposalId: (proposal_ids?: string[] | string) => Promise<Map<string, PublishedApprovedProposal[]>>
+  private readonly bitcoinExchangeRate: BitcoinExchangeRate = BitcoinExchangeRate.getInstance();
   constructor(store: Store, eventsStore: Store, approvalsStore: Store, nostrClient: NostrClient, bitcoinUtil: BitcoinUtil, authenticator: Authenticator, getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>, checkPsbts: (proposalId: string) => Promise<boolean>,
     getOwnedSigners: () => Promise<PublishedOwnedSigner[]>,
     getApprovalsByProposalId: (proposal_ids?: string[] | string) => Promise<Map<string, PublishedApprovedProposal[]>>) {
@@ -57,7 +58,7 @@ export class ProposalHandler extends EventKindHandler {
       this.getOwnedSigners()
     ]);
 
-    const bitcoinExchangeRate = await this.bitcoinUtil.bitcoinExchangeRate.getExchangeRate();
+    const bitcoinExchangeRate = await this.bitcoinExchangeRate.getExchangeRate();
     const proposalsStatusMap = new Map(statusResults.map(res => [res.proposalId, res.status]));
 
     const decryptedProposals: Array<PublishedSpendingProposal | PublishedProofOfReserveProposal> = []
@@ -88,7 +89,7 @@ export class ProposalHandler extends EventKindHandler {
 
       if (!sharedKeyAuthenticator) return null
 
-      return sharedKeyAuthenticator.decryptObj(proposalEvent.content).then((decryptedProposalObj: SpendingProposal) => {
+      return sharedKeyAuthenticator.decryptObj(proposalEvent.content).then(async (decryptedProposalObj: SpendingProposal) => {
         const type = decryptedProposalObj[ProposalType.Spending] ? ProposalType.Spending : ProposalType.ProofOfReserve
         const proposalContent = decryptedProposalObj[type]
         const createdAt = fromNostrDate(proposalEvent.created_at)
@@ -100,7 +101,7 @@ export class ProposalHandler extends EventKindHandler {
         const amount = proposalContent.amount
         let amountFiat: number | undefined
         if (bitcoinExchangeRate && amount) {
-          amountFiat = this.convertToFiat(amount, bitcoinExchangeRate)
+          [amountFiat] = await this.bitcoinExchangeRate.convertToFiat([amount], bitcoinExchangeRate)
         }
         const publishedProposal: PublishedSpendingProposal = {
           type,
@@ -141,13 +142,6 @@ export class ProposalHandler extends EventKindHandler {
     const approvals = Array.from((await this.getApprovalsByProposalId(proposalIds)).values()).flat()
     map.set(SmartVaultsKind.ApprovedProposal, approvals)
     return map
-  }
-
-  private convertToFiat(amount: number, exchangeRate: number): number {
-    if (amount === 0 || exchangeRate === 0) return 0;
-    const bitcoin = CurrencyUtil.fromSatsToBitcoin(amount)
-    const fiat = bitcoin * exchangeRate
-    return CurrencyUtil.toRoundedFloat(fiat)
   }
 
   protected async _delete(proposalIds: string[]): Promise<void> {
