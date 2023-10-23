@@ -14,7 +14,7 @@ export class SmartVaults {
   stores!: Map<number, Store>
   network: NetworkType
   private eventKindHandlerFactor!: EventKindHandlerFactory
-  private bitcoinExchangeRate: BitcoinExchangeRate = BitcoinExchangeRate.getInstance();
+  private readonly bitcoinExchangeRate: BitcoinExchangeRate = BitcoinExchangeRate.getInstance();
 
   constructor({
     authenticator,
@@ -1978,8 +1978,29 @@ export class SmartVaults {
     return rate
   }
 
+  /**
+   * Returns the active fiat currency
+   *
+   * @returns {FiatCurrency}
+   *
+   * @example
+   * const currency = getActiveFiatCurrency();
+   */
   getActiveFiatCurrency = (): FiatCurrency => {
     return this.bitcoinExchangeRate.getActiveFiatCurrency()
+  }
+
+  /**
+   * Changes the interval at which the bitcoin exchange rate is updated
+   *
+   * @param {number} interval - The interval in minutes
+   * @returns {void}
+   *
+   * @example
+   * changeBitcoinExchangeRateUpdateInterval(30);
+   */
+  changeBitcoinExchangeRateUpdateInterval = (interval: number): void => {
+    this.bitcoinExchangeRate.setUpdateInterval(interval)
   }
 
 }

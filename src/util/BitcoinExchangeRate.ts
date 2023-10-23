@@ -1,13 +1,8 @@
 import { FiatCurrency } from "../enum";
 import { CurrencyUtil } from "./CurrencyUtil";
 import { TimeUtil } from "./TimeUtil";
+import { BitcoinUnit, DatedRate } from "./types";
 
-type DatedRate = {
-    date: Date,
-    rate: number
-}
-
-type BitcoinUnit = 'SAT' | 'BTC';
 export class BitcoinExchangeRate {
     private static instance: BitcoinExchangeRate;
     private bitcoinExchangeRates: Map<FiatCurrency, DatedRate> = new Map<FiatCurrency, DatedRate>();
@@ -32,7 +27,11 @@ export class BitcoinExchangeRate {
         const datedRate: DatedRate | undefined = this.bitcoinExchangeRates.get(this.activeFiatCurrency);
         const latestUpdate: Date | undefined = this.latestUpdates.get(this.activeFiatCurrency);
         if (forcedUpdate || this.shouldUpdateExchangeRate(datedRate, latestUpdate)) {
-            await this.updateExchangeRate();
+            try {
+                await this.updateExchangeRate();
+            } catch (error) {
+                console.warn(`Failed to update BTC exchange rate: ${error}`);
+            }
         }
         return this.bitcoinExchangeRates.get(this.activeFiatCurrency)?.rate;
     }
@@ -67,8 +66,7 @@ export class BitcoinExchangeRate {
         try {
             exchangeRate = await this.fetchBitcoinExchangeRate(this.activeFiatCurrency);
         } catch (error) {
-            console.warn(`Failed to fetch BTC price: ${error}`);
-            return;
+            throw new Error(`Failed to fetch BTC price: ${error}`);
         }
         const datedRate: DatedRate = { date: now, rate: exchangeRate };
         this.bitcoinExchangeRates.set(this.activeFiatCurrency, datedRate);

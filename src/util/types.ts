@@ -3,3 +3,10 @@ export type PaginationOpts = {
   until?: Date | number;
   limit?: number;
 };
+
+export type DatedRate = {
+  date: Date,
+  rate: number
+}
+
+export type BitcoinUnit = 'SAT' | 'BTC';

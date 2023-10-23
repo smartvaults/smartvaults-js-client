@@ -28,7 +28,7 @@ export class Balance {
     try {
       this.calculateFiatValues();
     } catch (e) {
-      console.warn(`Failed to calculate fiat values: ${e}`);
+      console.warn(`Failed to calculate fiat balances: ${e}`);
     }
   }
 
@@ -41,7 +41,9 @@ export class Balance {
   }
 
   private async calculateFiatValues() {
-    [this.confirmedFiat, this.immatureFiat, this.trustedPendingFiat, this.untrustedPendingFiat] = await this.bitcoinExchangeRate.convertToFiat([this.confirmed, this.immature, this.trustedPending, this.untrustedPending]);
+    const balances = [this.confirmed, this.immature, this.trustedPending, this.untrustedPending];
+    const fiatBalances = await this.bitcoinExchangeRate.convertToFiat(balances);
+    [this.confirmedFiat, this.immatureFiat, this.trustedPendingFiat, this.untrustedPendingFiat] = fiatBalances;
   }
 
 
