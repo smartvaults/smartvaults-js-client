@@ -7,7 +7,6 @@ export class BitcoinExchangeRate {
     private static instance: BitcoinExchangeRate;
     private bitcoinExchangeRates: Map<FiatCurrency, DatedRate> = new Map<FiatCurrency, DatedRate>();
     private activeFiatCurrency: FiatCurrency;
-    private latestUpdates: Map<FiatCurrency, Date> = new Map<FiatCurrency, Date>();
     private updateInterval: number; // in minutes
 
     private constructor(defaultFiatCurrency: FiatCurrency, updateInterval: number) {
@@ -25,8 +24,7 @@ export class BitcoinExchangeRate {
 
     public async getExchangeRate(forcedUpdate?: boolean): Promise<number | undefined> {
         const datedRate: DatedRate | undefined = this.bitcoinExchangeRates.get(this.activeFiatCurrency);
-        const latestUpdate: Date | undefined = this.latestUpdates.get(this.activeFiatCurrency);
-        if (forcedUpdate || this.shouldUpdateExchangeRate(datedRate, latestUpdate)) {
+        if (forcedUpdate || this.shouldUpdateExchangeRate(datedRate)) {
             try {
                 await this.updateExchangeRate();
             } catch (error) {
@@ -45,7 +43,7 @@ export class BitcoinExchangeRate {
     }
 
     public getLatestUpdate(): Date | undefined {
-        return this.latestUpdates.get(this.activeFiatCurrency);
+        return this.bitcoinExchangeRates.get(this.activeFiatCurrency)?.date;
     }
 
     public getUpdateInterval(): number {
@@ -70,12 +68,12 @@ export class BitcoinExchangeRate {
         }
         const datedRate: DatedRate = { date: now, rate: exchangeRate };
         this.bitcoinExchangeRates.set(this.activeFiatCurrency, datedRate);
-        this.latestUpdates.set(this.activeFiatCurrency, now);
     }
 
 
-    private shouldUpdateExchangeRate(datedRate?: DatedRate, latestUpdate?: Date): boolean {
-        return !datedRate || !latestUpdate || datedRate.date.getTime() - latestUpdate.getTime() > this.updateInterval;
+    private shouldUpdateExchangeRate(datedRate?: DatedRate): boolean {
+        const now = new Date();
+        return !datedRate || datedRate.date.getTime() + this.updateInterval < now.getTime();
     }
 
     private isValidInterval(interval: number): boolean {
