@@ -19,6 +19,7 @@
 <h3 class="tsd-index-heading">Enumerations</h3>
 <div class="tsd-index-list"><a href="enums/ApprovalStatus.html" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-8"></use></svg><span>Approval<wbr/>Status</span></a>
 <a href="enums/AuthenticatorType.html" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-8"></use></svg><span>Authenticator<wbr/>Type</span></a>
+<a href="enums/FiatCurrency.html" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-8"></use></svg><span>Fiat<wbr/>Currency</span></a>
 <a href="enums/NetworkType.html" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-8"></use></svg><span>Network<wbr/>Type</span></a>
 <a href="enums/ProposalStatus.html" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-8"></use></svg><span>Proposal<wbr/>Status</span></a>
 <a href="enums/ProposalType.html" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-8"></use></svg><span>Proposal<wbr/>Type</span></a>
@@ -28,7 +29,9 @@
 </div></section>
 <section class="tsd-index-section">
 <h3 class="tsd-index-heading">Classes</h3>
-<div class="tsd-index-list"><a href="classes/Contact.html" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-128"></use></svg><span>Contact</span></a>
+<div class="tsd-index-list"><a href="classes/BitcoinExchangeRate.html" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-128"></use></svg><span>Bitcoin<wbr/>Exchange<wbr/>Rate</span></a>
+<a href="classes/Contact.html" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-128"></use></svg><span>Contact</span></a>
+<a href="classes/CurrencyUtil.html" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-128"></use></svg><span>Currency<wbr/>Util</span></a>
 <a href="classes/FilterBuilder.html" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-128"></use></svg><span>Filter<wbr/>Builder</span></a>
 <a href="classes/Keys.html" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-128"></use></svg><span>Keys</span></a>
 <a href="classes/NostrClient.html" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-128"></use></svg><span>Nostr<wbr/>Client</span></a>
@@ -51,10 +54,12 @@
 <a href="types/BaseSharedSigner.html" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2097152"></use></svg><span>Base<wbr/>Shared<wbr/>Signer</span></a>
 <a href="types/BasicConfirmationTime.html" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2097152"></use></svg><span>Basic<wbr/>Confirmation<wbr/>Time</span></a>
 <a href="types/BasicTrxDetails.html" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2097152"></use></svg><span>Basic<wbr/>Trx<wbr/>Details</span></a>
+<a href="types/BitcoinUnit.html" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2097152"></use></svg><span>Bitcoin<wbr/>Unit</span></a>
 <a href="types/CompletedProofOfReserveProposal.html" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2097152"></use></svg><span>Completed<wbr/>Proof<wbr/>Of<wbr/>Reserve<wbr/>Proposal</span></a>
 <a href="types/CompletedSpendingProposal.html" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2097152"></use></svg><span>Completed<wbr/>Spending<wbr/>Proposal</span></a>
 <a href="types/ConfirmationTime.html" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2097152"></use></svg><span>Confirmation<wbr/>Time</span></a>
 <a href="types/ContactProfile.html" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2097152"></use></svg><span>Contact<wbr/>Profile</span></a>
+<a href="types/DatedRate.html" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2097152"></use></svg><span>Dated<wbr/>Rate</span></a>
 <a href="types/DirectMessage.html" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2097152"></use></svg><span>Direct<wbr/>Message</span></a>
 <a href="types/FinalizeTrxResponse.html" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2097152"></use></svg><span>Finalize<wbr/>Trx<wbr/>Response</span></a>
 <a href="types/Label.html" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2097152"></use></svg><span>Label</span></a>
@@ -127,13 +132,16 @@
 <ul class="tsd-small-nested-navigation" id="tsd-nav-container" data-base=".">
 <li><a href="enums/ApprovalStatus.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-8"></use></svg>ApprovalStatus</a></li>
 <li><a href="enums/AuthenticatorType.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-8"></use></svg>AuthenticatorType</a></li>
+<li><a href="enums/FiatCurrency.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-8"></use></svg>FiatCurrency</a></li>
 <li><a href="enums/NetworkType.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-8"></use></svg>NetworkType</a></li>
 <li><a href="enums/ProposalStatus.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-8"></use></svg>ProposalStatus</a></li>
 <li><a href="enums/ProposalType.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-8"></use></svg>ProposalType</a></li>
 <li><a href="enums/SmartVaultsKind.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-8"></use></svg>SmartVaultsKind</a></li>
 <li><a href="enums/StoreKind.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-8"></use></svg>StoreKind</a></li>
 <li><a href="enums/TagType.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-8"></use></svg>TagType</a></li>
+<li><a href="classes/BitcoinExchangeRate.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-128"></use></svg>BitcoinExchangeRate</a></li>
 <li><a href="classes/Contact.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-128"></use></svg>Contact</a></li>
+<li><a href="classes/CurrencyUtil.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-128"></use></svg>CurrencyUtil</a></li>
 <li><a href="classes/FilterBuilder.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-128"></use></svg>FilterBuilder</a></li>
 <li><a href="classes/Keys.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-128"></use></svg>Keys</a></li>
 <li><a href="classes/NostrClient.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-128"></use></svg>NostrClient</a></li>
@@ -143,9 +151,6 @@
 <li><a href="classes/StringUtil.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-128"></use></svg>StringUtil</a></li>
 <li><a href="classes/TimeUtil.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-128"></use></svg>TimeUtil</a></li>
 <li><a href="interfaces/BitcoinUtil.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-256"></use></svg>BitcoinUtil</a></li>
-<li><a href="interfaces/Wallet.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-256"></use></svg>Wallet</a></li>
-<li><a href="types/BaseApprovedProposal.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2097152"></use></svg>BaseApprovedProposal</a></li>
-<li><a href="types/BaseOwnedSigner.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2097152"></use></svg>BaseOwnedSigner</a></li>
 <li>Loading...</li></ul></nav></div></div></div>
 <div class="tsd-generator">
 <p>Generated using <a href="https://typedoc.org/" rel="noopener" target="_blank">TypeDoc</a></p></div>

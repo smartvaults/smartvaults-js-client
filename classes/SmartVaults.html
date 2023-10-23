@@ -20,7 +20,7 @@
 <ul class="tsd-hierarchy">
 <li><span class="target">SmartVaults</span></li></ul></section><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L10">SmartVaults.ts:10</a></li></ul></aside>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L10">SmartVaults.ts:10</a></li></ul></aside>
 <section class="tsd-panel-group tsd-index-group">
 <section class="tsd-panel tsd-index-panel">
 <details class="tsd-index-content tsd-index-accordion" open><summary class="tsd-accordion-summary tsd-index-summary">
@@ -40,7 +40,9 @@
 </div></section>
 <section class="tsd-index-section">
 <h3 class="tsd-index-heading">Methods</h3>
-<div class="tsd-index-list"><a href="SmartVaults.html#checkPsbts" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2048"></use></svg><span>check<wbr/>Psbts</span></a>
+<div class="tsd-index-list"><a href="SmartVaults.html#changeActiveFiatCurrency" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2048"></use></svg><span>change<wbr/>Active<wbr/>Fiat<wbr/>Currency</span></a>
+<a href="SmartVaults.html#changeBitcoinExchangeRateUpdateInterval" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2048"></use></svg><span>change<wbr/>Bitcoin<wbr/>Exchange<wbr/>Rate<wbr/>Update<wbr/>Interval</span></a>
+<a href="SmartVaults.html#checkPsbts" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2048"></use></svg><span>check<wbr/>Psbts</span></a>
 <a href="SmartVaults.html#deleteApprovals" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2048"></use></svg><span>delete<wbr/>Approvals</span></a>
 <a href="SmartVaults.html#deleteCompletedProposals" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2048"></use></svg><span>delete<wbr/>Completed<wbr/>Proposals</span></a>
 <a href="SmartVaults.html#deletePolicies" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2048"></use></svg><span>delete<wbr/>Policies</span></a>
@@ -49,6 +51,8 @@
 <a href="SmartVaults.html#disconnect" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2048"></use></svg><span>disconnect</span></a>
 <a href="SmartVaults.html#extractKey" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2048"></use></svg><span>extract<wbr/>Key</span></a>
 <a href="SmartVaults.html#finalizeSpendingProposal" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2048"></use></svg><span>finalize<wbr/>Spending<wbr/>Proposal</span></a>
+<a href="SmartVaults.html#forceUpdateBitcoinExchangeRate" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2048"></use></svg><span>force<wbr/>Update<wbr/>Bitcoin<wbr/>Exchange<wbr/>Rate</span></a>
+<a href="SmartVaults.html#getActiveFiatCurrency" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2048"></use></svg><span>get<wbr/>Active<wbr/>Fiat<wbr/>Currency</span></a>
 <a href="SmartVaults.html#getApprovals" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2048"></use></svg><span>get<wbr/>Approvals</span></a>
 <a href="SmartVaults.html#getApprovalsByPolicyId" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2048"></use></svg><span>get<wbr/>Approvals<wbr/>By<wbr/>Policy<wbr/>Id</span></a>
 <a href="SmartVaults.html#getCompletedProposalByTx" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2048"></use></svg><span>get<wbr/>Completed<wbr/>Proposal<wbr/>By<wbr/>Tx</span></a>
@@ -113,36 +117,80 @@
 <h5><span class="tsd-kind-property">nostr<wbr/>Client</span><span class="tsd-signature-symbol">: </span><a href="NostrClient.html" class="tsd-signature-type tsd-kind-class">NostrClient</a></h5></li></ul></li></ul></div>
 <h4 class="tsd-returns-title">Returns <a href="SmartVaults.html" class="tsd-signature-type tsd-kind-class">SmartVaults</a></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L18">SmartVaults.ts:18</a></li></ul></aside></li></ul></section></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L19">SmartVaults.ts:19</a></li></ul></aside></li></ul></section></section>
 <section class="tsd-panel-group tsd-member-group">
 <h2>Properties</h2>
 <section class="tsd-panel tsd-member"><a id="authenticator" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>authenticator</span><a href="#authenticator" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">authenticator</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type ">Authenticator</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L11">SmartVaults.ts:11</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L11">SmartVaults.ts:11</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member"><a id="bitcoinUtil" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>bitcoin<wbr/>Util</span><a href="#bitcoinUtil" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">bitcoin<wbr/>Util</span><span class="tsd-signature-symbol">:</span> <a href="../interfaces/BitcoinUtil.html" class="tsd-signature-type tsd-kind-interface">BitcoinUtil</a></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L12">SmartVaults.ts:12</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L12">SmartVaults.ts:12</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member"><a id="network" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>network</span><a href="#network" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">network</span><span class="tsd-signature-symbol">:</span> <a href="../enums/NetworkType.html" class="tsd-signature-type tsd-kind-enum">NetworkType</a></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L15">SmartVaults.ts:15</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L15">SmartVaults.ts:15</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member"><a id="nostrClient" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>nostr<wbr/>Client</span><a href="#nostrClient" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">nostr<wbr/>Client</span><span class="tsd-signature-symbol">:</span> <a href="NostrClient.html" class="tsd-signature-type tsd-kind-class">NostrClient</a></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L13">SmartVaults.ts:13</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L13">SmartVaults.ts:13</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member"><a id="stores" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>stores</span><a href="#stores" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">stores</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type ">Map</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">, </span><a href="Store.html" class="tsd-signature-type tsd-kind-class">Store</a><span class="tsd-signature-symbol">&gt;</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L14">SmartVaults.ts:14</a></li></ul></aside></section></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L14">SmartVaults.ts:14</a></li></ul></aside></section></section>
 <section class="tsd-panel-group tsd-member-group">
 <h2>Methods</h2>
+<section class="tsd-panel tsd-member"><a id="changeActiveFiatCurrency" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>change<wbr/>Active<wbr/>Fiat<wbr/>Currency</span><a href="#changeActiveFiatCurrency" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
+<ul class="tsd-signatures">
+<li class="tsd-signature tsd-anchor-link" id="changeActiveFiatCurrency.changeActiveFiatCurrency-1"><span class="tsd-kind-call-signature">change<wbr/>Active<wbr/>Fiat<wbr/>Currency</span><span class="tsd-signature-symbol">(</span><span class="tsd-kind-parameter">currency</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">void</span><a href="#changeActiveFiatCurrency.changeActiveFiatCurrency-1" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography"><p>Changes the fiat currency used to fetch the Bitcoin exchange rate.</p>
+</div>
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5><span class="tsd-kind-parameter">currency</span>: <a href="../enums/FiatCurrency.html" class="tsd-signature-type tsd-kind-enum">FiatCurrency</a></h5>
+<div class="tsd-comment tsd-typography"><p>The fiat currency to use.</p>
+</div>
+<div class="tsd-comment tsd-typography"></div></li></ul></div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4>
+<div class="tsd-comment tsd-typography">
+<h4>Example</h4><pre><code class="language-ts"><span class="hl-0">changeFiatCurrency</span><span class="hl-1">(</span><span class="hl-2">&quot;usd&quot;</span><span class="hl-1">);</span>
+</code><button>Copy</button></pre>
+</div><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L1960">SmartVaults.ts:1960</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member"><a id="changeBitcoinExchangeRateUpdateInterval" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>change<wbr/>Bitcoin<wbr/>Exchange<wbr/>Rate<wbr/>Update<wbr/>Interval</span><a href="#changeBitcoinExchangeRateUpdateInterval" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
+<ul class="tsd-signatures">
+<li class="tsd-signature tsd-anchor-link" id="changeBitcoinExchangeRateUpdateInterval.changeBitcoinExchangeRateUpdateInterval-1"><span class="tsd-kind-call-signature">change<wbr/>Bitcoin<wbr/>Exchange<wbr/>Rate<wbr/>Update<wbr/>Interval</span><span class="tsd-signature-symbol">(</span><span class="tsd-kind-parameter">interval</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">void</span><a href="#changeBitcoinExchangeRateUpdateInterval.changeBitcoinExchangeRateUpdateInterval-1" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography"><p>Changes the interval at which the bitcoin exchange rate is updated</p>
+</div>
+<div class="tsd-parameters">
+<h4 class="tsd-parameters-title">Parameters</h4>
+<ul class="tsd-parameter-list">
+<li>
+<h5><span class="tsd-kind-parameter">interval</span>: <span class="tsd-signature-type">number</span></h5>
+<div class="tsd-comment tsd-typography"><p>The interval in minutes</p>
+</div>
+<div class="tsd-comment tsd-typography"></div></li></ul></div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4>
+<div class="tsd-comment tsd-typography">
+<h4>Example</h4><pre><code class="language-ts"><span class="hl-0">changeBitcoinExchangeRateUpdateInterval</span><span class="hl-1">(</span><span class="hl-7">30</span><span class="hl-1">);</span>
+</code><button>Copy</button></pre>
+</div><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L2002">SmartVaults.ts:2002</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="checkPsbts" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>check<wbr/>Psbts</span><a href="#checkPsbts" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -164,7 +212,7 @@ and checks if the PSBTs for the active approvals can be finalized.</p>
 
 <div class="tsd-comment tsd-typography"></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L1314">SmartVaults.ts:1314</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L1318">SmartVaults.ts:1318</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="deleteApprovals" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>delete<wbr/>Approvals</span><a href="#deleteApprovals" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -194,7 +242,7 @@ and checks if the PSBTs for the active approvals can be finalized.</p>
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L1510">SmartVaults.ts:1510</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L1514">SmartVaults.ts:1514</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="deleteCompletedProposals" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>delete<wbr/>Completed<wbr/>Proposals</span><a href="#deleteCompletedProposals" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -224,7 +272,7 @@ and checks if the PSBTs for the active approvals can be finalized.</p>
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L1542">SmartVaults.ts:1542</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L1546">SmartVaults.ts:1546</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="deletePolicies" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>delete<wbr/>Policies</span><a href="#deletePolicies" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -254,7 +302,7 @@ and checks if the PSBTs for the active approvals can be finalized.</p>
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L1574">SmartVaults.ts:1574</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L1578">SmartVaults.ts:1578</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="deleteProposals" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>delete<wbr/>Proposals</span><a href="#deleteProposals" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -284,7 +332,7 @@ and checks if the PSBTs for the active approvals can be finalized.</p>
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L1526">SmartVaults.ts:1526</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L1530">SmartVaults.ts:1530</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="deleteSigners" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>delete<wbr/>Signers</span><a href="#deleteSigners" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -314,7 +362,7 @@ and checks if the PSBTs for the active approvals can be finalized.</p>
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L1558">SmartVaults.ts:1558</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L1562">SmartVaults.ts:1562</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="disconnect" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>disconnect</span><a href="#disconnect" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -331,7 +379,7 @@ and checks if the PSBTs for the active approvals can be finalized.</p>
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L739">SmartVaults.ts:739</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L743">SmartVaults.ts:743</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="extractKey" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>extract<wbr/>Key</span><a href="#extractKey" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -344,7 +392,7 @@ and checks if the PSBTs for the active approvals can be finalized.</p>
 <h5><span class="tsd-kind-parameter">descriptor</span>: <span class="tsd-signature-type">string</span></h5></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">string</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L856">SmartVaults.ts:856</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L860">SmartVaults.ts:860</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="finalizeSpendingProposal" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>finalize<wbr/>Spending<wbr/>Proposal</span><a href="#finalizeSpendingProposal" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -376,7 +424,36 @@ and checks if the PSBTs for the active approvals can be finalized.</p>
 <h4>Throws</h4><p>An error if the proposal or policy cannot be found, if there are no approvals for the proposal, if the PSBTs cannot be finalized, or if the proposal cannot be broadcast.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L1354">SmartVaults.ts:1354</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L1358">SmartVaults.ts:1358</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member"><a id="forceUpdateBitcoinExchangeRate" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>force<wbr/>Update<wbr/>Bitcoin<wbr/>Exchange<wbr/>Rate</span><a href="#forceUpdateBitcoinExchangeRate" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
+<ul class="tsd-signatures">
+<li class="tsd-signature tsd-anchor-link" id="forceUpdateBitcoinExchangeRate.forceUpdateBitcoinExchangeRate-1"><span class="tsd-kind-call-signature">force<wbr/>Update<wbr/>Bitcoin<wbr/>Exchange<wbr/>Rate</span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type ">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span><a href="#forceUpdateBitcoinExchangeRate.forceUpdateBitcoinExchangeRate-1" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography"><p>Fetches and updates the bitcoin exchange rate against the active fiat currency</p>
+</div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type ">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span></h4>
+<div class="tsd-comment tsd-typography">
+<h4>Async</h4>
+<h4>Example</h4><pre><code class="language-ts"><span class="hl-3">const</span><span class="hl-1"> </span><span class="hl-6">rate</span><span class="hl-1"> = </span><span class="hl-4">await</span><span class="hl-1"> </span><span class="hl-0">forceUpdateBitcoinExchangeRate</span><span class="hl-1">();</span>
+</code><button>Copy</button></pre>
+</div><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L1973">SmartVaults.ts:1973</a></li></ul></aside></li></ul></section>
+<section class="tsd-panel tsd-member"><a id="getActiveFiatCurrency" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><span>get<wbr/>Active<wbr/>Fiat<wbr/>Currency</span><a href="#getActiveFiatCurrency" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
+<ul class="tsd-signatures">
+<li class="tsd-signature tsd-anchor-link" id="getActiveFiatCurrency.getActiveFiatCurrency-1"><span class="tsd-kind-call-signature">get<wbr/>Active<wbr/>Fiat<wbr/>Currency</span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="../enums/FiatCurrency.html" class="tsd-signature-type tsd-kind-enum">FiatCurrency</a><a href="#getActiveFiatCurrency.getActiveFiatCurrency-1" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></li>
+<li class="tsd-description">
+<div class="tsd-comment tsd-typography"><p>Returns the active fiat currency</p>
+</div>
+<h4 class="tsd-returns-title">Returns <a href="../enums/FiatCurrency.html" class="tsd-signature-type tsd-kind-enum">FiatCurrency</a></h4>
+<div class="tsd-comment tsd-typography">
+<h4>Example</h4><pre><code class="language-ts"><span class="hl-3">const</span><span class="hl-1"> </span><span class="hl-6">currency</span><span class="hl-1"> = </span><span class="hl-0">getActiveFiatCurrency</span><span class="hl-1">();</span>
+</code><button>Copy</button></pre>
+</div><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L1989">SmartVaults.ts:1989</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="getApprovals" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>get<wbr/>Approvals</span><a href="#getApprovals" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -406,7 +483,7 @@ of approved proposals associated with that proposal ID.</p>
 </ul>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L1179">SmartVaults.ts:1179</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L1183">SmartVaults.ts:1183</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="getApprovalsByPolicyId" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>get<wbr/>Approvals<wbr/>By<wbr/>Policy<wbr/>Id</span><a href="#getApprovalsByPolicyId" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -441,7 +518,7 @@ of approved proposals associated with that proposal ID.</p>
 <h4>See</h4><p>SmartVaultsTypes.PublishedApprovedProposal - For the structure of a PublishedApprovedProposal object.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L1220">SmartVaults.ts:1220</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L1224">SmartVaults.ts:1224</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="getCompletedProposalByTx" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>get<wbr/>Completed<wbr/>Proposal<wbr/>By<wbr/>Tx</span><a href="#getCompletedProposalByTx" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -467,7 +544,7 @@ of approved proposals associated with that proposal ID.</p>
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L1467">SmartVaults.ts:1467</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L1471">SmartVaults.ts:1471</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="getCompletedProposals" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>get<wbr/>Completed<wbr/>Proposals</span><a href="#getCompletedProposals" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -503,7 +580,7 @@ of approved proposals associated with that proposal ID.</p>
 </ul>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L1152">SmartVaults.ts:1152</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L1156">SmartVaults.ts:1156</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="getCompletedProposalsById" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>get<wbr/>Completed<wbr/>Proposals<wbr/>By<wbr/>Id</span><a href="#getCompletedProposalsById" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -543,7 +620,7 @@ of approved proposals associated with that proposal ID.</p>
 </ul>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L1080">SmartVaults.ts:1080</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L1084">SmartVaults.ts:1084</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="getCompletedProposalsByPolicyId" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>get<wbr/>Completed<wbr/>Proposals<wbr/>By<wbr/>Policy<wbr/>Id</span><a href="#getCompletedProposalsByPolicyId" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -595,7 +672,7 @@ of approved proposals associated with that proposal ID.</p>
 </ul>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L1117">SmartVaults.ts:1117</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L1121">SmartVaults.ts:1121</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="getContactProfiles" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>get<wbr/>Contact<wbr/>Profiles</span><a href="#getContactProfiles" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -621,7 +698,7 @@ of approved proposals associated with that proposal ID.</p>
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L204">SmartVaults.ts:204</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L206">SmartVaults.ts:206</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="getContactSignersCount" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>get<wbr/>Contact<wbr/>Signers<wbr/>Count</span><a href="#getContactSignersCount" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -646,7 +723,7 @@ A promise that resolves to the number of contacts that have shared their signer.
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L1925">SmartVaults.ts:1925</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L1929">SmartVaults.ts:1929</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="getContacts" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>get<wbr/>Contacts</span><a href="#getContacts" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -664,7 +741,7 @@ A promise that resolves to the number of contacts that have shared their signer.
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L223">SmartVaults.ts:223</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L225">SmartVaults.ts:225</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="getLabelById" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>get<wbr/>Label<wbr/>By<wbr/>Id</span><a href="#getLabelById" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -694,7 +771,7 @@ A promise that resolves to a map where the keys are label IDs and the values are
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L1882">SmartVaults.ts:1882</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L1886">SmartVaults.ts:1886</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="getLabelByLabelData" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>get<wbr/>Label<wbr/>By<wbr/>Label<wbr/>Data</span><a href="#getLabelByLabelData" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -724,7 +801,7 @@ A promise that resolves to a PublishedLabel.</p>
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L1902">SmartVaults.ts:1902</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L1906">SmartVaults.ts:1906</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="getLabels" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>get<wbr/>Labels</span><a href="#getLabels" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -750,7 +827,7 @@ A promise that resolves to a PublishedLabel.</p>
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L1841">SmartVaults.ts:1841</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L1845">SmartVaults.ts:1845</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="getLabelsByPolicyId" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>get<wbr/>Labels<wbr/>By<wbr/>Policy<wbr/>Id</span><a href="#getLabelsByPolicyId" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -782,7 +859,7 @@ A promise that resolves to a map where the keys are policy IDs and the values ar
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L1862">SmartVaults.ts:1862</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L1866">SmartVaults.ts:1866</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="getMySharedSigners" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>get<wbr/>My<wbr/>Shared<wbr/>Signers</span><a href="#getMySharedSigners" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -814,7 +891,7 @@ Otherwise, it fetches all shared signers based.</p>
 <h4>See</h4><p>SmartVaultsTypes.MySharedSigner - For the structure of MySharedSigner objects.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L790">SmartVaults.ts:790</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L794">SmartVaults.ts:794</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="getOwnedSigners" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>get<wbr/>Owned<wbr/>Signers</span><a href="#getOwnedSigners" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -830,7 +907,7 @@ Each BaseOwnedSigner object represents an owned signer and contains all the prop
 
 <h4>Async</h4></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L761">SmartVaults.ts:761</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L765">SmartVaults.ts:765</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="getPolicies" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>get<wbr/>Policies</span><a href="#getPolicies" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -860,7 +937,7 @@ Each BaseOwnedSigner object represents an owned signer and contains all the prop
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L433">SmartVaults.ts:433</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L435">SmartVaults.ts:435</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="getPoliciesById" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>get<wbr/>Policies<wbr/>By<wbr/>Id</span><a href="#getPoliciesById" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -890,7 +967,7 @@ Each BaseOwnedSigner object represents an owned signer and contains all the prop
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L456">SmartVaults.ts:456</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L458">SmartVaults.ts:458</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="getPolicyEvent" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>get<wbr/>Policy<wbr/>Event</span><a href="#getPolicyEvent" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -903,7 +980,7 @@ Each BaseOwnedSigner object represents an owned signer and contains all the prop
 <h5><span class="tsd-kind-parameter">policy_id</span>: <span class="tsd-signature-type">string</span></h5></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type ">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L510">SmartVaults.ts:510</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L512">SmartVaults.ts:512</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="getProfile" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>get<wbr/>Profile</span><a href="#getProfile" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -929,7 +1006,7 @@ Each BaseOwnedSigner object represents an owned signer and contains all the prop
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L170">SmartVaults.ts:170</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L172">SmartVaults.ts:172</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="getProfiles" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>get<wbr/>Profiles</span><a href="#getProfiles" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -955,7 +1032,7 @@ Each BaseOwnedSigner object represents an owned signer and contains all the prop
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L185">SmartVaults.ts:185</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L187">SmartVaults.ts:187</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="getProposals" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>get<wbr/>Proposals</span><a href="#getProposals" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -973,7 +1050,7 @@ Each BaseOwnedSigner object represents an owned signer and contains all the prop
 
 <div class="tsd-comment tsd-typography"></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L1297">SmartVaults.ts:1297</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L1301">SmartVaults.ts:1301</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="getProposalsById" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>get<wbr/>Proposals<wbr/>By<wbr/>Id</span><a href="#getProposalsById" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1008,7 +1085,7 @@ Each BaseOwnedSigner object represents an owned signer and contains all the prop
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L1256">SmartVaults.ts:1256</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L1260">SmartVaults.ts:1260</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="getProposalsByPolicyId" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>get<wbr/>Proposals<wbr/>By<wbr/>Policy<wbr/>Id</span><a href="#getProposalsByPolicyId" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1043,7 +1120,7 @@ Each BaseOwnedSigner object represents an owned signer and contains all the prop
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L1279">SmartVaults.ts:1279</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L1283">SmartVaults.ts:1283</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="getRecommendedContacts" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>get<wbr/>Recommended<wbr/>Contacts</span><a href="#getRecommendedContacts" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1065,7 +1142,7 @@ Each BaseOwnedSigner object represents an owned signer and contains all the prop
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L244">SmartVaults.ts:244</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L246">SmartVaults.ts:246</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="getSharedKeysById" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>get<wbr/>Shared<wbr/>Keys<wbr/>By<wbr/>Id</span><a href="#getSharedKeysById" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1095,7 +1172,7 @@ Each BaseOwnedSigner object represents an owned signer and contains all the prop
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L482">SmartVaults.ts:482</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L484">SmartVaults.ts:484</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="getSharedSigners" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>get<wbr/>Shared<wbr/>Signers</span><a href="#getSharedSigners" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1128,7 +1205,7 @@ Returns them as an array of PublishedSharedSigner objects, each containing detai
 <h4>See</h4><p>SmartVaultsTypes.PublishedSharedSigner - For the structure of PublishedSharedSigner objects.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L847">SmartVaults.ts:847</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L851">SmartVaults.ts:851</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="getStore" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>get<wbr/>Store</span><a href="#getStore" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1141,7 +1218,7 @@ Returns them as an array of PublishedSharedSigner objects, each containing detai
 <h5><span class="tsd-kind-parameter">eventKind</span>: <span class="tsd-signature-type">number</span></h5></li></ul></div>
 <h4 class="tsd-returns-title">Returns <a href="Store.html" class="tsd-signature-type tsd-kind-class">Store</a></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L64">SmartVaults.ts:64</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L66">SmartVaults.ts:66</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="initEventKindHandlerFactory" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>init<wbr/>Event<wbr/>Kind<wbr/>Handler<wbr/>Factory</span><a href="#initEventKindHandlerFactory" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1149,7 +1226,7 @@ Returns them as an array of PublishedSharedSigner objects, each containing detai
 <li class="tsd-description">
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L51">SmartVaults.ts:51</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L52">SmartVaults.ts:52</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="initStores" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>init<wbr/>Stores</span><a href="#initStores" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1157,7 +1234,7 @@ Returns them as an array of PublishedSharedSigner objects, each containing detai
 <li class="tsd-description">
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L37">SmartVaults.ts:37</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L38">SmartVaults.ts:38</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="removeContacts" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>remove<wbr/>Contacts</span><a href="#removeContacts" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1187,7 +1264,7 @@ Returns them as an array of PublishedSharedSigner objects, each containing detai
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L114">SmartVaults.ts:114</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L116">SmartVaults.ts:116</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="revokeMySharedSigners" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>revoke<wbr/>My<wbr/>Shared<wbr/>Signers</span><a href="#revokeMySharedSigners" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1217,7 +1294,7 @@ Returns them as an array of PublishedSharedSigner objects, each containing detai
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L1590">SmartVaults.ts:1590</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L1594">SmartVaults.ts:1594</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="saveLabel" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>save<wbr/>Label</span><a href="#saveLabel" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1253,7 +1330,7 @@ Returns them as an array of PublishedSharedSigner objects, each containing detai
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L1792">SmartVaults.ts:1792</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L1796">SmartVaults.ts:1796</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="saveOwnedSigner" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>save<wbr/>Owned<wbr/>Signer</span><a href="#saveOwnedSigner" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1282,7 +1359,7 @@ data and includes the owner&#39;s public key and creation date.</p>
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L875">SmartVaults.ts:875</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L879">SmartVaults.ts:879</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="savePolicy" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>save<wbr/>Policy</span><a href="#savePolicy" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1312,7 +1389,7 @@ data and includes the owner&#39;s public key and creation date.</p>
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L289">SmartVaults.ts:289</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L291">SmartVaults.ts:291</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="saveSharedSigner" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>save<wbr/>Shared<wbr/>Signer</span><a href="#saveSharedSigner" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1338,7 +1415,7 @@ the owner&#39;s public key and shared date.</p>
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L919">SmartVaults.ts:919</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L923">SmartVaults.ts:923</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="setAuthenticator" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>set<wbr/>Authenticator</span><a href="#setAuthenticator" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1351,7 +1428,7 @@ the owner&#39;s public key and shared date.</p>
 <h5><span class="tsd-kind-parameter">authenticator</span>: <span class="tsd-signature-type ">Authenticator</span></h5></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L55">SmartVaults.ts:55</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L57">SmartVaults.ts:57</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="setProfile" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>set<wbr/>Profile</span><a href="#setProfile" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1381,7 +1458,7 @@ the owner&#39;s public key and shared date.</p>
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L138">SmartVaults.ts:138</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L140">SmartVaults.ts:140</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="spend" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>spend</span><a href="#spend" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1423,7 +1500,7 @@ the owner&#39;s public key and shared date.</p>
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L561">SmartVaults.ts:561</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L563">SmartVaults.ts:563</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="subscribe" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>subscribe</span><a href="#subscribe" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1470,7 +1547,7 @@ the owner&#39;s public key and shared date.</p>
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L669">SmartVaults.ts:669</a></li></ul></aside></li></ul></section>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L673">SmartVaults.ts:673</a></li></ul></aside></li></ul></section>
 <section class="tsd-panel tsd-member"><a id="upsertContacts" class="tsd-anchor"></a>
 <h3 class="tsd-anchor-link"><span>upsert<wbr/>Contacts</span><a href="#upsertContacts" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1500,7 +1577,7 @@ the owner&#39;s public key and shared date.</p>
 </code><button>Copy</button></pre>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/8bed111/src/SmartVaults.ts#L83">SmartVaults.ts:83</a></li></ul></aside></li></ul></section></section></div>
+<li>Defined in <a href="https://github.com/smartvaults/smartvaults-js-client/blob/741cfa9/src/SmartVaults.ts#L85">SmartVaults.ts:85</a></li></ul></aside></li></ul></section></section></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
@@ -1525,6 +1602,8 @@ the owner&#39;s public key and shared date.</p>
 <li><a href="#network" class=""><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-1024"></use></svg><span>network</span></a></li>
 <li><a href="#nostrClient" class=""><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-1024"></use></svg><span>nostr<wbr/>Client</span></a></li>
 <li><a href="#stores" class=""><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-1024"></use></svg><span>stores</span></a></li>
+<li><a href="#changeActiveFiatCurrency" class=""><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2048"></use></svg><span>change<wbr/>Active<wbr/>Fiat<wbr/>Currency</span></a></li>
+<li><a href="#changeBitcoinExchangeRateUpdateInterval" class=""><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2048"></use></svg><span>change<wbr/>Bitcoin<wbr/>Exchange<wbr/>Rate<wbr/>Update<wbr/>Interval</span></a></li>
 <li><a href="#checkPsbts" class=""><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2048"></use></svg><span>check<wbr/>Psbts</span></a></li>
 <li><a href="#deleteApprovals" class=""><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2048"></use></svg><span>delete<wbr/>Approvals</span></a></li>
 <li><a href="#deleteCompletedProposals" class=""><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2048"></use></svg><span>delete<wbr/>Completed<wbr/>Proposals</span></a></li>
@@ -1534,6 +1613,8 @@ the owner&#39;s public key and shared date.</p>
 <li><a href="#disconnect" class=""><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2048"></use></svg><span>disconnect</span></a></li>
 <li><a href="#extractKey" class=""><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2048"></use></svg><span>extract<wbr/>Key</span></a></li>
 <li><a href="#finalizeSpendingProposal" class=""><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2048"></use></svg><span>finalize<wbr/>Spending<wbr/>Proposal</span></a></li>
+<li><a href="#forceUpdateBitcoinExchangeRate" class=""><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2048"></use></svg><span>force<wbr/>Update<wbr/>Bitcoin<wbr/>Exchange<wbr/>Rate</span></a></li>
+<li><a href="#getActiveFiatCurrency" class=""><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2048"></use></svg><span>get<wbr/>Active<wbr/>Fiat<wbr/>Currency</span></a></li>
 <li><a href="#getApprovals" class=""><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2048"></use></svg><span>get<wbr/>Approvals</span></a></li>
 <li><a href="#getApprovalsByPolicyId" class=""><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2048"></use></svg><span>get<wbr/>Approvals<wbr/>By<wbr/>Policy<wbr/>Id</span></a></li>
 <li><a href="#getCompletedProposalByTx" class=""><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2048"></use></svg><span>get<wbr/>Completed<wbr/>Proposal<wbr/>By<wbr/>Tx</span></a></li>
@@ -1579,13 +1660,16 @@ the owner&#39;s public key and shared date.</p>
 <ul class="tsd-small-nested-navigation" id="tsd-nav-container" data-base="..">
 <li><a href="../enums/ApprovalStatus.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-8"></use></svg>ApprovalStatus</a></li>
 <li><a href="../enums/AuthenticatorType.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-8"></use></svg>AuthenticatorType</a></li>
+<li><a href="../enums/FiatCurrency.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-8"></use></svg>FiatCurrency</a></li>
 <li><a href="../enums/NetworkType.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-8"></use></svg>NetworkType</a></li>
 <li><a href="../enums/ProposalStatus.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-8"></use></svg>ProposalStatus</a></li>
 <li><a href="../enums/ProposalType.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-8"></use></svg>ProposalType</a></li>
 <li><a href="../enums/SmartVaultsKind.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-8"></use></svg>SmartVaultsKind</a></li>
 <li><a href="../enums/StoreKind.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-8"></use></svg>StoreKind</a></li>
 <li><a href="../enums/TagType.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-8"></use></svg>TagType</a></li>
+<li><a href="BitcoinExchangeRate.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-128"></use></svg>BitcoinExchangeRate</a></li>
 <li><a href="Contact.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-128"></use></svg>Contact</a></li>
+<li><a href="CurrencyUtil.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-128"></use></svg>CurrencyUtil</a></li>
 <li><a href="FilterBuilder.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-128"></use></svg>FilterBuilder</a></li>
 <li><a href="Keys.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-128"></use></svg>Keys</a></li>
 <li><a href="NostrClient.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-128"></use></svg>NostrClient</a></li>
@@ -1595,9 +1679,6 @@ the owner&#39;s public key and shared date.</p>
 <li><a href="StringUtil.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-128"></use></svg>StringUtil</a></li>
 <li><a href="TimeUtil.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-128"></use></svg>TimeUtil</a></li>
 <li><a href="../interfaces/BitcoinUtil.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-256"></use></svg>BitcoinUtil</a></li>
-<li><a href="../interfaces/Wallet.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-256"></use></svg>Wallet</a></li>
-<li><a href="../types/BaseApprovedProposal.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2097152"></use></svg>BaseApprovedProposal</a></li>
-<li><a href="../types/BaseOwnedSigner.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-2097152"></use></svg>BaseOwnedSigner</a></li>
 <li>Loading...</li></ul></nav></div></div></div>
 <div class="tsd-generator">
 <p>Generated using <a href="https://typedoc.org/" rel="noopener" target="_blank">TypeDoc</a></p></div>
