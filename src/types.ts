@@ -1,6 +1,8 @@
 import { ProposalType } from './enum';
 import { BasePolicy, PublishedPolicy, Utxo, BaseOwnedSigner, BaseSharedSigner } from './models'
 import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
+import { DeviceType } from './enum/DeviceType';
+import { Temperature } from './enum/Temperature';
 
 export type Published = {
   id: string
@@ -44,7 +46,7 @@ export type SpendProposalPayload = {
   useFrozenUtxos?: boolean
 }
 
-export type Metadata = {
+export type Metadata = KeyAgentMetadata & {
   /// Name
   name?: string,
   /// Display name
@@ -65,6 +67,14 @@ export type Metadata = {
   lud16?: string,
   /// Custom fields
   custom?: Map<String, string>,
+}
+
+type KeyAgentMetadata = {
+  jurisdiction?: string,
+  x?: string,
+  facebook?: string,
+  linkedin?: string,
+  smartvaults_nip05?: string,
 }
 
 export type Profile = Metadata & {
@@ -200,4 +210,25 @@ export type LabeledUtxo = Utxo & {
   labelText?: string
   labelId?: string
   frozen: boolean
+}
+
+type Price = {
+  currency: string,
+  amount: number,
+}
+
+type Other = string
+
+export type SignerOffering = {
+  temperature: Temperature | Other,
+  device_type: DeviceType | Other,
+  reponse_time: number,
+  cost_per_signature?: Price,
+  yearly_cost_basis_points?: number,
+  yearly_cost?: Price,
+}
+
+export type PublishedSignerOffering = Published & SignerOffering & {
+  keyAgentPubKey: string,
+  offeringId: string,
 }

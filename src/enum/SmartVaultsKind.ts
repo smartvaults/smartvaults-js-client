@@ -7,4 +7,5 @@ export enum SmartVaultsKind {
   Signers = 9294,
   SharedSigners = 9295,
   Labels = 32121,
+  SignerOffering = 32122,
 }

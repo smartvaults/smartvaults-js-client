@@ -12,6 +12,7 @@ import { MetadataHandler } from "./MetadataHandler";
 import { ContactsHandler } from "./ContactsHandler";
 import { EventDeletionHandler } from "./EventDeletionHandler";
 import { LabelsHandler } from "./LabelsHandler";
+import { SignerOfferingsHandler } from "./SignerOfferingsHandler";
 import { Kind } from "nostr-tools";
 export class EventKindHandlerFactory {
   private smartVaults: SmartVaults
@@ -80,6 +81,9 @@ export class EventKindHandlerFactory {
           break
         case SmartVaultsKind.Labels:
           this.handlers.set(eventKind, new LabelsHandler(stores.get(eventKind)!, eventsStore, getSharedKeysById))
+          break
+        case SmartVaultsKind.SignerOffering:
+          this.handlers.set(eventKind, new SignerOfferingsHandler(stores.get(eventKind)!, eventsStore))
           break
         default:
           throw new Error(`There is no handler for event kind: ${eventKind}`)

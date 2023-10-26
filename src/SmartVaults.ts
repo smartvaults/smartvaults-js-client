@@ -48,6 +48,7 @@ export class SmartVaults {
     this.stores.set(StoreKind.Events, Store.createSingleIndexStore("id"))
     this.stores.set(StoreKind.MySharedSigners, Store.createMultiIndexStore(["id", "signerId"], "id"))
     this.stores.set(SmartVaultsKind.Labels, Store.createMultiIndexStore(["id", "policy_id", "label_id", "unhashed"], "id"))
+    this.stores.set(SmartVaultsKind.SignerOffering, Store.createMultiIndexStore(["id", "offeringId"], "id"))
   }
   initEventKindHandlerFactory() {
     this.eventKindHandlerFactor = new EventKindHandlerFactory(this)
@@ -1031,6 +1032,20 @@ export class SmartVaults {
       .pubkeys(this.authenticator.getPublicKey())
   }
 
+  private buildSignerOfferingFilter(authors?: string[], ids?: string[], paginationOpts?: PaginationOpts) {
+    let filter = filterBuilder().kinds(SmartVaultsKind.SignerOffering)
+    if (ids?.length) {
+      filter = filter.ids(ids)
+    }
+    if (authors?.length) {
+      filter = filter.authors(authors)
+    }
+    if (paginationOpts) {
+      filter = filter.pagination(paginationOpts)
+    }
+    return filter.toFilters()
+  }
+
   private async getProposalEvent(proposal_id: any) {
     const proposalsFilter = filterBuilder()
       .kinds(SmartVaultsKind.Proposal)
@@ -2002,5 +2017,78 @@ export class SmartVaults {
   changeBitcoinExchangeRateUpdateInterval = (interval: number): void => {
     this.bitcoinExchangeRate.setUpdateInterval(interval)
   }
+
+  async getVerifiedKeyAgents(): Promise<Array<SmartVaultsTypes.Profile>> {
+    const base_url = this.network === NetworkType.Bitcoin ? 'https://smartvaults.app' : 'https://test.smartvaults.app'
+    const url = `${base_url}/.well-known/smartvaults.json`
+    const HTTP_OK = 200;
+    try {
+      const response = await fetch(url);
+      if (response.ok && response.status === HTTP_OK) {
+        const responseJson = await response.json();
+        const pubkeys: string[] = Object.values(responseJson.names);
+        return this.getProfiles(pubkeys)
+      } else {
+        throw new Error(`Error fetching verfied key agents: ${response.statusText}`);
+      }
+    } catch (fetchError) {
+      throw new Error(`Error fetching verfied key agents: ${fetchError}`);
+    }
+  }
+
+
+  async _getSignerOfferings(filter: Filter<SmartVaultsKind.SignerOffering>[]): Promise<SmartVaultsTypes.PublishedSignerOffering[]> {
+    const signerOfferingEvents = await this.nostrClient.list(filter)
+    const signerOfferingHandler = this.eventKindHandlerFactor.getHandler(SmartVaultsKind.SignerOffering)
+    return signerOfferingHandler.handle(signerOfferingEvents)
+  }
+
+  async getSignerOfferings(fromVerifiedKeyAgents?: boolean, paginationOpts?: PaginationOpts): Promise<SmartVaultsTypes.PublishedSignerOffering[]> {
+    const verifedKeyAgents = fromVerifiedKeyAgents ? await this.getVerifiedKeyAgents() : []
+    const verifiedKeyAgentsPubkeys: string[] = verifedKeyAgents.map(({ publicKey }) => publicKey)
+    const signerOfferingsFilter = this.buildSignerOfferingFilter(verifiedKeyAgentsPubkeys, [], paginationOpts)
+    const signerOfferings = await this._getSignerOfferings(signerOfferingsFilter)
+    return signerOfferings
+  }
+
+  async getSignerOfferingsById(signerOfferingIds: string[], fromVerifiedKeyAgents?: boolean, paginationOpts?: PaginationOpts): Promise<Map<string, SmartVaultsTypes.PublishedSignerOffering>> {
+    const verifedKeyAgents = fromVerifiedKeyAgents ? await this.getVerifiedKeyAgents() : []
+    const verifiedKeyAgentsPubkeys: string[] = verifedKeyAgents.map(({ publicKey }) => publicKey)
+    const signerOfferingsFilter = this.buildSignerOfferingFilter(verifiedKeyAgentsPubkeys, signerOfferingIds, paginationOpts)
+    await this._getSignerOfferings(signerOfferingsFilter)
+    const store = this.getStore(SmartVaultsKind.SignerOffering);
+    return store.getMany(signerOfferingIds, "offeringId");
+  }
+
+
+  saveSignerOffering = async (id: string, offering: SmartVaultsTypes.SignerOffering, confimationComponent?: () => Promise<boolean>): Promise<SmartVaultsTypes.PublishedSignerOffering> => {
+    const userSignerOfferings = await this.getSignerOfferingsById([id])
+    if (userSignerOfferings.size > 0) {
+      const confirmedByUser = confimationComponent ? await confimationComponent() : window.confirm(`Signer offering with id ${id} already exists. Are you sure you want to replace it?`);
+      if (!confirmedByUser) {
+        throw new Error(`Signer offering with id ${id} already exists.`)
+      }
+    }
+    const signerOfferingEvent = await buildEvent({
+      kind: SmartVaultsKind.SignerOffering,
+      content: JSON.stringify(offering),
+      tags: [[TagType.Identifier, id]],
+    },
+      this.authenticator)
+
+    const pub = this.nostrClient.publish(signerOfferingEvent)
+    await pub.onFirstOkOrCompleteFailure()
+
+    const publishedSignerOffering: SmartVaultsTypes.PublishedSignerOffering = {
+      ...offering,
+      offeringId: id,
+      id: signerOfferingEvent.id,
+      createdAt: fromNostrDate(signerOfferingEvent.created_at),
+      keyAgentPubKey: signerOfferingEvent.pubkey,
+    }
+
+    return publishedSignerOffering
+  }
+
 
 }
