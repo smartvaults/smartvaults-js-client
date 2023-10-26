@@ -223,8 +223,11 @@ describe('PublishedPolicy', () => {
       const expected = [{
         txid: "05dce7f5440ded30bd55359d9e4f65de34fefaaef5fb16ac4cfaf72375fd204d",
         received: 2695,
+        receivedFiat: 2695,
         sent: 4000,
+        sentFiat: 4000,
         fee: 305,
+        feeFiat: 305,
         net: -1305,
         netFiat: -1305,
         confirmation_time: {
@@ -236,8 +239,11 @@ describe('PublishedPolicy', () => {
       {
         txid: "c986542760cce19005b436fc45675a43819084bf37f683dae06e4816e77e8e9f",
         received: 4000,
+        receivedFiat: 4000,
         sent: 0,
+        sentFiat: 0,
         fee: 153,
+        feeFiat: 153,
         net: 4000,
         netFiat: 4000,
         unconfirmed_last_seen: 1689279110,
@@ -285,24 +291,30 @@ describe('PublishedPolicy', () => {
       const expected = {
         txid: "05dce7f5440ded30bd55359d9e4f65de34fefaaef5fb16ac4cfaf72375fd204d",
         received: 2695,
+        receivedFiat: 2695,
         sent: 4000,
+        sentFiat: 4000,
         fee: 305,
+        feeFiat: 305,
         net: -1305,
         netFiat: -1305,
         inputs: [
           {
             txid: "5b5a1db10af26adc77912e2db053489df2f82ec4a5836ee722b5f2feabbdccba",
-            amount: 0
+            amount: 0,
+            amountFiat: 0
           }
         ],
         outputs: [
           {
             txid: "tb1pjs8ul94z5lwyfgtcd6xlvkjhrh4zu5ddj9ahn65ztsvvl3dxlh6qth0sua",
-            amount: 4000
+            amount: 4000,
+            amountFiat: 4000
           },
           {
             txid: "tb1q0fcr4qa3p3l0hswk3mr4zkqmzs2x209kqpqvtx",
-            amount: 1876061
+            amount: 1876061,
+            amountFiat: 1876061
           }
         ],
         lock_time: 2441704,

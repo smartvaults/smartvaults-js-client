@@ -906,6 +906,7 @@ describe('SmartVaults', () => {
       await smartVaultsWithAuthenticator2.upsertContacts(contact);
       const count2 = await smartVaultsWithAuthenticator2.getContactSignersCount(myPubKey);
       expect(count2).toEqual(1)
+      await sleep(100)
       await smartVaultsWithAuthenticator3.saveSharedSigner(ownedSigner4, myPubKey)
       const count3 = await smartVaultsWithAuthenticator2.getContactSignersCount(myPubKey);
       expect(count3).toEqual(1)

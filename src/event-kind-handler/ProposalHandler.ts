@@ -59,6 +59,7 @@ export class ProposalHandler extends EventKindHandler {
     ]);
 
     const bitcoinExchangeRate = await this.bitcoinExchangeRate.getExchangeRate();
+    const activeFiatCurrency = this.bitcoinExchangeRate.getActiveFiatCurrency();
     const proposalsStatusMap = new Map(statusResults.map(res => [res.proposalId, res.status]));
 
     const decryptedProposals: Array<PublishedSpendingProposal | PublishedProofOfReserveProposal> = []
@@ -66,22 +67,40 @@ export class ProposalHandler extends EventKindHandler {
     const fingerprints: string[] = signers.map(signer => signer.fingerprint)
 
     const decryptPromises: Promise<any>[] = proposalEvents.map(async (proposalEvent) => {
-      const storeValue: PublishedSpendingProposal | PublishedProofOfReserveProposal = this.store.get(proposalEvent.id, 'proposal_id')
+      const storedProposal: PublishedSpendingProposal = this.store.get(proposalEvent.id, 'proposal_id')
 
-      if (storeValue) {
+      if (storedProposal) {
         const proposalStatus = proposalsStatusMap.get(proposalEvent.id);
+        const isCurrencyChanged = storedProposal.activeFiatCurrency !== activeFiatCurrency;
+        const isExchangeRateChanged = storedProposal.bitcoinExchangeRate !== bitcoinExchangeRate;
+        const isStatusChanged = proposalStatus !== storedProposal.status;
 
-        if (proposalStatus !== storeValue.status) {
-          this.store.delete([storeValue]);
+        let updatedProposal: PublishedSpendingProposal = { ...storedProposal };
+        let shouldUpdate = false;
 
-          const updatedProposal = {
-            ...storeValue,
-            status: proposalStatus,
+        if (proposalStatus && isStatusChanged) {
+          updatedProposal.status = proposalStatus;
+          shouldUpdate = true;
+        }
+
+        if (storedProposal.type === ProposalType.Spending && bitcoinExchangeRate && (isCurrencyChanged || (!isCurrencyChanged && isExchangeRateChanged))) {
+          const [amountFiat, feeFiat] = await this.bitcoinExchangeRate.convertToFiat([storedProposal.amount, storedProposal.fee], bitcoinExchangeRate);
+          updatedProposal = {
+            ...updatedProposal,
+            amountFiat,
+            feeFiat,
+            activeFiatCurrency,
+            bitcoinExchangeRate,
           };
+          shouldUpdate = true;
+        }
 
+        if (shouldUpdate) {
+          this.store.delete([storedProposal]);
           return { decryptedProposal: updatedProposal, rawEvent: proposalEvent };
         }
-        return { decryptedProposal: storeValue, rawEvent: proposalEvent };
+
+        return { decryptedProposal: storedProposal, rawEvent: proposalEvent };
       }
 
       const policyId = getTagValues(proposalEvent, TagType.Event)[0]
@@ -97,43 +116,42 @@ export class ProposalHandler extends EventKindHandler {
         const signer = signerResult ?? 'Unknown'
         const psbt = proposalContent.psbt
         const utxos = this.bitcoinUtil.getPsbtUtxos(psbt)
-        const fee = this.bitcoinUtil.getFee(psbt)
-        const amount = proposalContent.amount
-        let amountFiat: number | undefined
-        if (bitcoinExchangeRate && amount) {
-          [amountFiat] = await this.bitcoinExchangeRate.convertToFiat([amount], bitcoinExchangeRate)
-        }
-        const publishedProposal: PublishedSpendingProposal = {
+        const fee = Number(this.bitcoinUtil.getFee(psbt))
+        let publishedProposal: PublishedSpendingProposal = {
+          ...proposalContent,
           type,
           status: proposalsStatusMap.get(proposalEvent.id) ?? ProposalStatus.Unsigned,
           signer,
-          amountFiat,
           fee,
-          ...proposalContent,
           utxos,
           createdAt,
           policy_id: policyId,
-          proposal_id: proposalEvent.id
+          proposal_id: proposalEvent.id,
+        }
+        if (bitcoinExchangeRate && type === ProposalType.Spending) {
+          const [amountFiat, feeFiat] = await this.bitcoinExchangeRate.convertToFiat([proposalContent.amount, fee], bitcoinExchangeRate)
+          publishedProposal.amountFiat = amountFiat
+          publishedProposal.feeFiat = feeFiat
+          publishedProposal.activeFiatCurrency = activeFiatCurrency
+          publishedProposal.bitcoinExchangeRate = bitcoinExchangeRate
         }
         return { decryptedProposal: publishedProposal, rawEvent: proposalEvent }
       });
     })
 
     const results = await Promise.allSettled(decryptPromises)
-
     const validResults = results.reduce((acc, result) => {
       if (result.status === "fulfilled" && result.value !== null) {
         acc.push(result.value);
       }
       return acc;
-    }, [] as { decryptedProposal: PublishedSpendingProposal | PublishedProofOfReserveProposal, rawEvent: Event<K> }[]);
+    }, [] as { decryptedProposal: PublishedSpendingProposal, rawEvent: Event<K> }[]);
 
     decryptedProposals.push(...validResults.map(res => res!.decryptedProposal))
     rawEvents.push(...validResults.map(res => res!.rawEvent))
 
     this.store.store(decryptedProposals)
     this.eventsStore.store(rawEvents)
-
     return decryptedProposals
   }
 

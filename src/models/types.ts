@@ -43,6 +43,9 @@ export type BasicTrxDetails = UndecoratedBasicTrxDetails & {
   unconfirmedLastSeenAt?: Date,
   net: number
   netFiat?: number
+  receivedFiat?: number
+  sentFiat?: number
+  feeFiat?: number
 }
 
 export type LabeledTrxDetails = BasicTrxDetails & {
@@ -52,11 +55,13 @@ export type LabeledTrxDetails = BasicTrxDetails & {
 export type TrxInput = {
   txid: string,
   amount: number
+  amountFiat?: number
 }
 
 export type TrxOutput = {
   txid: string,
   amount: number
+  amountFiat?: number
 }
 
 type AdditionalTrxDetails = {
@@ -82,7 +87,8 @@ export type FinalizeTrxResponse = {
 
 export type UtxoTxOut = {
   script_pubkey: string,
-  value: number
+  value: number,
+  valueFiat?: number
 }
 
 export type LocalUtxo = {
