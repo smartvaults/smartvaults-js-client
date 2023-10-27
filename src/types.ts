@@ -103,6 +103,7 @@ type PublishedProposal = {
   status: string
   signer: string
   fee: number
+  feeFiat?: number
 }
 
 export type BaseApprovedProposal = {
@@ -127,6 +128,8 @@ export type PublishedSpendingProposal = PublishedProposal & BaseProposal & {
   to_address: string
   amount: number
   amountFiat?: number
+  activeFiatCurrency?: string
+  bitcoinExchangeRate?: number
   description: string,
   utxos: string[]
 }
@@ -193,7 +196,7 @@ export type PublishedLabel = Published & {
   label: Label
   label_id: string
   policy_id: string
-  unhashed: string
+  labelData: string
 }
 
 export type LabeledUtxo = Utxo & {

@@ -47,7 +47,7 @@ export class SmartVaults {
     this.stores.set(Kind.Metadata, Store.createSingleIndexStore("id"))
     this.stores.set(StoreKind.Events, Store.createSingleIndexStore("id"))
     this.stores.set(StoreKind.MySharedSigners, Store.createMultiIndexStore(["id", "signerId"], "id"))
-    this.stores.set(SmartVaultsKind.Labels, Store.createMultiIndexStore(["id", "policy_id", "label_id", "unhashed"], "id"))
+    this.stores.set(SmartVaultsKind.Labels, Store.createMultiIndexStore(["id", "policy_id", "label_id", "labelData"], "id"))
   }
   initEventKindHandlerFactory() {
     this.eventKindHandlerFactor = new EventKindHandlerFactory(this)
@@ -630,23 +630,30 @@ export class SmartVaults {
       }
     }
     const signer = 'Unknown'
-    const fee = this.bitcoinUtil.getFee(psbt)
+    const fee = Number(this.bitcoinUtil.getFee(psbt))
     const utxo = this.bitcoinUtil.getPsbtUtxos(psbt)
-    const [amountFiat] = await this.bitcoinExchangeRate.convertToFiat([amount])
+    const [amountFiat, feeFiat] = await this.bitcoinExchangeRate.convertToFiat([amount, fee])
+    const bitcoinExchangeRate = await this.bitcoinExchangeRate.getExchangeRate()
+    const activeFiatCurrency = this.bitcoinExchangeRate.getActiveFiatCurrency()
     Promise.all(promises)
-    return {
+    const publishedSpendingProposal = {
       ...proposalContent[type],
       amountFiat,
       signer,
       fee,
+      feeFiat,
       utxos: utxo,
       type: ProposalType.Spending,
       status: ProposalStatus.Unsigned,
       policy_id: policy.id,
       proposal_id: proposalEvent.id,
-      createdAt
+      createdAt,
+      bitcoinExchangeRate,
+      activeFiatCurrency,
     }
-
+    this.getStore(SmartVaultsKind.Proposal).store(publishedSpendingProposal)
+    this.getStore(StoreKind.Events).store(proposalEvent)
+    return publishedSpendingProposal
   }
 
   /**
@@ -1820,7 +1827,7 @@ export class SmartVaults {
       policy_id: policyId,
       createdAt: fromNostrDate(labelEvent.created_at),
       id: labelEvent.id,
-      unhashed: Object.values(label.data)[0]
+      labelData: Object.values(label.data)[0]
     }
 
     return publishedLabel
@@ -1962,18 +1969,33 @@ export class SmartVaults {
   }
 
   /**
-   * Fetches and updates the bitcoin exchange rate against the active fiat currency
+   * Updates the bitcoin exchange rate against the active fiat currency
    *
    * @async
-   * @returns {Promise<number>}
+   * @returns {Promise<void>}
    *
    * @example
-   * const rate = await forceUpdateBitcoinExchangeRate();
+   * await updateBitcoinExchangeRate();
    */
-  forceUpdateBitcoinExchangeRate = async (): Promise<number> => {
+  updateBitcoinExchangeRate = async (): Promise<void> => {
     const rate = await this.bitcoinExchangeRate.getExchangeRate(true)
     if (!rate) {
       throw new Error('Could not update bitcoin exchange rate')
+    }
+  }
+
+  /**
+   * Returns the current bitcoin exchange rate against the active fiat currency
+   *
+   * @returns {number}
+   *
+   * @example
+   * const rate = getBitcoinExchangeRate();
+   */
+  getBitcoinExchangeRate = async (): Promise<number> => {
+    const rate = await this.bitcoinExchangeRate.getExchangeRate()
+    if (!rate) {
+      throw new Error('Could not get bitcoin exchange rate')
     }
     return rate
   }
