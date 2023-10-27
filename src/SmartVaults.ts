@@ -1975,7 +1975,7 @@ export class SmartVaults {
    * @returns {Promise<void>}
    *
    * @example
-   * const rate = await forceUpdateBitcoinExchangeRate();
+   * await updateBitcoinExchangeRate();
    */
   updateBitcoinExchangeRate = async (): Promise<void> => {
     const rate = await this.bitcoinExchangeRate.getExchangeRate(true)

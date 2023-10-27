@@ -74,6 +74,7 @@ export class ProposalHandler extends EventKindHandler {
         const isCurrencyChanged = storedProposal.activeFiatCurrency !== activeFiatCurrency;
         const isExchangeRateChanged = storedProposal.bitcoinExchangeRate !== bitcoinExchangeRate;
         const isStatusChanged = proposalStatus !== storedProposal.status;
+        const isSpending = storedProposal.type === ProposalType.Spending;
 
         let updatedProposal: PublishedSpendingProposal = { ...storedProposal };
         let shouldUpdate = false;
@@ -83,7 +84,7 @@ export class ProposalHandler extends EventKindHandler {
           shouldUpdate = true;
         }
 
-        if (storedProposal.type === ProposalType.Spending && bitcoinExchangeRate && (isCurrencyChanged || (!isCurrencyChanged && isExchangeRateChanged))) {
+        if (bitcoinExchangeRate && isSpending && (isCurrencyChanged || isExchangeRateChanged)) {
           const [amountFiat, feeFiat] = await this.bitcoinExchangeRate.convertToFiat([storedProposal.amount, storedProposal.fee], bitcoinExchangeRate);
           updatedProposal = {
             ...updatedProposal,
