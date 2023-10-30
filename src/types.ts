@@ -232,3 +232,11 @@ export type PublishedSignerOffering = Published & SignerOffering & {
   keyAgentPubKey: string,
   offeringId: string,
 }
+
+export type KeyAgent = {
+  profile: Profile,
+  isVerified: boolean,
+  isContact: boolean,
+  offerings?: Array<SignerOffering>,
+  lastUpdated?: Date,
+}

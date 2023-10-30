@@ -2,7 +2,7 @@ import { Authenticator, DirectPrivateKeyAuthenticator } from '@smontero/nostr-ua
 import { generatePrivateKey, Kind, Event, Filter, Sub } from 'nostr-tools'
 import { SmartVaultsKind, TagType, ProposalType, ProposalStatus, ApprovalStatus, StoreKind, AuthenticatorType, NetworkType, FiatCurrency } from './enum'
 import { NostrClient, PubPool, Store } from './service'
-import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished, nostrDate, isNip05Verified } from './util'
+import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished, nostrDate, isNip05Verified, type singleKindFilterParams, FilterBuilder } from './util'
 import { BasicTrxDetails, BaseOwnedSigner, BaseSharedSigner, BitcoinUtil, Contact, Policy, PublishedPolicy, TrxDetails } from './models'
 import * as SmartVaultsTypes from './types'
 import { EventKindHandlerFactory } from './event-kind-handler'
@@ -696,40 +696,57 @@ export class SmartVaults {
     })
   }
 
-  private buildFilter(kind: SmartVaultsKind | Kind, useAuthors = false, paginationOpts: PaginationOpts = {}): Filter<number> {
-
-
-    let builder = filterBuilder().kinds(kind).pagination(paginationOpts)
-
-    if (useAuthors) {
-      builder = builder.authors(this.authenticator.getPublicKey())
-    } else {
-      builder = builder.pubkeys(this.authenticator.getPublicKey())
-    }
-
-    return builder.toFilter()
-  }
 
   private subscriptionFilters(kinds: (SmartVaultsKind | Kind)[]): Filter<number>[] {
     let filters: Filter<number>[] = [];
-    const smartVaultsKinds = new Set(Object.values(SmartVaultsKind));
-    const kindsSet = new Set(Object.values(Kind));
     const paginationOpts = {
       since: nostrDate()
     }
     for (const kind of kinds) {
-      if (smartVaultsKinds.has(kind as SmartVaultsKind)) {
-        const useAuthors = kind === SmartVaultsKind.Signers;
-        filters.push(this.buildFilter(kind as SmartVaultsKind, useAuthors, paginationOpts));
-      } else if (kindsSet.has(kind as Kind)) {
-        const useAuthors = kind === Kind.Metadata || kind === Kind.Contacts;
-        filters.push(this.buildFilter(kind as Kind, useAuthors, paginationOpts));
-      } else {
-        throw new Error(`Invalid kind: ${kind}`);
-      }
+      filters.push(...this.getFilter(kind, { paginationOpts }))
     }
 
     return filters;
+  }
+
+  private getFilter(kind: SmartVaultsKind | Kind, filterParams?: singleKindFilterParams): Filter<number>[] {
+    const params: singleKindFilterParams = { ...filterParams, kind }
+    let filter: FilterBuilder<number> = filterBuilder();
+    const ownPublicKey = this.authenticator.getPublicKey()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === undefined) return;
+      switch (key) {
+        case 'kind':
+          switch (value) {
+            case Kind.Metadata:
+            case Kind.Contacts:
+            case SmartVaultsKind.Signers:
+              filter = filter.kinds(value as SmartVaultsKind | Kind).authors(ownPublicKey);
+              break;
+            default:
+              filter = filter.kinds(value as SmartVaultsKind | Kind).pubkeys(ownPublicKey);
+              break;
+          }
+          break;
+        case 'authors':
+          filter = filter.authors(value as string | string[]);
+          break;
+        case 'pubkeys':
+          filter = filter.pubkeys(value as string | string[]);
+          break;
+        case 'ids':
+          filter = filter.ids(value as string | string[]);
+          break;
+        case 'events':
+          filter = filter.events(value as string | string[]);
+          break;
+        case 'paginationOpts':
+          filter = filter.pagination(value as PaginationOpts);
+          break;
+      }
+    });
+
+    return filter.toFilters();
   }
 
   /**
@@ -764,7 +781,7 @@ export class SmartVaults {
    * @async
    */
   getOwnedSigners = async (): Promise<SmartVaultsTypes.PublishedOwnedSigner[]> => {
-    const signersFilter = this.buildOwnedSignersFilter()
+    const signersFilter = this.getFilter(SmartVaultsKind.Signers)
     return this._getOwnedSigners(signersFilter)
   }
 
@@ -851,11 +868,8 @@ export class SmartVaults {
    */
   getSharedSigners = async (publicKeys?: string | string[]): Promise<SmartVaultsTypes.PublishedSharedSigner[]> => {
     const keysToFilter = Array.isArray(publicKeys) ? publicKeys : (publicKeys ? [publicKeys] : []);
-    const sharedSignersFilter = this.buildSharedSignersFilter();
-    if (keysToFilter.length > 0) {
-      sharedSignersFilter.authors(keysToFilter);
-    }
-    return this._getSharedSigners(sharedSignersFilter.toFilters());
+    const sharedSignersFilter = keysToFilter.length ? this.getFilter(SmartVaultsKind.SharedSigners, { authors: keysToFilter }) : this.getFilter(SmartVaultsKind.SharedSigners)
+    return this._getSharedSigners(sharedSignersFilter);
   }
 
   extractKey(descriptor: string): string {
@@ -971,11 +985,7 @@ export class SmartVaults {
    */
   async getDirectMessages(paginationOpts: PaginationOpts = {}): Promise<SmartVaultsTypes.PublishedDirectMessage[]> {
 
-    const directMessagesFilter = filterBuilder()
-      .kinds(Kind.EncryptedDirectMessage)
-      .pubkeys(this.authenticator.getPublicKey())
-      .pagination(paginationOpts)
-      .toFilters()
+    const directMessagesFilter = this.getFilter(Kind.EncryptedDirectMessage, { paginationOpts })
     const directMessageEvents = await this.nostrClient.list(directMessagesFilter)
     let directMessages: SmartVaultsTypes.PublishedDirectMessage[] = []
     for (let directMessageEvent of directMessageEvents) {
@@ -989,18 +999,6 @@ export class SmartVaults {
     return directMessages
   }
 
-  private buildSharedSignersFilter() {
-    return filterBuilder()
-      .kinds(SmartVaultsKind.SharedSigners)
-      .pubkeys(this.authenticator.getPublicKey())
-  }
-
-  private buildOwnedSignersFilter() {
-    return filterBuilder()
-      .kinds(SmartVaultsKind.Signers)
-      .authors(this.authenticator.getPublicKey())
-      .toFilters();
-  }
 
   private buildMySharedSignersFilter() {
     return filterBuilder()
@@ -1008,50 +1006,8 @@ export class SmartVaults {
       .authors(this.authenticator.getPublicKey())
   }
 
-  private buildProposalsFilter() {
-    return filterBuilder()
-      .kinds(SmartVaultsKind.Proposal)
-      .pubkeys(this.authenticator.getPublicKey())
-  }
-
-  private buildCompletedProposalsFilter() {
-    return filterBuilder()
-      .kinds(SmartVaultsKind.CompletedProposal)
-      .pubkeys(this.authenticator.getPublicKey())
-  }
-
-  private buildApprovedProposalsFilter() {
-    return filterBuilder()
-      .kinds(SmartVaultsKind.ApprovedProposal)
-      .pubkeys(this.authenticator.getPublicKey())
-  }
-
-  private buildLabelsFilter() {
-    return filterBuilder()
-      .kinds(SmartVaultsKind.Labels)
-      .pubkeys(this.authenticator.getPublicKey())
-  }
-
-  private buildSignerOfferingFilter(authors?: string[], ids?: string[], paginationOpts?: PaginationOpts) {
-    let filter = filterBuilder().kinds(SmartVaultsKind.SignerOffering)
-    if (ids?.length) {
-      filter = filter.ids(ids)
-    }
-    if (authors?.length) {
-      filter = filter.authors(authors)
-    }
-    if (paginationOpts) {
-      filter = filter.pagination(paginationOpts)
-    }
-    return filter.toFilters()
-  }
-
-  private async getProposalEvent(proposal_id: any) {
-    const proposalsFilter = filterBuilder()
-      .kinds(SmartVaultsKind.Proposal)
-      .ids(proposal_id)
-      .toFilters()
-
+  private async getProposalEvent(proposal_id: string) {
+    const proposalsFilter = this.getFilter(SmartVaultsKind.Proposal, { ids: proposal_id })
     const proposalEvents = await this.nostrClient.list(proposalsFilter)
 
     if (proposalEvents.length === 0) {
@@ -1101,7 +1057,7 @@ export class SmartVaults {
     const store = this.getStore(SmartVaultsKind.CompletedProposal);
     const missingIds = store.missing(completedProposalsIds);
     if (missingIds.length) {
-      const completedProposalsFilter = this.buildCompletedProposalsFilter().ids(missingIds).pagination(paginationOpts).toFilters();
+      const completedProposalsFilter = this.getFilter(SmartVaultsKind.CompletedProposal, { ids: completedProposalsIds, paginationOpts });
       await this._getCompletedProposals(completedProposalsFilter);
     }
     return store.getMany(completedProposalsIds, "id");
@@ -1140,7 +1096,7 @@ export class SmartVaults {
     const store = this.getStore(SmartVaultsKind.CompletedProposal);
     const missingIds = store.missing(policyIds, "policy_id");
     if (missingIds.length) {
-      const completedProposalsFilter = this.buildCompletedProposalsFilter().events(policyIds).pagination(paginationOpts).toFilters();
+      const completedProposalsFilter = this.getFilter(SmartVaultsKind.CompletedProposal, { events: policyIds, paginationOpts });
       await this._getCompletedProposals(completedProposalsFilter);
     }
     return store.getMany(policyIds, "policy_id");
@@ -1169,7 +1125,7 @@ export class SmartVaults {
    * @see SmartVaultsTypes.PublishedCompletedProofOfReserveProposal - For the structure of a PublishedCompletedProofOfReserveProposal object.
    */
   async getCompletedProposals(paginationOpts: PaginationOpts = {}): Promise<(SmartVaultsTypes.PublishedCompletedSpendingProposal | SmartVaultsTypes.PublishedCompletedProofOfReserveProposal)[]> {
-    const completedProposalsFilter = this.buildCompletedProposalsFilter().pagination(paginationOpts).toFilters()
+    const completedProposalsFilter = this.getFilter(SmartVaultsKind.CompletedProposal, { paginationOpts });
     const completedProposals = await this._getCompletedProposals(completedProposalsFilter)
     return completedProposals
   }
@@ -1197,11 +1153,8 @@ export class SmartVaults {
    */
   getApprovals = async (proposal_ids?: string[] | string): Promise<Map<string, SmartVaultsTypes.PublishedApprovedProposal[]>> => {
     const proposalIds = Array.isArray(proposal_ids) ? proposal_ids : proposal_ids ? [proposal_ids] : undefined;
-    let approvedProposalsFilter = this.buildApprovedProposalsFilter();
-    if (proposalIds) {
-      approvedProposalsFilter = approvedProposalsFilter.events(proposalIds);
-    }
-    const approvalsArray = await this._getApprovals(approvedProposalsFilter.toFilters());
+    let approvedProposalsFilter = this.getFilter(SmartVaultsKind.ApprovedProposal, { events: proposalIds })
+    const approvalsArray = await this._getApprovals(approvedProposalsFilter);
     const approvalsMap = new Map<string, SmartVaultsTypes.PublishedApprovedProposal[]>();
     approvalsArray.forEach(approval => {
       const proposalId = approval.proposal_id;
@@ -1239,12 +1192,9 @@ export class SmartVaults {
   getApprovalsByPolicyId = async (policy_ids: string[] | string): Promise<Map<string, (SmartVaultsTypes.PublishedApprovedProposal)
     | Array<SmartVaultsTypes.PublishedApprovedProposal>>> => {
     const policyIds = Array.isArray(policy_ids) ? policy_ids : [policy_ids]
-    let approvedProposalsFilter = this.buildApprovedProposalsFilter();
+    let approvedProposalsFilter = policyIds.length ? this.getFilter(SmartVaultsKind.ApprovedProposal, { events: policyIds }) : this.getFilter(SmartVaultsKind.ApprovedProposal)
     const store = this.getStore(SmartVaultsKind.ApprovedProposal);
-    if (policyIds) {
-      approvedProposalsFilter = approvedProposalsFilter.events(policyIds);
-    }
-    await this._getApprovals(approvedProposalsFilter.toFilters());
+    await this._getApprovals(approvedProposalsFilter);
     return store.getMany(policyIds, "policy_id");
   }
 
@@ -1275,7 +1225,7 @@ export class SmartVaults {
   async getProposalsById(proposal_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, SmartVaultsTypes.PublishedSpendingProposal | SmartVaultsTypes.PublishedProofOfReserveProposal>> {
     const proposalIds = Array.isArray(proposal_ids) ? proposal_ids : [proposal_ids]
     const store = this.getStore(SmartVaultsKind.Proposal);
-    const proposalsFilter = this.buildProposalsFilter().ids(proposal_ids).pagination(paginationOpts).toFilters();
+    const proposalsFilter = this.getFilter(SmartVaultsKind.Proposal, { ids: proposalIds, paginationOpts })
     await this._getProposals(proposalsFilter);
     return store.getMany(proposalIds, "proposal_id");
   }
@@ -1300,7 +1250,7 @@ export class SmartVaults {
   >> => {
     const policyIds = Array.isArray(policy_ids) ? policy_ids : [policy_ids]
     const store = this.getStore(SmartVaultsKind.Proposal);
-    const proposalsFilter = this.buildProposalsFilter().events(policyIds).pagination(paginationOpts).toFilters();
+    const proposalsFilter = this.getFilter(SmartVaultsKind.Proposal, { events: policyIds, paginationOpts })
     await this._getProposals(proposalsFilter);
     return store.getMany(policyIds, "policy_id");
   }
@@ -1314,7 +1264,7 @@ export class SmartVaults {
    * @returns A Promise that resolves to an array of decrypted proposals.
    */
   async getProposals(paginationOpts: PaginationOpts = {}): Promise<Array<SmartVaultsTypes.PublishedSpendingProposal | SmartVaultsTypes.PublishedProofOfReserveProposal>> {
-    const proposalsFilter = this.buildProposalsFilter().pagination(paginationOpts).toFilters()
+    const proposalsFilter = this.getFilter(SmartVaultsKind.Proposal, { paginationOpts })
     const proposals = await this._getProposals(proposalsFilter)
     return proposals
   }
@@ -1858,7 +1808,7 @@ export class SmartVaults {
    * const labels = await getLabels();
    */
   async getLabels(paginationOpts: PaginationOpts = {}): Promise<SmartVaultsTypes.PublishedLabel[]> {
-    const labelsFilter = this.buildLabelsFilter().pagination(paginationOpts).toFilters()
+    const labelsFilter = this.getFilter(SmartVaultsKind.Labels, { paginationOpts })
     const labels = await this._getLabels(labelsFilter)
     return labels
   }
@@ -1881,7 +1831,7 @@ export class SmartVaults {
   getLabelsByPolicyId = async (policy_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, SmartVaultsTypes.PublishedLabel | Array<SmartVaultsTypes.PublishedLabel>>> => {
     const policyIds = Array.isArray(policy_ids) ? policy_ids : [policy_ids]
     const store = this.getStore(SmartVaultsKind.Labels);
-    const labelsFilter = this.buildLabelsFilter().events(policyIds).pagination(paginationOpts).toFilters();
+    const labelsFilter = this.getFilter(SmartVaultsKind.Labels, { events: policyIds, paginationOpts })
     await this._getLabels(labelsFilter);
     return store.getMany(policyIds, "policy_id");
   }
@@ -1901,7 +1851,7 @@ export class SmartVaults {
   async getLabelById(label_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, SmartVaultsTypes.PublishedLabel>> {
     const labelIds = Array.isArray(label_ids) ? label_ids : [label_ids]
     const store = this.getStore(SmartVaultsKind.Labels);
-    const labelsFilter = this.buildLabelsFilter().ids(labelIds).pagination(paginationOpts).toFilters();
+    const labelsFilter = this.getFilter(SmartVaultsKind.Labels, { ids: labelIds, paginationOpts })
     await this._getLabels(labelsFilter);
     return store.getMany(labelIds, "label_id");
   }
@@ -1942,10 +1892,7 @@ export class SmartVaults {
    * const howManySigners = await getContactSignersCount("hexPubKey");
    */
   async getContactSignersCount(pubKey: string): Promise<number> {
-    const contactsFilter = filterBuilder()
-      .kinds(Kind.Contacts)
-      .authors(pubKey)
-      .toFilters()
+    const contactsFilter = this.getFilter(Kind.Contacts, { authors: pubKey })
     const contactsEvents = await this.nostrClient.list(contactsFilter)
     if (contactsEvents.length === 0) return 0
     const contactsEvent = contactsEvents[0]
@@ -2046,7 +1993,7 @@ export class SmartVaults {
   async getSignerOfferings(fromVerifiedKeyAgents?: boolean, paginationOpts?: PaginationOpts): Promise<SmartVaultsTypes.PublishedSignerOffering[]> {
     const verifedKeyAgents = fromVerifiedKeyAgents ? await this.getVerifiedKeyAgents() : []
     const verifiedKeyAgentsPubkeys: string[] = verifedKeyAgents.map(({ publicKey }) => publicKey)
-    const signerOfferingsFilter = this.buildSignerOfferingFilter(verifiedKeyAgentsPubkeys, [], paginationOpts)
+    const signerOfferingsFilter = this.getFilter(SmartVaultsKind.SignerOffering, { authors: verifiedKeyAgentsPubkeys, paginationOpts })
     const signerOfferings = await this._getSignerOfferings(signerOfferingsFilter)
     return signerOfferings
   }
@@ -2054,17 +2001,17 @@ export class SmartVaults {
   async getSignerOfferingsById(signerOfferingIds: string[], fromVerifiedKeyAgents?: boolean, paginationOpts?: PaginationOpts): Promise<Map<string, SmartVaultsTypes.PublishedSignerOffering>> {
     const verifedKeyAgents = fromVerifiedKeyAgents ? await this.getVerifiedKeyAgents() : []
     const verifiedKeyAgentsPubkeys: string[] = verifedKeyAgents.map(({ publicKey }) => publicKey)
-    const signerOfferingsFilter = this.buildSignerOfferingFilter(verifiedKeyAgentsPubkeys, signerOfferingIds, paginationOpts)
+    const signerOfferingsFilter = this.getFilter(SmartVaultsKind.SignerOffering, { ids: signerOfferingIds, authors: verifiedKeyAgentsPubkeys, paginationOpts })
     await this._getSignerOfferings(signerOfferingsFilter)
     const store = this.getStore(SmartVaultsKind.SignerOffering);
     return store.getMany(signerOfferingIds, "offeringId");
   }
 
 
-  saveSignerOffering = async (id: string, offering: SmartVaultsTypes.SignerOffering, confimationComponent?: () => Promise<boolean>): Promise<SmartVaultsTypes.PublishedSignerOffering> => {
+  saveSignerOffering = async (id: string, offering: SmartVaultsTypes.SignerOffering, confirmationComponent?: () => Promise<boolean>): Promise<SmartVaultsTypes.PublishedSignerOffering> => {
     const userSignerOfferings = await this.getSignerOfferingsById([id])
     if (userSignerOfferings.size > 0) {
-      const confirmedByUser = confimationComponent ? await confimationComponent() : window.confirm(`Signer offering with id ${id} already exists. Are you sure you want to replace it?`);
+      const confirmedByUser = confirmationComponent ? await confirmationComponent() : window.confirm(`Signer offering with id ${id} already exists. Are you sure you want to replace it?`);
       if (!confirmedByUser) {
         throw new Error(`Signer offering with id ${id} already exists.`)
       }
