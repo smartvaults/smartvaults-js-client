@@ -865,9 +865,9 @@ export class SmartVaults {
   }
 
   extractKey(descriptor: string): string {
-    const matches = descriptor.match(/\((.*?)\)/)
+    const matches = descriptor.match(/\[.*?\*/)
     if (!matches) throw new Error('Invalid descriptor')
-    return matches[1]
+    return matches[0]
   }
 
   /**

@@ -1367,7 +1367,7 @@ async function setProfile(id: number, smartVaults: SmartVaults): Promise<Profile
 async function saveSharedSignerPayload(smartVaults: SmartVaults, id: number): Promise<PublishedOwnedSigner> {
   const ownedSigner = await smartVaults.saveOwnedSigner({
     description: `description${id}`,
-    descriptor: `tr(xpubdescriptor${id}/*)#123`,
+    descriptor: `tr([xpubdescriptor${id}/*)#123`,
     fingerprint: `fingerprint${id}`,
     name: `name${id}`,
     t: `t${id}`,
@@ -1377,7 +1377,7 @@ async function saveSharedSignerPayload(smartVaults: SmartVaults, id: number): Pr
 
 function saveOwnedSignerPayload(id: number, ownerPubKey: string) {
   return {
-    descriptor: `tr(xpubdescriptor${id}/*)#123`,
+    descriptor: `tr([xpubdescriptor${id}/*)#123`,
     fingerprint: `fingerprint${id}`,
     ownerPubKey,
     name: `name${id}`,
