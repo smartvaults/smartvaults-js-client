@@ -1,7 +1,7 @@
 import { Authenticator } from '@smontero/nostr-ual'
 import { Event } from 'nostr-tools'
 import { Balance } from './Balance'
-import { BaseOwnedSigner, PolicyPathSelector, Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails, Utxo, PolicyPathsResult, LabeledTrxDetails, UndecoratedBasicTrxDetails } from './types'
+import { BaseOwnedSigner, PolicyPathSelector, Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails, Utxo, PolicyPathsResult, LabeledTrxDetails, UndecoratedBasicTrxDetails, UndecoratedTrxDetails } from './types'
 import { BitcoinUtil, Wallet } from './interfaces'
 import { PaginationOpts, TimeUtil, fromNostrDate, toPublished } from '../util'
 import { generateUiMetadata, UIMetadata, Key } from '../util/GenerateUiMetadata'
@@ -209,7 +209,8 @@ export class PublishedPolicy {
   async getTrx(txid: string): Promise<TrxDetails> {
     const trx = await (await this.synced()).get_trx(txid)
     const exchangeRate = await this.bitcoinExchangeRate.getExchangeRate();
-    return this.decorateTrxDetails(trx, exchangeRate)
+    const decoratedTrx = await this.decorateTrxDetails(trx, exchangeRate) as TrxDetails;
+    return decoratedTrx
   }
 
   async getUtxos(): Promise<Array<Utxo>> {
@@ -245,12 +246,19 @@ export class PublishedPolicy {
         this.getLabelsByPolicyId(this.id, {})
       ]);
     } catch (error) {
-      console.error("An error occurred:", error);
+      console.error("An error occurred while getting labeled utxos:", error);
       return [];
     }
-    const indexKey = "unhashed";
+    const indexKey = "labelData";
     const frozenUtxos = await this.getFrozenUtxosOutpoints();
-
+    const exchangeRate = await this.bitcoinExchangeRate.getExchangeRate();
+    if (exchangeRate) {
+      const values = utxos.map(utxo => utxo.utxo.txout.value);
+      const valuesFiat = await this.bitcoinExchangeRate.convertToFiat(values, exchangeRate);
+      utxos.forEach((utxo, index) => {
+        utxo.utxo.txout.valueFiat = valuesFiat[index];
+      });
+    }
     const maybeLabeledUtxos: Array<LabeledUtxo> = utxos.map(utxo => {
       const label: PublishedLabel | undefined = this.labelStore.get(utxo.address, indexKey) || this.labelStore.get(utxo.utxo.outpoint, indexKey);
       const frozen = frozenUtxos.includes(utxo.utxo.outpoint) ? true : false;
@@ -277,11 +285,18 @@ export class PublishedPolicy {
     return utxosOutpoints;
   }
 
-  async getFrozenBalance(): Promise<number> {
-    const utxos = await this.getLabeledUtxos();
+  async getFrozenBalance(): Promise<{ frozen: number, frozenFiat?: number }> {
+    const [utxos, exchangeRate] = await Promise.all([
+      this.getLabeledUtxos(),
+      this.bitcoinExchangeRate.getExchangeRate()
+    ]);
     const frozenUtxos = utxos.filter(utxo => utxo.frozen);
     const frozenBalance = frozenUtxos.reduce((accumulator, current) => accumulator + current.utxo.txout.value, 0);
-    return frozenBalance;
+    if (exchangeRate) {
+      const [frozenBalanceFiat] = await this.bitcoinExchangeRate.convertToFiat([frozenBalance], exchangeRate);
+      return { frozen: frozenBalance, frozenFiat: frozenBalanceFiat };
+    }
+    return { frozen: frozenBalance };
   }
 
   getVaultData(): string {
@@ -314,7 +329,7 @@ export class PublishedPolicy {
       console.error("Error while fetching labeled transactions:", error);
       return [];
     }
-    const indexKey = "unhashed";
+    const indexKey = "labelData";
 
     const maybeLabeledTrxs: Array<LabeledTrxDetails> = trxs.map(trx => {
       const label: PublishedLabel | undefined = this.labelStore.get(trx.txid, indexKey);
@@ -327,18 +342,52 @@ export class PublishedPolicy {
     return maybeLabeledTrxs;
   }
 
-  private decorateTrxDetails = async (trxDetails: any, exchangeRate?: number): Promise<any> => {
-    trxDetails.net = trxDetails.received - trxDetails.sent
+  private decorateTrxDetails = async (trxDetails: UndecoratedBasicTrxDetails | UndecoratedTrxDetails, exchangeRate?: number): Promise<BasicTrxDetails | TrxDetails> => {
+    const isExtendedTrxDetails = 'lock_time' in trxDetails && trxDetails.lock_time !== undefined;
+    const decoratedTrxDetails: any = { ...trxDetails };
+    decoratedTrxDetails.net = trxDetails.received - trxDetails.sent;
+
     if (exchangeRate) {
-      [trxDetails.netFiat] = await this.bitcoinExchangeRate.convertToFiat([trxDetails.net], exchangeRate)
+      const commonValuesToConvert = [
+        decoratedTrxDetails.net,
+        trxDetails.sent,
+        trxDetails.received,
+        trxDetails.fee
+      ];
+
+      const additionalValuesToConvert = isExtendedTrxDetails ? [
+        ...trxDetails.inputs.map(input => input.amount),
+        ...trxDetails.outputs.map(output => output.amount)
+      ] : [];
+
+      const valuesToConvert = [...commonValuesToConvert, ...additionalValuesToConvert];
+      const convertedValues = await this.bitcoinExchangeRate.convertToFiat(valuesToConvert, exchangeRate);
+
+      const [netFiat, sentFiat, receivedFiat, feeFiat, ...inputOutputFiat] = convertedValues;
+
+      decoratedTrxDetails.netFiat = netFiat;
+      decoratedTrxDetails.sentFiat = sentFiat;
+      decoratedTrxDetails.receivedFiat = receivedFiat;
+      decoratedTrxDetails.feeFiat = feeFiat;
+
+      if (isExtendedTrxDetails) {
+        const inputFiat = inputOutputFiat.slice(0, trxDetails.inputs.length);
+        const outputFiat = inputOutputFiat.slice(trxDetails.inputs.length);
+
+        decoratedTrxDetails.inputs = trxDetails.inputs.map((input, idx) => ({ ...input, amountFiat: inputFiat[idx] }));
+        decoratedTrxDetails.outputs = trxDetails.outputs.map((output, idx) => ({ ...output, amountFiat: outputFiat[idx] }));
+      }
     }
+
     if (trxDetails.confirmation_time) {
-      trxDetails.confirmation_time.confirmedAt = fromNostrDate(trxDetails.confirmation_time.timestamp)
+      decoratedTrxDetails.confirmation_time.confirmedAt = fromNostrDate(trxDetails.confirmation_time.timestamp);
     }
+
     if (trxDetails.unconfirmed_last_seen != null) {
-      trxDetails.unconfirmedLastSeenAt = fromNostrDate(trxDetails.unconfirmed_last_seen)
+      decoratedTrxDetails.unconfirmedLastSeenAt = fromNostrDate(trxDetails.unconfirmed_last_seen);
     }
-    return trxDetails
+
+    return decoratedTrxDetails;
   }
 
   private async synced(): Promise<Wallet> {
