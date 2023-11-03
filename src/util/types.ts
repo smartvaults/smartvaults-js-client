@@ -21,4 +21,5 @@ export type singleKindFilterParams = {
   events?: string | string[],
   kind?: SmartVaultsKind | Kind,
   paginationOpts?: PaginationOpts
+  identifiers?: string | string[],
 }

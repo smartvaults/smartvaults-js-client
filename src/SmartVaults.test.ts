@@ -5,9 +5,10 @@ import { SmartVaults } from './SmartVaults'
 import { NostrClient, Keys, Store } from './service'
 import { TimeUtil, buildEvent } from './util'
 import { BaseOwnedSigner, Contact, PublishedPolicy, BitcoinUtil, Wallet, type FinalizeTrxResponse } from './models'
-import { Metadata, Profile, SavePolicyPayload, SpendProposalPayload, PublishedDirectMessage, PublishedSpendingProposal, PublishedApprovedProposal, PublishedSharedSigner, PublishedOwnedSigner, MySharedSigner } from './types'
+import { Metadata, Profile, SavePolicyPayload, SpendProposalPayload, PublishedDirectMessage, PublishedSpendingProposal, PublishedApprovedProposal, PublishedSharedSigner, PublishedOwnedSigner, MySharedSigner, KeyAgentMetadata, SignerOffering } from './types'
 import { SmartVaultsKind, ProposalStatus, NetworkType } from './enum'
 import { Kind } from 'nostr-tools'
+
 jest.setTimeout(1000000);
 
 describe('SmartVaults', () => {
@@ -15,6 +16,7 @@ describe('SmartVaults', () => {
   let nostrClient: NostrClient
   let authenticator: DirectPrivateKeyAuthenticator
   let network: NetworkType
+  let authority: string
   let bitcoinUtil: MockProxy<BitcoinUtil>
   let keySet1
   let keySet2
@@ -33,11 +35,13 @@ describe('SmartVaults', () => {
     bitcoinUtil.toDescriptor.mockReturnValue("Descriptor")
     authenticator = new DirectPrivateKeyAuthenticator(keySet1.mainKey().privateKey)
     network = NetworkType.Bitcoin
+    authority = authenticator.getPublicKey()
     smartVaults = new SmartVaults({
       authenticator,
       bitcoinUtil,
       nostrClient,
-      network
+      network,
+      authority
     })
     global.fetch = jest.fn().mockReturnValue(Promise.resolve({
       ok: true,
@@ -324,7 +328,8 @@ describe('SmartVaults', () => {
         authenticator: new DirectPrivateKeyAuthenticator(keySet.mainKey().privateKey),
         bitcoinUtil,
         nostrClient,
-        network
+        network,
+        authority
       })
       const wallet = mock<Wallet>()
       wallet.sync.mockResolvedValue()
@@ -801,7 +806,8 @@ describe('SmartVaults', () => {
         authenticator: authenticator2,
         bitcoinUtil,
         nostrClient,
-        network
+        network,
+        authority
       });
 
       pubKey = keySet1.keys[1].publicKey
@@ -821,7 +827,8 @@ describe('SmartVaults', () => {
         authenticator: authenticator3,
         bitcoinUtil,
         nostrClient,
-        network
+        network,
+        authority
       });
 
       ownedSigner4 = await saveSharedSignerPayload(smartVaultsWithAuthenticator3, 6)
@@ -1241,12 +1248,42 @@ describe('SmartVaults', () => {
 
   });
 
+  describe('Key Agents', () => {
+    it('saveKeyAgent works', async () => {
+      const keyAgentMetadata: KeyAgentMetadata = { jurisdiction: "some jurisdiction", x: "x" }
+      const pubkey = smartVaults.authenticator.getPublicKey()
+      const expected = await smartVaults.saveKeyAgent(keyAgentMetadata)
+      const keyAgent = await smartVaults.getUnverifiedKeyAgentsByPubKeys([pubkey])
+      expect(keyAgent.size).toBe(1)
+      expect(keyAgent.get(pubkey)).toEqual(expected)
+    });
+
+    it('saveSignerOffering works', async () => {
+      const signerOffering: SignerOffering = { temperature: 'cold', device_type: 'coldcard', response_time: 5 }
+      const id = Math.random().toString(36).substring(7)
+      const expected = await smartVaults.saveSignerOffering(id, signerOffering, async () => true)
+      const offering = await smartVaults.getOwnedSignerOfferingsByIds([id])
+      expect(offering.size).toBe(1)
+      expect(offering.get(id)).toEqual(expected)
+    });
+
+    it('saveVerifiedKeyAgent works', async () => {
+      const pubkey = smartVaults.authenticator.getPublicKey()
+      const expected = await smartVaults.saveVerifiedKeyAgent(pubkey)
+      const keyAgent = await smartVaults.getVerifiedKeyAgents()
+      expect(keyAgent.length).toBe(1)
+      expect(keyAgent[0]).toEqual(expected)
+    });
+
+  });
+
   function newSmartVaults(keys: Keys): SmartVaults {
     return new SmartVaults({
       authenticator: new DirectPrivateKeyAuthenticator(keys.privateKey),
       bitcoinUtil,
       nostrClient,
-      network
+      network,
+      authority
     })
   }
 

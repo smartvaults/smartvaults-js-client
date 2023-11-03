@@ -15,6 +15,7 @@ import { LabelsHandler } from "./LabelsHandler";
 import { SignerOfferingsHandler } from "./SignerOfferingsHandler";
 import { Kind } from "nostr-tools";
 import { VerifiedKeyAgentsHandler } from "./VerifiedKeyAgentsHandler";
+import { UnverifiedKeyAgentsHandler } from "./UnverifiedKeyAgentsHandler";
 export class EventKindHandlerFactory {
   private smartVaults: SmartVaults
   private handlers: Map<number, EventKindHandler>
@@ -41,6 +42,9 @@ export class EventKindHandlerFactory {
       const getSharedSigners = this.smartVaults.getSharedSigners
       const getLabelsByPolicyId = this.smartVaults.getLabelsByPolicyId
       const extractKey = this.smartVaults.extractKey
+      const getProfiles = this.smartVaults.getProfiles
+      const getContacts = this.smartVaults.getContacts
+      const getVerifiedKeyAgentsPubKeys = this.smartVaults.getVerifiedKeyAgentsPubKeys
       const eventsStore = stores.get(StoreKind.Events)!
       const completedProposalsStore = stores.get(SmartVaultsKind.CompletedProposal)!
       const proposalsStore = stores.get(SmartVaultsKind.Proposal)!
@@ -84,7 +88,10 @@ export class EventKindHandlerFactory {
           this.handlers.set(eventKind, new LabelsHandler(stores.get(eventKind)!, eventsStore, getSharedKeysById))
           break
         case SmartVaultsKind.VerifiedKeyAgents:
-          this.handlers.set(eventKind, new VerifiedKeyAgentsHandler())
+          this.handlers.set(eventKind, new VerifiedKeyAgentsHandler(stores.get(eventKind)!, getContacts, getProfiles))
+          break
+        case SmartVaultsKind.KeyAgents:
+          this.handlers.set(eventKind, new UnverifiedKeyAgentsHandler(stores.get(eventKind)!, getContacts, getProfiles, getVerifiedKeyAgentsPubKeys))
           break
         case SmartVaultsKind.SignerOffering:
           this.handlers.set(eventKind, new SignerOfferingsHandler(stores.get(eventKind)!, eventsStore))

@@ -37,6 +37,10 @@ export class FilterBuilder<K extends number> {
     return this.addToArrayProperty(`#${TagType.Event}`, events)
   }
 
+  identifiers(identifiers: string | string[]): FilterBuilder<K> {
+    return this.addToArrayProperty(`#${TagType.Identifier}`, identifiers)
+  }
+
   kinds(kinds: K | K[]): FilterBuilder<K> {
     return this.addToArrayProperty('kinds', kinds)
   }

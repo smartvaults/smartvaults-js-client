@@ -1,5 +1,5 @@
 import { type Event } from 'nostr-tools'
-import { fromNostrDate, getTagValues } from '../util'
+import { fromNostrDate, getTagValue } from '../util'
 import { TagType } from '../enum'
 import { EventKindHandler } from './EventKindHandler'
 import { SignerOffering, PublishedSignerOffering } from '../types'
@@ -22,21 +22,31 @@ export class SignerOfferingsHandler extends EventKindHandler {
         const missingSignerOfferingEvents = signerOfferingEvents.filter(signerOfferingEvent => missingSignerOfferingEventsIds.includes(signerOfferingEvent.id))
         const signerOfferings = missingSignerOfferingEvents.map(signerOfferingEvent => {
             const {
-                id: signerOfferingEventId
+                id: signerOfferingEventId,
+                pubkey: keyAgentPubKey
             } = signerOfferingEvent
-            const signerOfferingId = getTagValues(signerOfferingEvent, TagType.Identifier)[0]
+            const signerOfferingId = getTagValue(signerOfferingEvent, TagType.Identifier)
             if (this.store.has(signerOfferingId, "offeringId")) {
-                const replacedSignerOffering = this.store.get(signerOfferingId, "offeringId")
-                const rawReplacedSignerOffering = this.eventsStore.get(replacedSignerOffering.id)
-                this.store.delete(replacedSignerOffering)
-                this.eventsStore.delete(rawReplacedSignerOffering)
+                const replacedSignerOffering: PublishedSignerOffering | Array<PublishedSignerOffering> = this.store.get(signerOfferingId, "offeringId")
+                if (Array.isArray(replacedSignerOffering)) {
+                    const matchedSignerOffering = replacedSignerOffering.find(val => val.keyAgentPubKey === keyAgentPubKey)
+                    if (matchedSignerOffering) {
+                        this.store.delete(matchedSignerOffering)
+                        const rawReplacedSignerOffering = this.eventsStore.get(matchedSignerOffering.id)
+                        if (rawReplacedSignerOffering) this.eventsStore.delete(rawReplacedSignerOffering)
+                    }
+                } else {
+                    this.store.delete(replacedSignerOffering)
+                    const rawReplacedSignerOffering = this.eventsStore.get(replacedSignerOffering.id)
+                    if (rawReplacedSignerOffering) this.eventsStore.delete(rawReplacedSignerOffering)
+                }
             }
             const signerOffering: SignerOffering = JSON.parse(signerOfferingEvent.content)
             const publishedSignerOffering: PublishedSignerOffering = {
                 ...signerOffering,
                 id: signerOfferingEventId,
                 offeringId: signerOfferingId,
-                keyAgentPubKey: signerOfferingEvent.pubkey,
+                keyAgentPubKey,
                 createdAt: fromNostrDate(signerOfferingEvent.created_at),
             }
             return { signerOffering: publishedSignerOffering, rawEvent: signerOfferingEvent }

@@ -1,8 +1,8 @@
 import { Authenticator, DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { generatePrivateKey, Kind, Event, Filter, Sub } from 'nostr-tools'
-import { SmartVaultsKind, TagType, ProposalType, ProposalStatus, ApprovalStatus, StoreKind, AuthenticatorType, NetworkType, FiatCurrency } from './enum'
+import { SmartVaultsKind, TagType, ProposalType, ProposalStatus, ApprovalStatus, StoreKind, AuthenticatorType, NetworkType, FiatCurrency, Magic } from './enum'
 import { NostrClient, PubPool, Store } from './service'
-import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished, nostrDate, isNip05Verified, type singleKindFilterParams, FilterBuilder } from './util'
+import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished, nostrDate, isNip05Verified, type singleKindFilterParams, FilterBuilder, TimeUtil } from './util'
 import { BasicTrxDetails, BaseOwnedSigner, BaseSharedSigner, BitcoinUtil, Contact, Policy, PublishedPolicy, TrxDetails } from './models'
 import * as SmartVaultsTypes from './types'
 import { EventKindHandlerFactory } from './event-kind-handler'
@@ -13,6 +13,7 @@ export class SmartVaults {
   nostrClient: NostrClient
   stores!: Map<number, Store>
   network: NetworkType
+  private readonly authority: string
   private eventKindHandlerFactor!: EventKindHandlerFactory
   private readonly bitcoinExchangeRate: BitcoinExchangeRate = BitcoinExchangeRate.getInstance();
 
@@ -21,16 +22,19 @@ export class SmartVaults {
     bitcoinUtil,
     nostrClient,
     network,
+    authority
   }: {
     authenticator: Authenticator,
     bitcoinUtil: BitcoinUtil,
     nostrClient: NostrClient,
     network: NetworkType,
+    authority: string
   }) {
     this.authenticator = authenticator
     this.bitcoinUtil = bitcoinUtil
     this.nostrClient = nostrClient
     this.network = network
+    this.authority = authority
     this.initStores()
     this.initEventKindHandlerFactory()
   }
@@ -48,7 +52,9 @@ export class SmartVaults {
     this.stores.set(StoreKind.Events, Store.createSingleIndexStore("id"))
     this.stores.set(StoreKind.MySharedSigners, Store.createMultiIndexStore(["id", "signerId"], "id"))
     this.stores.set(SmartVaultsKind.Labels, Store.createMultiIndexStore(["id", "policy_id", "label_id", "unhashed"], "id"))
-    this.stores.set(SmartVaultsKind.SignerOffering, Store.createMultiIndexStore(["id", "offeringId"], "id"))
+    this.stores.set(SmartVaultsKind.SignerOffering, Store.createMultiIndexStore(["id", "offeringId", "keyAgentPubKey"], "id"))
+    this.stores.set(SmartVaultsKind.VerifiedKeyAgents, Store.createMultiIndexStore(["eventId", "pubkey"], "pubkey"))
+    this.stores.set(SmartVaultsKind.KeyAgents, Store.createSingleIndexStore("pubkey"))
   }
   initEventKindHandlerFactory() {
     this.eventKindHandlerFactor = new EventKindHandlerFactory(this)
@@ -69,6 +75,10 @@ export class SmartVaults {
       throw new Error(`No store for event kind: ${eventKind}`)
     }
     return this.stores.get(eventKind)!
+  }
+
+  getAuthority(): string {
+    return this.authority
   }
 
   /**
@@ -185,7 +195,7 @@ export class SmartVaults {
    * @example
    * const profiles = await getProfiles(['publicKey1', 'publicKey2']);
    */
-  async getProfiles(publicKeys: string[]): Promise<SmartVaultsTypes.Profile[]> {
+  getProfiles = async (publicKeys: string[]): Promise<SmartVaultsTypes.Profile[]> => {
     const metadataFilter = filterBuilder()
       .kinds(Kind.Metadata)
       .authors(publicKeys)
@@ -223,16 +233,14 @@ export class SmartVaults {
    * @example
    * const contacts = await getContacts();
    */
-  async getContacts(): Promise<Contact[]> {
-    const contactsFilter = filterBuilder()
-      .kinds(Kind.Contacts)
-      .authors(this.authenticator.getPublicKey())
-      .toFilter()
-    const contactsEvent = await this.nostrClient.get(contactsFilter)
+  getContacts = async (): Promise<Contact[]> => {
+    const contactsFilter = this.getFilter(Kind.Contacts)
+
+    const contactsEvent = await this.nostrClient.list(contactsFilter)
     if (!contactsEvent) {
       return []
     }
-    return this.eventKindHandlerFactor.getHandler(Kind.Contacts).handle([contactsEvent])
+    return this.eventKindHandlerFactor.getHandler(Kind.Contacts).handle(contactsEvent)
   }
 
   /**
@@ -723,6 +731,15 @@ export class SmartVaults {
             case SmartVaultsKind.Signers:
               filter = filter.kinds(value as SmartVaultsKind | Kind).authors(ownPublicKey);
               break;
+            case SmartVaultsKind.SignerOffering:
+              filter = filter.kinds(value as SmartVaultsKind);
+              break;
+            case SmartVaultsKind.KeyAgents:
+              filter = filter.kinds(value as SmartVaultsKind);
+              break;
+            case SmartVaultsKind.VerifiedKeyAgents:
+              filter = filter.kinds(value as SmartVaultsKind).authors(this.getAuthority());
+              break;
             default:
               filter = filter.kinds(value as SmartVaultsKind | Kind).pubkeys(ownPublicKey);
               break;
@@ -739,6 +756,9 @@ export class SmartVaults {
           break;
         case 'events':
           filter = filter.events(value as string | string[]);
+          break;
+        case 'identifiers':
+          filter = filter.identifiers(value as string | string[]);
           break;
         case 'paginationOpts':
           filter = filter.pagination(value as PaginationOpts);
@@ -1851,7 +1871,7 @@ export class SmartVaults {
   async getLabelById(label_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, SmartVaultsTypes.PublishedLabel>> {
     const labelIds = Array.isArray(label_ids) ? label_ids : [label_ids]
     const store = this.getStore(SmartVaultsKind.Labels);
-    const labelsFilter = this.getFilter(SmartVaultsKind.Labels, { ids: labelIds, paginationOpts })
+    const labelsFilter = this.getFilter(SmartVaultsKind.Labels, { identifiers: labelIds, paginationOpts })
     await this._getLabels(labelsFilter);
     return store.getMany(labelIds, "label_id");
   }
@@ -1965,22 +1985,118 @@ export class SmartVaults {
     this.bitcoinExchangeRate.setUpdateInterval(interval)
   }
 
-  async getVerifiedKeyAgents(): Promise<Array<SmartVaultsTypes.Profile>> {
-    const base_url = this.network === NetworkType.Bitcoin ? 'https://smartvaults.app' : 'https://test.smartvaults.app'
-    const url = `${base_url}/.well-known/smartvaults.json`
-    const HTTP_OK = 200;
-    try {
-      const response = await fetch(url);
-      if (response.ok && response.status === HTTP_OK) {
-        const responseJson = await response.json();
-        const pubkeys: string[] = Object.values(responseJson.names);
-        return this.getProfiles(pubkeys)
-      } else {
-        throw new Error(`Error fetching verfied key agents: ${response.statusText}`);
-      }
-    } catch (fetchError) {
-      throw new Error(`Error fetching verfied key agents: ${fetchError}`);
+  isKeyAgent = async (pubkey?: string): Promise<boolean> => {
+    const author = pubkey || this.authenticator.getPublicKey()
+    const keyAgentFilter = this.getFilter(SmartVaultsKind.KeyAgents, { authors: author })
+    const keyAgentEvents = await this.nostrClient.list(keyAgentFilter)
+    return keyAgentEvents.length === 1 && keyAgentEvents[0].pubkey === author
+  }
+
+  async getVerifiedKeyAgentsEvent(): Promise<Event<SmartVaultsKind.VerifiedKeyAgents>> {
+    const identifier = this.getNetworkIdentifier();
+    const filter = this.getFilter(SmartVaultsKind.VerifiedKeyAgents, { identifiers: identifier });
+    const keyAgentEvents = await this.nostrClient.list(filter);
+    return this.processKeyAgentEvents(keyAgentEvents);
+  }
+
+  private getNetworkIdentifier(): Magic {
+    switch (this.network) {
+      case NetworkType.Bitcoin:
+        return Magic.Bitcoin;
+      case NetworkType.Testnet:
+        return Magic.Testnet;
+      case NetworkType.Regtest:
+        return Magic.Regtest;
+      case NetworkType.Signet:
+        return Magic.Signet;
+      default:
+        throw new Error(`Unknown network ${this.network}`);
     }
+  }
+
+
+  private processKeyAgentEvents(events: Array<Event<SmartVaultsKind.VerifiedKeyAgents>>): Event<SmartVaultsKind.VerifiedKeyAgents> {
+    const validEvents = events.filter(event => this.isValidAuthority(event));
+
+    if (validEvents.length === 0) {
+      throw new Error('No verified key agents found');
+    }
+
+    if (validEvents.length > 1) {
+      throw new Error('More than one verified key agents event found');
+    }
+
+    return validEvents[0];
+  }
+
+  private isValidAuthority(keyAgentEvent: Event<SmartVaultsKind.VerifiedKeyAgents>): boolean {
+    return keyAgentEvent.pubkey === this.getAuthority();
+  }
+
+  getVerifiedKeyAgentsPubKeys = async (): Promise<string[]> => {
+    let event: Event<SmartVaultsKind.VerifiedKeyAgents> | undefined
+    try {
+      event = await this.getVerifiedKeyAgentsEvent();
+    } catch (e) {
+      console.warn(e)
+      return []
+    }
+    const verifiedKeyAgents = JSON.parse(event.content);
+    return Array.from(verifiedKeyAgents.keys());
+  }
+
+  getVerifiedKeyAgents = async (): Promise<Array<SmartVaultsTypes.KeyAgent>> => {
+    let verifiedKeyAgentsEvent: Event<SmartVaultsKind.VerifiedKeyAgents> | undefined
+    try {
+      verifiedKeyAgentsEvent = await this.getVerifiedKeyAgentsEvent()
+    } catch (e) {
+      console.warn(e)
+      return []
+    }
+    const verifiedKeyAgentHandler = this.eventKindHandlerFactor.getHandler(SmartVaultsKind.VerifiedKeyAgents)
+    const verifedKeyAgents: Array<SmartVaultsTypes.KeyAgent> = await verifiedKeyAgentHandler.handle(verifiedKeyAgentsEvent)
+    return verifedKeyAgents
+  }
+
+
+  saveVerifiedKeyAgent = async (keyAgentPubKey: string): Promise<SmartVaultsTypes.KeyAgent> => {
+    const isAuthority = this.authenticator.getPublicKey() === this.getAuthority()
+    if (!isAuthority) throw new Error('Unauthorized')
+    const identifier = this.getNetworkIdentifier();
+    let verifiedKeyAgentsEvent: Event<SmartVaultsKind.VerifiedKeyAgents> | undefined
+    try {
+      verifiedKeyAgentsEvent = await this.getVerifiedKeyAgentsEvent()
+    } catch (e) {
+      console.warn(e)
+    }
+    const verifiedKeyAgents: SmartVaultsTypes.BaseVerifiedKeyAgents = verifiedKeyAgentsEvent?.content ? JSON.parse(verifiedKeyAgentsEvent.content) : {}
+    const currentTimeInSeconds = TimeUtil.toSeconds(new Date().getTime())
+    const baseVerifiedKeyAgentData: SmartVaultsTypes.BaseVerifiedKeyAgentData = { approved_at: currentTimeInSeconds }
+    const updatedVerifiedKeyAgents: SmartVaultsTypes.BaseVerifiedKeyAgents = { ...verifiedKeyAgents, [keyAgentPubKey]: baseVerifiedKeyAgentData }
+    const content = JSON.stringify(updatedVerifiedKeyAgents)
+
+    const updatedVerifiedKeyAgentsEvent = await buildEvent({
+      kind: SmartVaultsKind.VerifiedKeyAgents,
+      content,
+      tags: [[TagType.Identifier, identifier]],
+    },
+      this.authenticator)
+
+    const profilePromise = this.getProfile(keyAgentPubKey) || { publicKey: keyAgentPubKey }
+    const pub = this.nostrClient.publish(updatedVerifiedKeyAgentsEvent)
+
+    const [profile] = await Promise.all([profilePromise, pub.onFirstOkOrCompleteFailure()])
+
+    const verifiedKeyAgent: SmartVaultsTypes.KeyAgent = {
+      pubkey: keyAgentPubKey,
+      profile,
+      approvedAt: fromNostrDate(baseVerifiedKeyAgentData.approved_at),
+      isVerified: true,
+      isContact: false,
+      eventId: updatedVerifiedKeyAgentsEvent.id,
+    }
+
+    return verifiedKeyAgent
   }
 
 
@@ -1991,26 +2107,62 @@ export class SmartVaults {
   }
 
   async getSignerOfferings(fromVerifiedKeyAgents?: boolean, paginationOpts?: PaginationOpts): Promise<SmartVaultsTypes.PublishedSignerOffering[]> {
-    const verifedKeyAgents = fromVerifiedKeyAgents ? await this.getVerifiedKeyAgents() : []
-    const verifiedKeyAgentsPubkeys: string[] = verifedKeyAgents.map(({ publicKey }) => publicKey)
+    const verifiedKeyAgents = fromVerifiedKeyAgents ? await this.getVerifiedKeyAgentsPubKeys() : []
+    const verifiedKeyAgentsPubkeys: string[] | undefined = verifiedKeyAgents.length ? verifiedKeyAgents : undefined
     const signerOfferingsFilter = this.getFilter(SmartVaultsKind.SignerOffering, { authors: verifiedKeyAgentsPubkeys, paginationOpts })
     const signerOfferings = await this._getSignerOfferings(signerOfferingsFilter)
     return signerOfferings
   }
 
-  async getSignerOfferingsById(signerOfferingIds: string[], fromVerifiedKeyAgents?: boolean, paginationOpts?: PaginationOpts): Promise<Map<string, SmartVaultsTypes.PublishedSignerOffering>> {
-    const verifedKeyAgents = fromVerifiedKeyAgents ? await this.getVerifiedKeyAgents() : []
-    const verifiedKeyAgentsPubkeys: string[] = verifedKeyAgents.map(({ publicKey }) => publicKey)
-    const signerOfferingsFilter = this.getFilter(SmartVaultsKind.SignerOffering, { ids: signerOfferingIds, authors: verifiedKeyAgentsPubkeys, paginationOpts })
+  async getSignerOfferingsByIds(signerOfferingIds: string[], fromVerifiedKeyAgents?: boolean, paginationOpts?: PaginationOpts): Promise<Map<string, SmartVaultsTypes.PublishedSignerOffering>> {
+    const verifiedKeyAgents = fromVerifiedKeyAgents ? await this.getVerifiedKeyAgentsPubKeys() : []
+    const verifiedKeyAgentsPubkeys: string[] | undefined = verifiedKeyAgents.length ? verifiedKeyAgents : undefined
+    const signerOfferingsFilter = this.getFilter(SmartVaultsKind.SignerOffering, { identifiers: signerOfferingIds, authors: verifiedKeyAgentsPubkeys, paginationOpts })
     await this._getSignerOfferings(signerOfferingsFilter)
     const store = this.getStore(SmartVaultsKind.SignerOffering);
     return store.getMany(signerOfferingIds, "offeringId");
   }
 
+  async getOwnedSignerOfferings(): Promise<SmartVaultsTypes.PublishedSignerOffering[]> {
+    const isKeyAgent = await this.isKeyAgent()
+    if (!isKeyAgent) return []
+    const signerOfferingsFilter = this.getFilter(SmartVaultsKind.SignerOffering, { authors: this.authenticator.getPublicKey() })
+    const signerOfferings = await this._getSignerOfferings(signerOfferingsFilter)
+    return signerOfferings
+  }
+
+  async getOwnedSignerOfferingsByIds(signerOfferingIds: string[]): Promise<Map<string, SmartVaultsTypes.PublishedSignerOffering>> {
+    const isKeyAgent = await this.isKeyAgent()
+    if (!isKeyAgent) return new Map()
+    const signerOfferingsFilter = this.getFilter(SmartVaultsKind.SignerOffering, { identifiers: signerOfferingIds, authors: this.authenticator.getPublicKey() })
+    const offerings = await this._getSignerOfferings(signerOfferingsFilter)
+    const offeringsByOfferingId = new Map<string, SmartVaultsTypes.PublishedSignerOffering>()
+    offerings.forEach(offering => offeringsByOfferingId.set(offering.offeringId, offering))
+    return offeringsByOfferingId
+  }
+
+  getSignerOfferingsByKeyAgentPubKey = async (keyAgentsPubKeys?: string[], fromVerifiedKeyAgents?: boolean, paginationOpts?: PaginationOpts): Promise<Map<string, SmartVaultsTypes.PublishedSignerOffering> | Map<string, Array<SmartVaultsTypes.PublishedSignerOffering>>> => {
+    let authors: string[] | undefined
+    if (keyAgentsPubKeys) {
+      authors = keyAgentsPubKeys
+    }
+    if (fromVerifiedKeyAgents) {
+      const verifedKeyAgents = await this.getVerifiedKeyAgents()
+      const verifiedKeyAgentsPubkeys: string[] = verifedKeyAgents.map(keyAgent => keyAgent.profile.publicKey)
+      authors = authors ? authors.filter(author => verifiedKeyAgentsPubkeys.includes(author)) : verifiedKeyAgentsPubkeys
+    }
+    const signerOfferingsFilter = this.getFilter(SmartVaultsKind.SignerOffering, { authors, paginationOpts })
+    await this._getSignerOfferings(signerOfferingsFilter)
+    const store = this.getStore(SmartVaultsKind.SignerOffering);
+    return store.getMany(authors, "keyAgentPubKey");
+  }
+
 
   saveSignerOffering = async (id: string, offering: SmartVaultsTypes.SignerOffering, confirmationComponent?: () => Promise<boolean>): Promise<SmartVaultsTypes.PublishedSignerOffering> => {
-    const userSignerOfferings = await this.getSignerOfferingsById([id])
-    if (userSignerOfferings.size > 0) {
+    const isKeyAgent = await this.isKeyAgent()
+    if (!isKeyAgent) throw new Error('Only key agents can create signer offerings')
+    const ownedSignerOfferingsWithSameId = await this.getOwnedSignerOfferingsByIds([id])
+    if (ownedSignerOfferingsWithSameId.size !== 0) {
       const confirmedByUser = confirmationComponent ? await confirmationComponent() : window.confirm(`Signer offering with id ${id} already exists. Are you sure you want to replace it?`);
       if (!confirmedByUser) {
         throw new Error(`Signer offering with id ${id} already exists.`)
@@ -2035,6 +2187,50 @@ export class SmartVaults {
     }
 
     return publishedSignerOffering
+  }
+
+  saveKeyAgent = async (keyAgentMetadata: SmartVaultsTypes.KeyAgentMetadata): Promise<SmartVaultsTypes.KeyAgent> => {
+    const pubkey = this.authenticator.getPublicKey()
+    const isKeyAgent = await this.isKeyAgent(pubkey)
+    if (isKeyAgent) throw new Error('Already a key agent')
+    const keyAgentSignalingEvent = await buildEvent({
+      kind: SmartVaultsKind.KeyAgents,
+      content: '',
+      tags: [],
+    },
+      this.authenticator)
+
+    const profile = await this.getProfile() || { publicKey: pubkey }
+    const updatedProfile = { ...profile, ...keyAgentMetadata }
+    const pub = this.nostrClient.publish(keyAgentSignalingEvent)
+    const saveProfile = this.setProfile(updatedProfile)
+
+    await Promise.all([pub.onFirstOkOrCompleteFailure(), saveProfile])
+
+    const keyAgent: SmartVaultsTypes.KeyAgent = {
+      pubkey,
+      profile: updatedProfile,
+      isVerified: false,
+      isContact: false,
+    }
+
+    return keyAgent
+  }
+
+  getUnverifiedKeyAgents = async (): Promise<Array<SmartVaultsTypes.KeyAgent>> => {
+    const keyAgentsFilter = this.getFilter(SmartVaultsKind.KeyAgents)
+    const keyAgentsEvents = await this.nostrClient.list(keyAgentsFilter)
+    const keyAgentHandler = this.eventKindHandlerFactor.getHandler(SmartVaultsKind.KeyAgents)
+    const keyAgents = keyAgentHandler.handle(keyAgentsEvents)
+    return keyAgents
+  }
+
+  getUnverifiedKeyAgentsByPubKeys = async (pubKeys: string[]): Promise<Map<string, Array<SmartVaultsTypes.KeyAgent>> | Map<string, SmartVaultsTypes.KeyAgent>> => {
+    const keyAgentsFilter = this.getFilter(SmartVaultsKind.KeyAgents, { authors: pubKeys })
+    const keyAgentsEvents = await this.nostrClient.list(keyAgentsFilter)
+    const keyAgentHandler = this.eventKindHandlerFactor.getHandler(SmartVaultsKind.KeyAgents)
+    await keyAgentHandler.handle(keyAgentsEvents)
+    return this.getStore(SmartVaultsKind.KeyAgents).getMany(pubKeys, "pubkey")
   }
 
 

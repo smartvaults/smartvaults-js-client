@@ -14,10 +14,10 @@ export class TimeUtil {
   }
 
   static toSeconds(milliseconds: number): number {
-    return milliseconds / 1000
+    return Math.floor(milliseconds / 1000)
   }
 
   static toMinutes(milliseconds: number): number {
-    return this.toSeconds(milliseconds) / 60
+    return Math.floor(this.toSeconds(milliseconds) / 60)
   }
 }

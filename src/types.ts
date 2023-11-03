@@ -69,7 +69,7 @@ export type Metadata = KeyAgentMetadata & {
   custom?: Map<String, string>,
 }
 
-type KeyAgentMetadata = {
+export type KeyAgentMetadata = {
   jurisdiction?: string,
   x?: string,
   facebook?: string,
@@ -222,7 +222,7 @@ type Other = string
 export type SignerOffering = {
   temperature: Temperature | Other,
   device_type: DeviceType | Other,
-  reponse_time: number,
+  response_time: number,
   cost_per_signature?: Price,
   yearly_cost_basis_points?: number,
   yearly_cost?: Price,
@@ -234,9 +234,16 @@ export type PublishedSignerOffering = Published & SignerOffering & {
 }
 
 export type KeyAgent = {
+  pubkey: string,
   profile: Profile,
   isVerified: boolean,
   isContact: boolean,
-  offerings?: Array<SignerOffering>,
-  lastUpdated?: Date,
+  approvedAt?: Date,
+  eventId?: string,
+}
+
+export type BaseVerifiedKeyAgentData = { approved_at: number }
+
+export type BaseVerifiedKeyAgents = {
+  [key: string]: BaseVerifiedKeyAgentData
 }
