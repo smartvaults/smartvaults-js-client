@@ -2169,9 +2169,11 @@ export class SmartVaults {
       authors = keyAgentsPubKeys
     }
     if (fromVerifiedKeyAgents) {
-      const verifedKeyAgents = await this.getVerifiedKeyAgents()
-      const verifiedKeyAgentsPubkeys: string[] = verifedKeyAgents.map(keyAgent => keyAgent.profile.publicKey)
-      authors = authors ? authors.filter(author => verifiedKeyAgentsPubkeys.includes(author)) : verifiedKeyAgentsPubkeys
+      const verifiedKeyAgents = fromVerifiedKeyAgents ? await this.getVerifiedKeyAgentsPubKeys() : []
+      const verifiedKeyAgentsPubkeys: string[] | undefined = verifiedKeyAgents.length ? verifiedKeyAgents : undefined
+      if (verifiedKeyAgentsPubkeys) {
+        authors = authors ? authors.filter(author => verifiedKeyAgentsPubkeys.includes(author)) : verifiedKeyAgentsPubkeys
+      }
     }
     const signerOfferingsFilter = this.getFilter(SmartVaultsKind.SignerOffering, { authors, paginationOpts })
     await this._getSignerOfferings(signerOfferingsFilter)
