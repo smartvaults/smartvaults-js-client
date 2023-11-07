@@ -5,7 +5,7 @@ import { SmartVaults } from './SmartVaults'
 import { NostrClient, Keys, Store } from './service'
 import { TimeUtil, buildEvent } from './util'
 import { BaseOwnedSigner, Contact, PublishedPolicy, BitcoinUtil, Wallet, type FinalizeTrxResponse } from './models'
-import { Metadata, Profile, SavePolicyPayload, SpendProposalPayload, PublishedDirectMessage, PublishedSpendingProposal, PublishedApprovedProposal, PublishedSharedSigner, PublishedOwnedSigner, MySharedSigner, KeyAgentMetadata, SignerOffering } from './types'
+import { Metadata, Profile, SavePolicyPayload, SpendProposalPayload, PublishedDirectMessage, PublishedSpendingProposal, PublishedApprovedProposal, PublishedSharedSigner, PublishedOwnedSigner, MySharedSigner, KeyAgentMetadata, SignerOffering, KeyAgent } from './types'
 import { SmartVaultsKind, ProposalStatus, NetworkType } from './enum'
 import { Kind } from 'nostr-tools'
 
@@ -936,6 +936,7 @@ describe('SmartVaults', () => {
     let saveApprovedProposal2;
     let saveApprovedProposal3;
     let saveApprovedProposal4;
+    let keyAgentPaymentProposal1;
     let proposalApproved1;
     let proposalApproved2;
     let completedProposal2;
@@ -961,6 +962,7 @@ describe('SmartVaults', () => {
         .mockResolvedValueOnce({ amount: 3000, psbt: "encoded psbt3" })
         .mockResolvedValueOnce({ amount: 4000, psbt: "encoded psbt4" })
         .mockResolvedValueOnce({ amount: 5000, psbt: "encoded psbt5" })
+        .mockResolvedValueOnce({ amount: 6000, psbt: "encoded psbt6" })
       bitcoinUtil.createWallet.mockReturnValue(wallet)
       let mockTxid = Math.random().toString(36).substring(7)
       expectedTrx = { txid: mockTxid, psbt: "psbt1", trx: { inputs: ["input1"], txid: mockTxid, net: -1, confirmation_time: { confirmetAt: (new Date()).toString() } } }
@@ -976,11 +978,13 @@ describe('SmartVaults', () => {
       let policy2 = await smartVaults2.savePolicy(savePolicyPayload2) // Policy 2 is created by authenticator 2
       let payloadWithBothKeys = getSavePolicyPayload(13, [...keySet1.getPublicKeys(), ...altKeySet.getPublicKeys()], -13)
       let policy3 = await smartVaults.savePolicy(payloadWithBothKeys) // Policy 3 is created by authenticator 1 but has both keys
+      let savePolicyPayload3 = getSavePolicyPayload(14, keySet1.getPublicKeys(), -14)
+      let policy4 = await smartVaults.savePolicy(savePolicyPayload3)
 
 
       let spendProposalPayload1 = spendProposalPayload(11, policy1)
       let spendProposalPayload2 = spendProposalPayload(12, policy2)
-      let spendProposalPayload3 = spendProposalPayload(13, policy3) // 'signed' needed since it will be approved
+      let spendProposalPayload3 = spendProposalPayload(13, policy3)
 
       spendProposal1 = await smartVaults.spend(spendProposalPayload1)
       spendProposal2 = await smartVaults2.spend(spendProposalPayload2)
@@ -994,6 +998,8 @@ describe('SmartVaults', () => {
       proofOfReserveProposal2 = await smartVaults2._saveProofOfReserveProposal(policy2.id, saveProofOfReserveProposalPayload2)
       proofOfReserveProposal3 = await smartVaults._saveProofOfReserveProposal(policy3.id, saveProofOfReserveProposalPayload3)
 
+      let keyAgentPaymentPayload1 = keyAgentPaymentPayload(14, policy4)
+      keyAgentPaymentProposal1 = await smartVaults.spend(keyAgentPaymentPayload1)
 
       proposalApproved1 = proofOfReserveProposal3.proposal_id
       proposalApproved2 = spendProposal3.proposal_id
@@ -1015,7 +1021,7 @@ describe('SmartVaults', () => {
 
     it('returns proposals', async () => {
       const start = Date.now();
-      await checkProposals(smartVaults, 4, [spendProposal1, proofOfReserveProposal1, proofOfReserveProposal3, spendProposal3]);
+      await checkProposals(smartVaults, 5, [spendProposal1, proofOfReserveProposal1, proofOfReserveProposal3, spendProposal3, keyAgentPaymentProposal1]);
       firstCallTime1 = Date.now() - start;
       const start2 = Date.now();
       await checkProposals(smartVaults2, 4, [spendProposal2, proofOfReserveProposal2, proofOfReserveProposal3, spendProposal3]);
@@ -1024,7 +1030,7 @@ describe('SmartVaults', () => {
 
     it('return proposal should be faster because of cache', async () => {
       const start = Date.now();
-      await checkProposals(smartVaults, 4, [spendProposal1, proofOfReserveProposal1, proofOfReserveProposal3, spendProposal3]);
+      await checkProposals(smartVaults, 5, [spendProposal1, proofOfReserveProposal1, proofOfReserveProposal3, spendProposal3, keyAgentPaymentProposal1]);
       secondCallTime1 = Date.now() - start;
       const start2 = Date.now();
       await checkProposals(smartVaults2, 4, [spendProposal2, proofOfReserveProposal2, proofOfReserveProposal3, spendProposal3]);
@@ -1046,9 +1052,9 @@ describe('SmartVaults', () => {
 
 
     it('getProposalsById', async () => {
-      const proposals = await smartVaults.getProposalsById([spendProposal1.proposal_id, spendProposal3.proposal_id]);
-      expect(proposals.size).toBe(2);
-      expect(new Set(Array.from(proposals.values()))).toEqual(new Set([spendProposal1, spendProposal3]));
+      const proposals = await smartVaults.getProposalsById([spendProposal1.proposal_id, spendProposal3.proposal_id, keyAgentPaymentProposal1.proposal_id]);
+      expect(proposals.size).toBe(3);
+      expect(new Set(Array.from(proposals.values()))).toEqual(new Set([spendProposal1, spendProposal3, keyAgentPaymentProposal1]));
     });
 
     it('getProposalsByPolicyId', async () => {
@@ -1077,10 +1083,11 @@ describe('SmartVaults', () => {
 
       let smartVaults = newSmartVaults(keySet1.keys[1])
       let directMessages = await smartVaults.getDirectMessages();
-      expect(directMessages.length).toBe(2) // 2 proposals sent by key 1
+      expect(directMessages.length).toBe(3) // 3 proposals sent by key 1
       let publicKeyAuth1 = keySet1.mainKey().publicKey
-      assertProposalDirectMessage(directMessages[0], spendProposal3, publicKeyAuth1)
-      assertProposalDirectMessage(directMessages[1], spendProposal1, publicKeyAuth1)
+      assertProposalDirectMessage(directMessages[1], spendProposal3, publicKeyAuth1)
+      assertProposalDirectMessage(directMessages[2], spendProposal1, publicKeyAuth1)
+      assertProposalDirectMessage(directMessages[0], keyAgentPaymentProposal1, publicKeyAuth1)
 
       smartVaults = newSmartVaults(altKeySet.keys[1])
       directMessages = await smartVaults.getDirectMessages();
@@ -1137,7 +1144,7 @@ describe('SmartVaults', () => {
       expect(completedProposals.length).toBe(2);
       expect(new Set(completedProposals)).toEqual(new Set([completedProposal2, completedProposal3]));
       let activeProposalsAuth1 = await smartVaults.getProposals();
-      expect(activeProposalsAuth1.length).toBe(2);
+      expect(activeProposalsAuth1.length).toBe(3);
       let activeProposalsAuth2 = await smartVaults2.getProposals();
       expect(activeProposalsAuth2.length).toBe(2);
     });
@@ -1184,11 +1191,11 @@ describe('SmartVaults', () => {
       bitcoinUtil.getPsbtUtxos.mockReturnValue(['nocommon', 'utxos'])
       const proposalWithNoCommonUtxo = await smartVaults.spend(spendProposalPayload(23, policy1))
       const proposalsBefore = await smartVaults.getProposals()
-      expect(proposalsBefore.length).toBe(4)
+      expect(proposalsBefore.length).toBe(5)
       expect(proposalsBefore[1]).toEqual(proposalWithOneCommonUtxo)
       finalizedProposal = await smartVaults.finalizeSpendingProposal(spendProposal1.proposal_id)
       const proposalsAfter = await smartVaults.getProposals()
-      expect(proposalsAfter.length).toBe(1)
+      expect(proposalsAfter.length).toBe(2)
       expect(proposalsAfter[0]).toEqual(proposalWithNoCommonUtxo)
       expect(finalizedProposal.tx).toEqual(expectedTrx.trx)
       expect(finalizedProposal.description).toEqual(spendProposal1.description)
@@ -1250,22 +1257,57 @@ describe('SmartVaults', () => {
   });
 
   describe('Key Agents', () => {
+    let keyAgent1: KeyAgent
+    let keyAgent2: KeyAgent
+    let smartVaults2: SmartVaults
+    let smartVaults3: SmartVaults
+    let ownedSigner1: PublishedOwnedSigner
+    beforeAll(() => {
+      smartVaults2 = newSmartVaults(altKeySet.mainKey())
+      const keys = new KeySet(1)
+      smartVaults3 = newSmartVaults(keys.mainKey())
+    }
+    );
+
     it('saveKeyAgent works', async () => {
-      const keyAgentMetadata: KeyAgentMetadata = { jurisdiction: "some jurisdiction", x: "x" }
-      const pubkey = smartVaults.authenticator.getPublicKey()
-      const expected = await smartVaults.saveKeyAgent(keyAgentMetadata)
-      const keyAgent = await smartVaults.getUnverifiedKeyAgentsByPubKeys([pubkey])
-      expect(keyAgent.size).toBe(1)
-      expect(keyAgent.get(pubkey)).toEqual(expected)
+      const keyAgentMetadata1: KeyAgentMetadata = { jurisdiction: "some jurisdiction", x: "https://twitter.com/smartvaults_1", facebook: "https://facebook.com/smartvaults_1" }
+      const keyAgentMetadata2: KeyAgentMetadata = { jurisdiction: "some jurisdiction", x: "https://twitter.com/smartvaults_2", facebook: "https://facebook.com/smartvaults_2" }
+      keyAgent1 = await smartVaults.saveKeyAgent(keyAgentMetadata1)
+      keyAgent2 = await smartVaults2.saveKeyAgent(keyAgentMetadata2)
+      const expected = [keyAgent1, keyAgent2]
+      const keyAgents = await smartVaults.getUnverifiedKeyAgents()
+      expect(keyAgents).toEqual(expect.arrayContaining(expected))
+    });
+
+    it('saveKeyAgent throws error if keyAgent already exists', async () => {
+      await expect(smartVaults.saveKeyAgent()).rejects.toThrowError('Already a key agent')
+    });
+
+    it('getUnverifiedKeyAgentsByPubKey works', async () => {
+      const pubkey = keyAgent1.profile.publicKey
+      const keyAgents = await smartVaults.getUnverifiedKeyAgentsByPubKeys([pubkey])
+      expect(keyAgents.size).toBe(1)
+      expect(keyAgents.get(pubkey)).toEqual(keyAgent1)
     });
 
     it('saveSignerOffering works', async () => {
       const signerOffering: SignerOffering = { temperature: 'cold', device_type: 'coldcard', response_time: 5 }
-      const id = Math.random().toString(36).substring(7)
-      const expected = await smartVaults.saveSignerOffering(id, signerOffering, async () => true)
-      const offering = await smartVaults.getOwnedSignerOfferingsByIds([id])
+      ownedSigner1 = (await smartVaults.getOwnedSigners())[0]
+      const expected = await smartVaults.saveSignerOffering(ownedSigner1, signerOffering, async () => false)
+      const offering = await smartVaults.getOwnedSignerOfferingsBySignerFingerprint([ownedSigner1.fingerprint])
       expect(offering.size).toBe(1)
-      expect(offering.get(id)).toEqual(expected)
+      expect(offering.get(ownedSigner1.fingerprint)).toEqual(expected)
+    });
+
+    it('saveSignerOffering throws error if user is not a key agent', async () => {
+      const signerOffering: SignerOffering = { temperature: 'cold', device_type: 'coldcard', response_time: 5 }
+      const ownedSigner = {} as PublishedOwnedSigner
+      await expect(smartVaults3.saveSignerOffering(ownedSigner, signerOffering, async () => false)).rejects.toThrowError('Only key agents can create signer offerings')
+    });
+
+    it('saveSignerOffering throws error if a signer offering alredy exists for the signer and user cancels', async () => {
+      const signerOffering = {} as SignerOffering
+      await expect(smartVaults.saveSignerOffering(ownedSigner1, signerOffering, async () => false)).rejects.toThrowError('Canceled by user.')
     });
 
     it('saveVerifiedKeyAgent works', async () => {
@@ -1274,6 +1316,11 @@ describe('SmartVaults', () => {
       const keyAgent = await smartVaults.getVerifiedKeyAgents()
       expect(keyAgent.length).toBe(1)
       expect(keyAgent[0]).toEqual(expected)
+    });
+
+    it('saveVerifiedKeyAgent throws error if user is not authority', async () => {
+      const pubkey = smartVaults2.authenticator.getPublicKey()
+      await expect(smartVaults2.saveVerifiedKeyAgent(pubkey)).rejects.toThrowError('Unauthorized')
     });
 
   });
@@ -1440,6 +1487,17 @@ function saveProofOfReserveProposalPayload(id: number) {
       message: `message${id}`,
       psbt: `psbt${id}`,
     }
+  }
+}
+
+function keyAgentPaymentPayload(id: number, policy: PublishedPolicy): SpendProposalPayload {
+  return {
+    policy,
+    to_address: `to_address${id}`,
+    description: `description${id}`,
+    amountDescriptor: "1000",
+    feeRatePriority: "low",
+    keyAgentPayment: { signer_descriptor: `xpubdescriptor${id}`, period: { start: 1 + id, end: 2 + id } }
   }
 }
 

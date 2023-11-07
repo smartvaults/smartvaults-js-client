@@ -1,6 +1,6 @@
 import { type Event, Kind } from 'nostr-tools'
 import { ProposalType, TagType, ApprovalStatus } from '../enum'
-import { type PublishedApprovedProposal, type BaseApprovedProposal, type SharedKeyAuthenticator, } from '../types'
+import { type PublishedApprovedProposal, type BaseApprovedProposal, type SharedKeyAuthenticator } from '../types'
 import { type Store, type NostrClient } from '../service'
 import { getTagValues, fromNostrDate, buildEvent } from '../util'
 import { EventKindHandler } from './EventKindHandler'
@@ -18,7 +18,6 @@ export class ApprovalsHandler extends EventKindHandler {
     this.nostrClient = nostrClient
     this.authenticator = authenticator
     this.getSharedKeysById = getSharedKeysById
-
   }
 
   protected async _handle<K extends number>(approvalEvents: Array<Event<K>>): Promise<Array<PublishedApprovedProposal>> {

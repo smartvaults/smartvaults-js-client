@@ -5,7 +5,7 @@ import { BaseOwnedSigner, PolicyPathSelector, Trx, Policy, FinalizeTrxResponse, 
 import { BitcoinUtil, Wallet } from './interfaces'
 import { PaginationOpts, TimeUtil, fromNostrDate, toPublished } from '../util'
 import { generateUiMetadata, UIMetadata, Key } from '../util/GenerateUiMetadata'
-import { LabeledUtxo, PublishedLabel, PublishedOwnedSigner, PublishedProofOfReserveProposal, PublishedSharedSigner, PublishedSpendingProposal } from '../types'
+import { LabeledUtxo, PublishedLabel, PublishedOwnedSigner, PublishedSharedSigner, PublishedSpendingProposal, ActivePublishedProposal } from '../types'
 import { type Store } from '../service'
 import { StringUtil } from '../util'
 import { BitcoinExchangeRate } from '../util'
@@ -27,7 +27,7 @@ export class PublishedPolicy {
   private getSharedSigners: (publicKeys?: string | string[]) => Promise<PublishedSharedSigner[]>
   private getOwnedSigners: () => Promise<PublishedOwnedSigner[]>
   private toMiniscript: (descriptor: string) => string
-  private getProposalsByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, (PublishedSpendingProposal | PublishedProofOfReserveProposal) | Array<PublishedSpendingProposal | PublishedProofOfReserveProposal>>>
+  private getProposalsByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, ActivePublishedProposal | Array<ActivePublishedProposal>>>
   private getLabelsByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, PublishedLabel | Array<PublishedLabel>>>
   private labelStore: Store
 
@@ -47,7 +47,7 @@ export class PublishedPolicy {
     },
     getSharedSigners: (publicKeys?: string | string[]) => Promise<PublishedSharedSigner[]>,
     getOwnedSigners: () => Promise<PublishedOwnedSigner[]>,
-    getProposalsByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, (PublishedSpendingProposal | PublishedProofOfReserveProposal) | Array<PublishedSpendingProposal | PublishedProofOfReserveProposal>>>,
+    getProposalsByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, ActivePublishedProposal | Array<ActivePublishedProposal>>>,
     getLabelsByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, PublishedLabel | Array<PublishedLabel>>>,
     labelStore: Store
   )
@@ -84,7 +84,7 @@ export class PublishedPolicy {
     sharedKeyAuth: Authenticator,
     getSharedSigners: (publicKeys?: string | string[]) => Promise<PublishedSharedSigner[]>,
     getOwnedSigners: () => Promise<PublishedOwnedSigner[]>,
-    getProposalsByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, (PublishedSpendingProposal | PublishedProofOfReserveProposal) | Array<PublishedSpendingProposal | PublishedProofOfReserveProposal>>>,
+    getProposalsByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, ActivePublishedProposal | Array<ActivePublishedProposal>>>,
     getLabelsByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, PublishedLabel | Array<PublishedLabel>>>,
     labelStore: Store,
 

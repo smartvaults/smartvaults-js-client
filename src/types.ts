@@ -44,6 +44,7 @@ export type SpendProposalPayload = {
   policyPath?: Map<string, Array<number>>
   utxos?: Array<string>
   useFrozenUtxos?: boolean
+  keyAgentPayment?: BaseKeyAgentPaymentProposal
 }
 
 export type Metadata = KeyAgentMetadata & {
@@ -88,15 +89,17 @@ export type ContactProfile = Profile & {
 }
 type BaseProposal = {
   descriptor: string
-  psbt: string // to be change to PSBT
+  psbt: string
+}
+
+type BaseSpendingProposal = {
+  to_address: string
+  amount: number
+  description: string,
 }
 
 export type SpendingProposal = {
-  [key: string]: BaseProposal & {
-    to_address: string
-    amount: number
-    description: string,
-  }
+  [key: string]: BaseProposal & BaseSpendingProposal
 }
 
 export type ProofOfReserveProposal = {
@@ -108,7 +111,7 @@ export type ProofOfReserveProposal = {
 type PublishedProposal = {
   policy_id: string
   proposal_id: string
-  type: string
+  type: ProposalType
   createdAt: Date
   status: string
   signer: string
@@ -134,13 +137,8 @@ export type PublishedApprovedProposal = {
   status: string,
 }
 
-export type PublishedSpendingProposal = PublishedProposal & BaseProposal & {
-  to_address: string
-  amount: number
+export type PublishedSpendingProposal = PublishedProposal & BaseProposal & BaseSpendingProposal & BaseFiat & {
   amountFiat?: number
-  activeFiatCurrency?: string
-  bitcoinExchangeRate?: number
-  description: string,
   utxos: string[]
 }
 export type PublishedProofOfReserveProposal = PublishedProposal & BaseProposal & {
@@ -148,11 +146,18 @@ export type PublishedProofOfReserveProposal = PublishedProposal & BaseProposal &
   utxos?: string[]
 }
 
+type BaseFiat = {
+  activeFiatCurrency?: string
+  bitcoinExchangeRate?: number
+}
+
+type BaseCompletedProposal = {
+  tx: string
+  description: string
+}
+
 export type CompletedSpendingProposal = {
-  [key: string]: {
-    tx: string
-    description: string
-  }
+  [key: string]: BaseCompletedProposal
 }
 
 
@@ -234,6 +239,7 @@ export type SignerOffering = {
 export type PublishedSignerOffering = Published & SignerOffering & {
   keyAgentPubKey: string,
   offeringId: string,
+  SignerFingerprint?: string,
 }
 
 export type KeyAgent = {
@@ -250,3 +256,41 @@ export type BaseVerifiedKeyAgentData = { approved_at: number }
 export type BaseVerifiedKeyAgents = {
   [key: string]: BaseVerifiedKeyAgentData
 }
+
+type Period = {
+  start: number,
+  end: number,
+}
+
+export type KeyAgentPaymentProposal = {
+  [key: string]: BaseProposal & BaseKeyAgentPaymentProposal & {
+    amount: number,
+    description: string,
+  }
+}
+
+export type CompletedKeyAgentPaymentProposal = {
+  [key: string]: BaseKeyAgentPaymentProposal & BaseCompletedProposal
+}
+
+export type KeyAgentPaymentProposalPayload = SpendProposalPayload & {
+  keyAgentPayment: BaseKeyAgentPaymentProposal
+}
+
+export type BaseKeyAgentPaymentProposal = {
+  signer_descriptor: string,
+  period: Period,
+}
+
+export type PublishedKeyAgentPaymentProposal = PublishedProposal & BaseProposal & BaseKeyAgentPaymentProposal & BaseSpendingProposal & BaseFiat & {
+  amountFiat?: number
+  utxos: string[]
+}
+
+export type CompletedProposal = CompletedSpendingProposal | CompletedProofOfReserveProposal | CompletedKeyAgentPaymentProposal
+
+export type PublishedCompletedKeyAgentPaymentProposal = PublishedCompleted & BaseProposal & BaseKeyAgentPaymentProposal & BaseCompletedProposal
+
+export type ActivePublishedProposal = PublishedSpendingProposal | PublishedProofOfReserveProposal | PublishedKeyAgentPaymentProposal
+
+export type CompletedPublishedProposal = PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal | PublishedCompletedKeyAgentPaymentProposal

@@ -1,6 +1,7 @@
 export enum ProposalType {
   Spending = "Spending",
   ProofOfReserve = "ProofOfReserve",
+  KeyAgentPayment = "KeyAgentPayment",
 }
 
 export enum ProposalStatus {

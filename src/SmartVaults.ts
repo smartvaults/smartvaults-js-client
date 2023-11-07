@@ -577,8 +577,9 @@ export class SmartVaults {
     feeRatePriority,
     policyPath,
     utxos,
-    useFrozenUtxos = false
-  }: SmartVaultsTypes.SpendProposalPayload): Promise<SmartVaultsTypes.PublishedSpendingProposal> {
+    useFrozenUtxos = false,
+    keyAgentPayment
+  }: SmartVaultsTypes.SpendProposalPayload): Promise<SmartVaultsTypes.PublishedSpendingProposal | SmartVaultsTypes.PublishedKeyAgentPaymentProposal> {
 
     const _frozenUtxos = await policy.getFrozenUtxosOutpoints()
     const frozenUtxos = useFrozenUtxos ? [] : _frozenUtxos
@@ -607,15 +608,30 @@ export class SmartVaults {
       nostrPublicKeys,
       sharedKeyAuth
     } = policy
-    const type = ProposalType.Spending
-    let proposalContent: SmartVaultsTypes.SpendingProposal = {
-      [type]: {
-        descriptor,
-        description,
-        to_address,
-        amount,
-        psbt
-      }
+
+    let proposalContent: SmartVaultsTypes.SpendingProposal | SmartVaultsTypes.KeyAgentPaymentProposal;
+
+    if (keyAgentPayment) {
+      proposalContent = {
+        [ProposalType.KeyAgentPayment]: {
+          descriptor,
+          description,
+          to_address,
+          amount,
+          psbt,
+          ...keyAgentPayment
+        }
+      } as SmartVaultsTypes.KeyAgentPaymentProposal;
+    } else {
+      proposalContent = {
+        [ProposalType.Spending]: {
+          descriptor,
+          description,
+          to_address,
+          amount,
+          psbt
+        }
+      } as SmartVaultsTypes.SpendingProposal;
     }
     const tags = nostrPublicKeys.map(pubkey => [TagType.PubKey, pubkey])
     const proposalEvent = await buildEvent({
@@ -628,7 +644,7 @@ export class SmartVaults {
     const pub = this.nostrClient.publish(proposalEvent)
     await pub.onFirstOkOrCompleteFailure()
     const createdAt = fromNostrDate(proposalEvent.created_at)
-    let msg = "New spending proposal:\n"
+    let msg = keyAgentPayment ? "New key agent payment proposal:\n" : "New spending proposal:\n"
     msg += `- Amount: ${amount}\n`
     msg += `- Description: ${description}\n`
     const promises: Promise<void>[] = []
@@ -644,25 +660,40 @@ export class SmartVaults {
     const [amountFiat, feeFiat] = await this.bitcoinExchangeRate.convertToFiat([amount, fee])
     const bitcoinExchangeRate = await this.bitcoinExchangeRate.getExchangeRate()
     const activeFiatCurrency = this.bitcoinExchangeRate.getActiveFiatCurrency()
-    Promise.all(promises)
-    const publishedSpendingProposal = {
-      ...proposalContent[type],
-      amountFiat,
+    const status = ProposalStatus.Unsigned
+    const commonProps = {
       signer,
+      amountFiat,
       fee,
       feeFiat,
       utxos: utxo,
-      type: ProposalType.Spending,
-      status: ProposalStatus.Unsigned,
+      status,
       policy_id: policy.id,
       proposal_id: proposalEvent.id,
       createdAt,
       bitcoinExchangeRate,
       activeFiatCurrency,
     }
-    this.getStore(SmartVaultsKind.Proposal).store(publishedSpendingProposal)
+    Promise.all(promises)
+    let publishedProposal: SmartVaultsTypes.PublishedSpendingProposal | SmartVaultsTypes.PublishedKeyAgentPaymentProposal
+    if (keyAgentPayment) {
+      publishedProposal = {
+        ...proposalContent[ProposalType.KeyAgentPayment],
+        ...commonProps,
+        type: ProposalType.KeyAgentPayment,
+      } as SmartVaultsTypes.PublishedKeyAgentPaymentProposal
+    } else {
+      publishedProposal = {
+        ...proposalContent[ProposalType.Spending],
+        ...commonProps,
+        type: ProposalType.Spending,
+      } as SmartVaultsTypes.PublishedSpendingProposal
+    }
+
+    this.getStore(SmartVaultsKind.Proposal).store(publishedProposal)
     this.getStore(StoreKind.Events).store(proposalEvent)
-    return publishedSpendingProposal
+
+    return publishedProposal
   }
 
   /**
@@ -810,6 +841,15 @@ export class SmartVaults {
   getOwnedSigners = async (): Promise<SmartVaultsTypes.PublishedOwnedSigner[]> => {
     const signersFilter = this.getFilter(SmartVaultsKind.Signers)
     return this._getOwnedSigners(signersFilter)
+  }
+
+
+  getOwnedSignersByOfferingIdentifiers = async (): Promise<Map<string, SmartVaultsTypes.PublishedOwnedSigner>> => {
+    const ownedSigners = await this.getOwnedSigners()
+    const augmentedOwnedSignersPromises = ownedSigners.map(async signer => ({ ...signer, offeringIdentifier: await this.generateSignerOfferingIdentifier(signer.fingerprint) }))
+    const augmentedOwnedSigners = await Promise.all(augmentedOwnedSignersPromises)
+    const ownedSignersByOfferingIdentifiers: Map<string, SmartVaultsTypes.PublishedOwnedSigner> = new Map(augmentedOwnedSigners.map(signer => [signer.offeringIdentifier, signer]))
+    return ownedSignersByOfferingIdentifiers
   }
 
   /**
@@ -1064,8 +1104,8 @@ export class SmartVaults {
    * 
    * @param {PaginationOpts} [paginationOpts={}] - Optional pagination options to limit the number of returned proposals or to fetch from a specific offset.
    *
-   * @returns {Promise<Map<string, SmartVaultsTypes.PublishedCompletedSpendingProposal | SmartVaultsTypes.PublishedCompletedProofOfReserveProposal>>} 
-   *          - A promise that resolves to a map where the keys are proposal IDs and the values are either PublishedCompletedSpendingProposal or PublishedCompletedProofOfReserveProposal objects.
+   * @returns {Promise<Map<string, SmartVaultsTypes.CompletedPublishedProposal>>} 
+   *          - A promise that resolves to a map where the keys are proposal IDs and the values are CompletedPublishedProposal objects.
    * 
    * @throws {Error} - Throws an error if the network request fails.
    * 
@@ -1076,10 +1116,9 @@ export class SmartVaults {
    * // Fetch multiple proposals by IDs with pagination
    * const proposals = await getCompletedProposalsById(["id1", "id2"], {  since: new Date() });
    *
-   * @see SmartVaultsTypes.PublishedCompletedSpendingProposal - For the structure of a PublishedCompletedSpendingProposal object.
-   * @see SmartVaultsTypes.PublishedCompletedProofOfReserveProposal - For the structure of a PublishedCompletedProofOfReserveProposal object.
+   * @see SmartVaultsTypes.CompletedPublishedProposal - For the structure of a CompletedPublishedProposal object.
    */
-  async getCompletedProposalsById(ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, SmartVaultsTypes.PublishedCompletedSpendingProposal | SmartVaultsTypes.PublishedCompletedProofOfReserveProposal>> {
+  async getCompletedProposalsById(ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, SmartVaultsTypes.CompletedPublishedProposal>> {
     const completedProposalsIds = Array.isArray(ids) ? ids : [ids]
     const store = this.getStore(SmartVaultsKind.CompletedProposal);
     const missingIds = store.missing(completedProposalsIds);
@@ -1091,33 +1130,29 @@ export class SmartVaults {
   }
 
   /**
-   * Asynchronously fetches completed proposals by their associated policy IDs.
-   * 
-   * @async
-   * @method
-   * @param {string[] | string} policy_ids - The policy IDs corresponding to the completed proposals to fetch.
-   * 
-   * @param {PaginationOpts} [paginationOpts={}] - Optional pagination options to limit the number of returned proposals or to fetch from a specific offset.
-   *
-   * @returns {Promise<Map<string, (SmartVaultsTypes.PublishedCompletedSpendingProposal | SmartVaultsTypes.PublishedCompletedProofOfReserveProposal)
-   *          | Array<SmartVaultsTypes.PublishedCompletedSpendingProposal | SmartVaultsTypes.PublishedCompletedProofOfReserveProposal>
-    *          >>} 
-    *          - A promise that resolves to a map where the keys are policy IDs and the values are either single or arrays of PublishedCompletedSpendingProposal or PublishedCompletedProofOfReserveProposal objects.
-    * 
-    * @throws {Error} - Throws an error if the network request fails or if the internal store is inconsistent.
-    * 
-    * @example
-    * // Fetch a single proposal by policy ID
-    * const proposals = await getCompletedProposalsByPolicyId("some-policy-id");
-    *
-    * // Fetch multiple proposals by policy IDs with pagination
-    * const proposals = await getCompletedProposalsByPolicyId(["policy-id1", "policy-id2"], { since : new Date() });
-    *
-    * @see SmartVaultsTypes.PublishedCompletedSpendingProposal - For the structure of a PublishedCompletedSpendingProposal object.
-    * @see SmartVaultsTypes.PublishedCompletedProofOfReserveProposal - For the structure of a PublishedCompletedProofOfReserveProposal object.
-    */
-  getCompletedProposalsByPolicyId = async (policy_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, (SmartVaultsTypes.PublishedCompletedSpendingProposal | SmartVaultsTypes.PublishedCompletedProofOfReserveProposal)
-    | Array<SmartVaultsTypes.PublishedCompletedSpendingProposal | SmartVaultsTypes.PublishedCompletedProofOfReserveProposal>
+  * Asynchronously fetches completed proposals by their associated policy IDs.
+  * 
+  * @async
+  * @method
+  * @param {string[] | string} policy_ids - The policy IDs corresponding to the completed proposals to fetch.
+  * 
+  * @param {PaginationOpts} [paginationOpts={}] - Optional pagination options to limit the number of returned proposals or to fetch from a specific offset.
+  *
+  * @returns {Promise<Map<string, SmartVaultsTypes.CompletedPublishedProposal | Array<SmartVaultsTypes.CompletedPublishedProposal>>>} 
+  *          - A promise that resolves to a map where the keys are policy IDs and the values are either single or arrays of CompletedPublishedProposal objects.
+  * @throws {Error} - Throws an error if the network request fails or if the internal store is inconsistent.
+  * 
+  * @example
+  * // Fetch a single proposal by policy ID
+  * const proposals = await getCompletedProposalsByPolicyId("some-policy-id");
+  *
+  * // Fetch multiple proposals by policy IDs with pagination
+  * const proposals = await getCompletedProposalsByPolicyId(["policy-id1", "policy-id2"], { since : new Date() });
+  *
+  * @see SmartVaultsTypes.PublishedCompletedSpendingProposal - For the structure of a PublishedCompletedSpendingProposal object.
+  */
+  getCompletedProposalsByPolicyId = async (policy_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, SmartVaultsTypes.CompletedPublishedProposal
+    | Array<SmartVaultsTypes.CompletedPublishedProposal>
   >> => {
     const policyIds = Array.isArray(policy_ids) ? policy_ids : [policy_ids]
     const store = this.getStore(SmartVaultsKind.CompletedProposal);
@@ -1136,8 +1171,8 @@ export class SmartVaults {
    * @method
    * @param {PaginationOpts} [paginationOpts={}] - Optional pagination options to control the returned data.
    *
-   * @returns {Promise<(SmartVaultsTypes.PublishedCompletedSpendingProposal | SmartVaultsTypes.PublishedCompletedProofOfReserveProposal)[]>} 
-   *          - A promise that resolves to an array of either PublishedCompletedSpendingProposal or PublishedCompletedProofOfReserveProposal objects.
+   * @returns {Promise<Array<SmartVaultsTypes.CompletedPublishedProposal>>} 
+   *          - A promise that resolves to an array of CompletedPublishedProposal objects.
    * 
    * @throws {Error} - Throws an error if there is a failure in fetching the proposals.
    * 
@@ -1148,16 +1183,15 @@ export class SmartVaults {
    * // Fetch completed proposals with pagination
    * const proposals = await getCompletedProposals({ limit: 5 });
    *
-   * @see SmartVaultsTypes.PublishedCompletedSpendingProposal - For the structure of a PublishedCompletedSpendingProposal object.
-   * @see SmartVaultsTypes.PublishedCompletedProofOfReserveProposal - For the structure of a PublishedCompletedProofOfReserveProposal object.
+   * @see SmartVaultsTypes.CompletedPublishedProposal - For the structure of a CompletedPublishedProposal object.
    */
-  async getCompletedProposals(paginationOpts: PaginationOpts = {}): Promise<(SmartVaultsTypes.PublishedCompletedSpendingProposal | SmartVaultsTypes.PublishedCompletedProofOfReserveProposal)[]> {
+  async getCompletedProposals(paginationOpts: PaginationOpts = {}): Promise<Array<SmartVaultsTypes.CompletedPublishedProposal>> {
     const completedProposalsFilter = this.getFilter(SmartVaultsKind.CompletedProposal, { paginationOpts });
     const completedProposals = await this._getCompletedProposals(completedProposalsFilter)
     return completedProposals
   }
 
-  private async _getApprovals(filter: Filter<SmartVaultsKind.ApprovedProposal>[]): Promise<SmartVaultsTypes.PublishedApprovedProposal[]> {
+  private async _getApprovals(filter: Filter<SmartVaultsKind.ApprovedProposal>[]): Promise<Array<SmartVaultsTypes.PublishedApprovedProposal>> {
     const approvedProposalEvents = await this.nostrClient.list(filter)
     const approvedProposalHandler = this.eventKindHandlerFactor.getHandler(SmartVaultsKind.ApprovedProposal)
     return approvedProposalHandler.handle(approvedProposalEvents)
@@ -1201,7 +1235,7 @@ export class SmartVaults {
    * @method
    * @param {string[] | string} policy_ids - A single policy ID or an array of policy IDs for which to fetch approved proposals.
    *                                         If this is not specified, the function fetches approvals for all available policy IDs.
-   * @returns {Promise<Map<string, (SmartVaultsTypes.PublishedApprovedProposal) | Array<SmartVaultsTypes.PublishedApprovedProposal>>>} 
+   * @returns {Promise<Map<string, SmartVaultsTypes.PublishedApprovedProposal | Array<SmartVaultsTypes.PublishedApprovedProposal>>>} 
    *          - A promise that resolves to a Map. Each key in the map corresponds to a policy ID. 
    *            The value is either a single PublishedApprovedProposal object or an array of PublishedApprovedProposal objects.
    *
@@ -1229,7 +1263,7 @@ export class SmartVaults {
   /**
   * @ignore
   */
-  private async _getProposals(filter: Filter<SmartVaultsKind.Policy>[]): Promise<Array<SmartVaultsTypes.PublishedSpendingProposal | SmartVaultsTypes.PublishedProofOfReserveProposal>> {
+  private async _getProposals(filter: Filter<SmartVaultsKind.Policy>[]): Promise<Array<SmartVaultsTypes.ActivePublishedProposal>> {
     const proposalEvents = await this.nostrClient.list(filter)
     const proposalHandler = this.eventKindHandlerFactor.getHandler(SmartVaultsKind.Proposal)
     return proposalHandler.handle(proposalEvents)
@@ -1241,15 +1275,15 @@ export class SmartVaults {
    * @async
    * @param {string[] | string} proposal_ids - A single proposal ID or an array of proposal IDs to fetch.
    * @param {PaginationOpts} [paginationOpts={}] - Optional pagination options.
-   * @returns {Promise<Map<string, SmartVaultsTypes.PublishedSpendingProposal | SmartVaultsTypes.PublishedProofOfReserveProposal>>} 
-   *          - A promise that resolves to a Map. Each key corresponds to a proposal ID, and the value is either a PublishedSpendingProposal or PublishedProofOfReserveProposal object.
+   * @returns {Promise<Map<string,SmartVaultsTypes.ActivePublishedProposal>>} 
+   *          - A promise that resolves to a Map. Each key corresponds to a proposal ID, and the value is a ActivePublishedProposal object.
    *
    * @throws {Error} - Throws an error if there is a failure in fetching the proposals.
    *
    * @example
    * const proposalsById = await getProposalsById('some-proposal-id');
    */
-  async getProposalsById(proposal_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, SmartVaultsTypes.PublishedSpendingProposal | SmartVaultsTypes.PublishedProofOfReserveProposal>> {
+  async getProposalsById(proposal_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, SmartVaultsTypes.ActivePublishedProposal>> {
     const proposalIds = Array.isArray(proposal_ids) ? proposal_ids : [proposal_ids]
     const store = this.getStore(SmartVaultsKind.Proposal);
     const proposalsFilter = this.getFilter(SmartVaultsKind.Proposal, { ids: proposalIds, paginationOpts })
@@ -1263,17 +1297,16 @@ export class SmartVaults {
    * @async
    * @param {string[] | string} policy_ids - A single policy ID or an array of policy IDs for which to fetch proposals.
    * @param {PaginationOpts} [paginationOpts={}] - Optional pagination options.
-   * @returns {Promise<Map<string, (SmartVaultsTypes.PublishedSpendingProposal | SmartVaultsTypes.PublishedProofOfReserveProposal) 
-   *           | Array<SmartVaultsTypes.PublishedSpendingProposal | SmartVaultsTypes.PublishedProofOfReserveProposal>>>} 
-   *          - A promise that resolves to a Map. Each key corresponds to a policy ID, and the value is either a single PublishedSpendingProposal or PublishedProofOfReserveProposal object or an array of them.
+   * @returns {Promise<Map<string, ActivePublishedProposal | Array<ActivePublishedProposal>>>} 
+   *          - A promise that resolves to a Map. Each key corresponds to a policy ID, and the value is either a single ActivePublishedProposal object or an array of them.
    *
    * @throws {Error} - Throws an error if there is a failure in fetching the proposals.
    *
    * @example
    * const proposalsByPolicyId = await getProposalsByPolicyId('some-policy-id');
    */
-  getProposalsByPolicyId = async (policy_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, (SmartVaultsTypes.PublishedSpendingProposal | SmartVaultsTypes.PublishedProofOfReserveProposal)
-    | Array<SmartVaultsTypes.PublishedSpendingProposal | SmartVaultsTypes.PublishedProofOfReserveProposal>
+  getProposalsByPolicyId = async (policy_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, SmartVaultsTypes.ActivePublishedProposal
+    | Array<SmartVaultsTypes.ActivePublishedProposal>
   >> => {
     const policyIds = Array.isArray(policy_ids) ? policy_ids : [policy_ids]
     const store = this.getStore(SmartVaultsKind.Proposal);
@@ -1290,7 +1323,7 @@ export class SmartVaults {
    * 
    * @returns A Promise that resolves to an array of decrypted proposals.
    */
-  async getProposals(paginationOpts: PaginationOpts = {}): Promise<Array<SmartVaultsTypes.PublishedSpendingProposal | SmartVaultsTypes.PublishedProofOfReserveProposal>> {
+  async getProposals(paginationOpts: PaginationOpts = {}): Promise<Array<SmartVaultsTypes.ActivePublishedProposal>> {
     const proposalsFilter = this.getFilter(SmartVaultsKind.Proposal, { paginationOpts })
     const proposals = await this._getProposals(proposalsFilter)
     return proposals
@@ -1343,19 +1376,20 @@ export class SmartVaults {
    *
    * @param proposalId - The ID of the spending proposal to finalize.
    *
-   * @returns A Promise that resolves to a `PublishedCompletedSpendingProposal` object representing the finalized proposal.
+   * @returns A Promise that resolves to a `CompletedPublishedProposal` object representing the finalized proposal.
    *
    * @throws An error if the proposal or policy cannot be found, if there are no approvals for the proposal, if the PSBTs cannot be finalized, or if the proposal cannot be broadcast.
    */
-  async finalizeSpendingProposal(proposalId: string): Promise<SmartVaultsTypes.PublishedCompletedSpendingProposal> {
+  async finalizeSpendingProposal(proposalId: string): Promise<SmartVaultsTypes.CompletedPublishedProposal> {
     const proposalMap = await this.getProposalsById(proposalId)
 
-    const proposal = proposalMap.get(proposalId) as SmartVaultsTypes.PublishedSpendingProposal
+    const proposal = proposalMap.get(proposalId) as SmartVaultsTypes.ActivePublishedProposal
     if (!proposal) {
       throw new Error(`Proposal with id ${proposalId} not found`)
     }
     const type = proposal.type
-    if (type !== ProposalType.Spending) {
+    const isProofOfReserve = 'message' in proposal || type === ProposalType.ProofOfReserve
+    if (isProofOfReserve) {
       throw new Error(`Proposal with id ${proposalId} is not a spending proposal`)
     }
     const policyId = proposal.policy_id
@@ -1414,7 +1448,7 @@ export class SmartVaults {
     await this.deleteProposals(proposalsIdsToDelete)
 
 
-    const publishedCompletedProposal: SmartVaultsTypes.PublishedCompletedSpendingProposal = {
+    const publishedCompletedProposal: SmartVaultsTypes.CompletedPublishedProposal = {
       type,
       txId,
       ...completedProposal[type],
@@ -1705,23 +1739,20 @@ export class SmartVaults {
   /**
   * @ignore
   */
-  async _saveCompletedProposal(proposal_id: string, payload: SmartVaultsTypes.CompletedProofOfReserveProposal | SmartVaultsTypes.CompletedSpendingProposal): Promise<any> {
+  async _saveCompletedProposal(proposal_id: string, payload: SmartVaultsTypes.CompletedProposal): Promise<SmartVaultsTypes.CompletedPublishedProposal> {
     const proposalEvent = await this.getProposalEvent(proposal_id)
     const policyId = getTagValues(proposalEvent, TagType.Event)[0]
     const policyEvent = await this.getPolicyEvent(policyId)
     const policyMembers = policyEvent.tags
 
     const sharedKeyAuthenticator: any = (await this.getSharedKeysById([policyId])).get(policyId)?.sharedKeyAuthenticator
-
-    const completedProposal: SmartVaultsTypes.CompletedProofOfReserveProposal | SmartVaultsTypes.CompletedSpendingProposal = {
-      ...payload
-    }
-    const type = payload[ProposalType.Spending] ? ProposalType.Spending : ProposalType.ProofOfReserve
-    const content = await sharedKeyAuthenticator.encryptObj(completedProposal)
+    const type = Object.keys(payload)[0] as ProposalType
+    const completedProposal = payload[type]
+    const content = await sharedKeyAuthenticator.encryptObj(payload)
+    const isSpendingType = 'tx' in completedProposal
     let txId;
-    if (type === ProposalType.Spending) {
-      const spendingProposal: SmartVaultsTypes.CompletedSpendingProposal = payload as SmartVaultsTypes.CompletedSpendingProposal;
-      txId = this.bitcoinUtil.getTrxId(spendingProposal[type].tx)
+    if (isSpendingType) {
+      txId = this.bitcoinUtil.getTrxId(completedProposal.tx)
     }
     const completedProposalEvent = await buildEvent({
       kind: SmartVaultsKind.CompletedProposal,
@@ -1743,10 +1774,10 @@ export class SmartVaults {
     const pubDelete = this.nostrClient.publish(deletedProposalEvent)
     pubDelete.onFirstOkOrCompleteFailure()
 
-    const publishedCompletedProposal: SmartVaultsTypes.PublishedCompletedProofOfReserveProposal | SmartVaultsTypes.PublishedCompletedSpendingProposal = {
+    const publishedCompletedProposal: SmartVaultsTypes.CompletedPublishedProposal = {
       type,
       txId,
-      ...payload[type],
+      ...completedProposal,
       proposal_id,
       policy_id: policyId,
       completed_by: completedProposalEvent.pubkey,
@@ -1769,6 +1800,14 @@ export class SmartVaults {
     const hashedIdentifier = await this.sha256(unhashedIdentifier)
     return hashedIdentifier.substring(0, 32)
   }
+
+  private async generateSignerOfferingIdentifier(fingerprint: string): Promise<string> {
+    const magic = this.getNetworkIdentifier()
+    const unhashedIdentifier = `${magic}:${fingerprint}` // TODO: check for sdk compatibility
+    const hashedIdentifier = await this.sha256(unhashedIdentifier)
+    return hashedIdentifier.substring(0, 32)
+  }
+
 
   /**
    * Asynchronously saves a label associated with a given policy ID.
@@ -2014,6 +2053,11 @@ export class SmartVaults {
     return keyAgentEvents.length === 1 && keyAgentEvents[0].pubkey === author
   }
 
+  isAuthority = async (pubkey?: string): Promise<boolean> => {
+    const author = pubkey || this.authenticator.getPublicKey()
+    return author === this.getAuthority()
+  }
+
   async getVerifiedKeyAgentsEvent(): Promise<Event<SmartVaultsKind.VerifiedKeyAgents>> {
     const identifier = this.getNetworkIdentifier();
     const filter = this.getFilter(SmartVaultsKind.VerifiedKeyAgents, { identifiers: identifier });
@@ -2065,6 +2109,12 @@ export class SmartVaults {
     }
     const verifiedKeyAgents = JSON.parse(event.content);
     return Array.from(verifiedKeyAgents.keys());
+  }
+
+  isVerifiedKeyAgent = async (pubkey?: string): Promise<boolean> => {
+    const author = pubkey || this.authenticator.getPublicKey()
+    const verifiedKeyAgentsPubkeys = await this.getVerifiedKeyAgentsPubKeys()
+    return verifiedKeyAgentsPubkeys.includes(author)
   }
 
   getVerifiedKeyAgents = async (): Promise<Array<SmartVaultsTypes.KeyAgent>> => {
@@ -2136,7 +2186,7 @@ export class SmartVaults {
     return signerOfferings
   }
 
-  async getSignerOfferingsByIds(signerOfferingIds: string[], fromVerifiedKeyAgents?: boolean, paginationOpts?: PaginationOpts): Promise<Map<string, SmartVaultsTypes.PublishedSignerOffering>> {
+  async getSignerOfferingsById(signerOfferingIds?: string[], fromVerifiedKeyAgents?: boolean, paginationOpts?: PaginationOpts): Promise<Map<string, SmartVaultsTypes.PublishedSignerOffering>> {
     const verifiedKeyAgents = fromVerifiedKeyAgents ? await this.getVerifiedKeyAgentsPubKeys() : []
     const verifiedKeyAgentsPubkeys: string[] | undefined = verifiedKeyAgents.length ? verifiedKeyAgents : undefined
     const signerOfferingsFilter = this.getFilter(SmartVaultsKind.SignerOffering, { identifiers: signerOfferingIds, authors: verifiedKeyAgentsPubkeys, paginationOpts })
@@ -2153,7 +2203,7 @@ export class SmartVaults {
     return signerOfferings
   }
 
-  async getOwnedSignerOfferingsByIds(signerOfferingIds: string[]): Promise<Map<string, SmartVaultsTypes.PublishedSignerOffering>> {
+  async getOwnedSignerOfferingsById(signerOfferingIds?: string[]): Promise<Map<string, SmartVaultsTypes.PublishedSignerOffering>> {
     const isKeyAgent = await this.isKeyAgent()
     if (!isKeyAgent) return new Map()
     const signerOfferingsFilter = this.getFilter(SmartVaultsKind.SignerOffering, { identifiers: signerOfferingIds, authors: this.authenticator.getPublicKey() })
@@ -2162,6 +2212,18 @@ export class SmartVaults {
     offerings.forEach(offering => offeringsByOfferingId.set(offering.offeringId, offering))
     return offeringsByOfferingId
   }
+
+  async getOwnedSignerOfferingsBySignerFingerprint(signerFingerprints?: string[]): Promise<Map<string, SmartVaultsTypes.PublishedSignerOffering>> {
+    const signerOfferingIdentifiersPromises = signerFingerprints ? signerFingerprints.map(fingerprint => this.generateSignerOfferingIdentifier(fingerprint)) : undefined
+    let signerOfferingsIdentifiers: string[] | undefined
+    if (signerOfferingIdentifiersPromises) signerOfferingsIdentifiers = await Promise.all(signerOfferingIdentifiersPromises)
+    const signerOfferingsById = await this.getOwnedSignerOfferingsById(signerOfferingsIdentifiers)
+    console.log({ signerOfferingsById })
+    const offeringsBySignerFingerprint = new Map<string, SmartVaultsTypes.PublishedSignerOffering>()
+    signerOfferingsById.forEach(offering => offeringsBySignerFingerprint.set(offering.SignerFingerprint!, offering))
+    return offeringsBySignerFingerprint
+  }
+
 
   getSignerOfferingsByKeyAgentPubKey = async (keyAgentsPubKeys?: string[], fromVerifiedKeyAgents?: boolean, paginationOpts?: PaginationOpts): Promise<Map<string, SmartVaultsTypes.PublishedSignerOffering> | Map<string, Array<SmartVaultsTypes.PublishedSignerOffering>>> => {
     let authors: string[] | undefined
@@ -2182,16 +2244,27 @@ export class SmartVaults {
   }
 
 
-  saveSignerOffering = async (id: string, offering: SmartVaultsTypes.SignerOffering, confirmationComponent?: () => Promise<boolean>): Promise<SmartVaultsTypes.PublishedSignerOffering> => {
+
+  saveSignerOffering = async (signer: SmartVaultsTypes.PublishedOwnedSigner, offering: SmartVaultsTypes.SignerOffering, confirmationComponent?: () => Promise<boolean>): Promise<SmartVaultsTypes.PublishedSignerOffering> => {
+
     const isKeyAgent = await this.isKeyAgent()
-    if (!isKeyAgent) throw new Error('Only key agents can create signer offerings')
-    const ownedSignerOfferingsWithSameId = await this.getOwnedSignerOfferingsByIds([id])
+
+    if (!isKeyAgent) {
+      const isVerifiedKeyAgent = await this.isVerifiedKeyAgent()
+      if (!isVerifiedKeyAgent) throw new Error('Only key agents can create signer offerings')
+    }
+
+    const fingerprint = signer.fingerprint
+    const id = await this.generateSignerOfferingIdentifier(fingerprint)
+
+    const ownedSignerOfferingsWithSameId = await this.getOwnedSignerOfferingsById([id])
     if (ownedSignerOfferingsWithSameId.size !== 0) {
-      const confirmedByUser = confirmationComponent ? await confirmationComponent() : window.confirm(`Signer offering with id ${id} already exists. Are you sure you want to replace it?`);
+      const confirmedByUser = confirmationComponent ? await confirmationComponent() : window.confirm(`Signer offering for signer with fignerprint ${fingerprint} already exists. Are you sure you want to replace it?`);
       if (!confirmedByUser) {
-        throw new Error(`Signer offering with id ${id} already exists.`)
+        throw new Error(`Canceled by user.`)
       }
     }
+
     const signerOfferingEvent = await buildEvent({
       kind: SmartVaultsKind.SignerOffering,
       content: JSON.stringify(offering),
@@ -2208,15 +2281,17 @@ export class SmartVaults {
       id: signerOfferingEvent.id,
       createdAt: fromNostrDate(signerOfferingEvent.created_at),
       keyAgentPubKey: signerOfferingEvent.pubkey,
+      SignerFingerprint: fingerprint,
     }
 
     return publishedSignerOffering
   }
 
-  saveKeyAgent = async (keyAgentMetadata: SmartVaultsTypes.KeyAgentMetadata): Promise<SmartVaultsTypes.KeyAgent> => {
+  saveKeyAgent = async (keyAgentMetadata?: SmartVaultsTypes.KeyAgentMetadata): Promise<SmartVaultsTypes.KeyAgent> => {
     const pubkey = this.authenticator.getPublicKey()
     const isKeyAgent = await this.isKeyAgent(pubkey)
     if (isKeyAgent) throw new Error('Already a key agent')
+
     const keyAgentSignalingEvent = await buildEvent({
       kind: SmartVaultsKind.KeyAgents,
       content: '',
@@ -2224,12 +2299,19 @@ export class SmartVaults {
     },
       this.authenticator)
 
-    const profile = await this.getProfile() || { publicKey: pubkey }
-    const updatedProfile = { ...profile, ...keyAgentMetadata }
+    const promises: Array<Promise<any>> = []
     const pub = this.nostrClient.publish(keyAgentSignalingEvent)
-    const saveProfile = this.setProfile(updatedProfile)
+    promises.push(pub.onFirstOkOrCompleteFailure())
+    let updatedProfile: SmartVaultsTypes.Profile = { publicKey: pubkey }
 
-    await Promise.all([pub.onFirstOkOrCompleteFailure(), saveProfile])
+    if (keyAgentMetadata) {
+      const profile = await this.getProfile() || { publicKey: pubkey }
+      updatedProfile = { ...profile, ...keyAgentMetadata }
+      const saveProfile = this.setProfile(updatedProfile)
+      promises.push(saveProfile)
+    }
+
+    await Promise.all(promises)
 
     const keyAgent: SmartVaultsTypes.KeyAgent = {
       pubkey,
