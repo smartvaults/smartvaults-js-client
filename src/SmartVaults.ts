@@ -2259,7 +2259,7 @@ export class SmartVaults {
 
     const ownedSignerOfferingsWithSameId = await this.getOwnedSignerOfferingsById([id])
     if (ownedSignerOfferingsWithSameId.size !== 0) {
-      const confirmedByUser = confirmationComponent ? await confirmationComponent() : window.confirm(`Signer offering for signer with fignerprint ${fingerprint} already exists. Are you sure you want to replace it?`);
+      const confirmedByUser = confirmationComponent ? await confirmationComponent() : window.confirm(`Signer offering for signer with fingerprint ${fingerprint} already exists. Are you sure you want to replace it?`);
       if (!confirmedByUser) {
         throw new Error(`Canceled by user.`)
       }

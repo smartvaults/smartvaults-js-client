@@ -154,8 +154,8 @@ export class PolicyHandler extends EventKindHandler {
         if (sharedKeyAuthenticator) {
           policies.push(policy)
           const tags: [TagType.Event | TagType.PubKey, string][] = [[TagType.Event, id]]
-          const proposalRelatedEvents: (ActivePublishedProposal)[] | undefined = policyRelatedEvents.get(SmartVaultsKind.Proposal)
-          const completedProposalRelatedEvents: (CompletedPublishedProposal)[] | undefined = policyRelatedEvents.get(SmartVaultsKind.CompletedProposal)
+          const proposalRelatedEvents: ActivePublishedProposal[] | undefined = policyRelatedEvents.get(SmartVaultsKind.Proposal)
+          const completedProposalRelatedEvents: CompletedPublishedProposal[] | undefined = policyRelatedEvents.get(SmartVaultsKind.CompletedProposal)
           const approvalsRelatedEvents: PublishedApprovedProposal[] | undefined = (policyRelatedEvents.get(SmartVaultsKind.ApprovedProposal))?.filter(approval => approval.approved_by === pubKey)
           const sharedKeysRelatedEvents: SharedKeyAuthenticator[] | undefined = policyRelatedEvents.get(SmartVaultsKind.SharedKey)?.filter(sharedKey => sharedKey.creator === pubKey)
           const policyMembers = policy.nostrPublicKeys
