@@ -759,6 +759,7 @@ export class SmartVaults {
     const params: singleKindFilterParams = { ...filterParams, kind }
     let filter: FilterBuilder<number> = filterBuilder();
     const ownPublicKey = this.authenticator.getPublicKey()
+    const networkIdentifier = this.getNetworkIdentifier()
     Object.entries(params).forEach(([key, value]) => {
       if (value === undefined) return;
       switch (key) {
@@ -773,7 +774,7 @@ export class SmartVaults {
               filter = filter.kinds(value as SmartVaultsKind);
               break;
             case SmartVaultsKind.KeyAgents:
-              filter = filter.kinds(value as SmartVaultsKind);
+              filter = filter.kinds(value as SmartVaultsKind).identifiers(networkIdentifier);
               break;
             case SmartVaultsKind.VerifiedKeyAgents:
               filter = filter.kinds(value as SmartVaultsKind).authors(this.getAuthority());
@@ -1803,7 +1804,7 @@ export class SmartVaults {
 
   private async generateSignerOfferingIdentifier(fingerprint: string): Promise<string> {
     const magic = this.getNetworkIdentifier()
-    const unhashedIdentifier = `${magic}:${fingerprint}` // TODO: check for sdk compatibility
+    const unhashedIdentifier = `${magic}:${fingerprint}`
     const hashedIdentifier = await this.sha256(unhashedIdentifier)
     return hashedIdentifier.substring(0, 32)
   }
@@ -2218,9 +2219,8 @@ export class SmartVaults {
     let signerOfferingsIdentifiers: string[] | undefined
     if (signerOfferingIdentifiersPromises) signerOfferingsIdentifiers = await Promise.all(signerOfferingIdentifiersPromises)
     const signerOfferingsById = await this.getOwnedSignerOfferingsById(signerOfferingsIdentifiers)
-    console.log({ signerOfferingsById })
     const offeringsBySignerFingerprint = new Map<string, SmartVaultsTypes.PublishedSignerOffering>()
-    signerOfferingsById.forEach(offering => offeringsBySignerFingerprint.set(offering.SignerFingerprint!, offering))
+    signerOfferingsById.forEach(offering => offeringsBySignerFingerprint.set(offering.SignerFingerprint || 'unknown', offering))
     return offeringsBySignerFingerprint
   }
 
@@ -2291,11 +2291,11 @@ export class SmartVaults {
     const pubkey = this.authenticator.getPublicKey()
     const isKeyAgent = await this.isKeyAgent(pubkey)
     if (isKeyAgent) throw new Error('Already a key agent')
-
+    const identifier = this.getNetworkIdentifier();
     const keyAgentSignalingEvent = await buildEvent({
       kind: SmartVaultsKind.KeyAgents,
       content: '',
-      tags: [],
+      tags: [[TagType.Identifier, identifier]],
     },
       this.authenticator)
 
