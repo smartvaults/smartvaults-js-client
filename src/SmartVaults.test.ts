@@ -1279,8 +1279,14 @@ describe('SmartVaults', () => {
       expect(keyAgents).toEqual(expect.arrayContaining(expected))
     });
 
-    it('saveKeyAgent throws error if keyAgent already exists', async () => {
-      await expect(smartVaults.saveKeyAgent()).rejects.toThrowError('Already a key agent')
+    it('saveKeyAgent updates metadata if user is already a key agent', async () => {
+      const keyAgentMetadata: KeyAgentMetadata = { jurisdiction: "other jurisdiction", x: "https://twitter.com/smartvaults", facebook: "https://facebook.com/smartvaults" }
+      const keyAgent = await smartVaults.saveKeyAgent(keyAgentMetadata)
+      const updatedMetadata = await smartVaults.getProfile()
+      expect(updatedMetadata.jurisdiction).toEqual(keyAgentMetadata.jurisdiction)
+      expect(updatedMetadata.x).toEqual(keyAgentMetadata.x)
+      expect(updatedMetadata.facebook).toEqual(keyAgentMetadata.facebook)
+      expect(updatedMetadata).toEqual(keyAgent.profile)
     });
 
     it('getUnverifiedKeyAgentsByPubKey works', async () => {

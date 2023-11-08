@@ -2288,20 +2288,25 @@ export class SmartVaults {
   }
 
   saveKeyAgent = async (keyAgentMetadata?: SmartVaultsTypes.KeyAgentMetadata): Promise<SmartVaultsTypes.KeyAgent> => {
+
     const pubkey = this.authenticator.getPublicKey()
     const isKeyAgent = await this.isKeyAgent(pubkey)
-    if (isKeyAgent) throw new Error('Already a key agent')
-    const identifier = this.getNetworkIdentifier();
-    const keyAgentSignalingEvent = await buildEvent({
-      kind: SmartVaultsKind.KeyAgents,
-      content: '',
-      tags: [[TagType.Identifier, identifier]],
-    },
-      this.authenticator)
-
     const promises: Array<Promise<any>> = []
-    const pub = this.nostrClient.publish(keyAgentSignalingEvent)
-    promises.push(pub.onFirstOkOrCompleteFailure())
+
+    if (isKeyAgent && !keyAgentMetadata) return {} as SmartVaultsTypes.KeyAgent
+
+    if (!isKeyAgent) {
+      const identifier = this.getNetworkIdentifier();
+      const keyAgentSignalingEvent = await buildEvent({
+        kind: SmartVaultsKind.KeyAgents,
+        content: '',
+        tags: [[TagType.Identifier, identifier]],
+      },
+        this.authenticator)
+      const pub = this.nostrClient.publish(keyAgentSignalingEvent)
+      promises.push(pub.onFirstOkOrCompleteFailure())
+    }
+
     let updatedProfile: SmartVaultsTypes.Profile = { publicKey: pubkey }
 
     if (keyAgentMetadata) {
