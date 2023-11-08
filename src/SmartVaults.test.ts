@@ -1305,7 +1305,7 @@ describe('SmartVaults', () => {
       await expect(smartVaults3.saveSignerOffering(ownedSigner, signerOffering, async () => false)).rejects.toThrowError('Only key agents can create signer offerings')
     });
 
-    it('saveSignerOffering throws error if a signer offering alredy exists for the signer and user cancels', async () => {
+    it('saveSignerOffering throws error if a signer offering already exists for the signer and user cancels', async () => {
       const signerOffering = {} as SignerOffering
       await expect(smartVaults.saveSignerOffering(ownedSigner1, signerOffering, async () => false)).rejects.toThrowError('Canceled by user.')
     });
