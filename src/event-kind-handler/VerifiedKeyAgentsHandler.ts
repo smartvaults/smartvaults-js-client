@@ -22,7 +22,7 @@ export class VerifiedKeyAgentsHandler extends EventKindHandler {
         if (verifiedKeyAgentsEvents.length > 1) throw new Error('More than one verified key agents event found')
         const verifiedKeyAgentsEvent = verifiedKeyAgentsEvents[0]
         const keyAgents: BaseVerifiedKeyAgents = JSON.parse(verifiedKeyAgentsEvent.content)
-        const keyAgentsPubkeys = Array.from(Object.keys(keyAgents))
+        const keyAgentsPubkeys = Object.keys(keyAgents)
         if (this.store.has(verifiedKeyAgentsEvent.id, 'eventId')) {
             const cachedKeyAgents = this.store.get(verifiedKeyAgentsEvent.id, 'eventId')
             return cachedKeyAgents

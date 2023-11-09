@@ -1,12 +1,11 @@
 import { type Event, Kind } from 'nostr-tools'
 import { TagType, ProposalType, ProposalStatus, SmartVaultsKind } from '../enum'
-import { type SpendingProposal, type PublishedSpendingProposal, type PublishedProofOfReserveProposal, type SharedKeyAuthenticator, type PublishedOwnedSigner, type PublishedApprovedProposal } from '../types'
+import { type SpendingProposal, type PublishedSpendingProposal, type PublishedProofOfReserveProposal, type SharedKeyAuthenticator, type PublishedOwnedSigner, type PublishedApprovedProposal, type PublishedKeyAgentPaymentProposal, type KeyAgentPaymentProposal, type ProofOfReserveProposal, type ActivePublishedProposal } from '../types'
 import { type Store, type NostrClient } from '../service'
-import { getTagValues, fromNostrDate, buildEvent } from '../util'
+import { getTagValues, fromNostrDate, buildEvent, BitcoinExchangeRate } from '../util'
 import { EventKindHandler } from './EventKindHandler'
 import { type BitcoinUtil } from '../models'
 import { type Authenticator } from '@smontero/nostr-ual'
-import { BitcoinExchangeRate } from '../util'
 export class ProposalHandler extends EventKindHandler {
   private readonly store: Store
   private readonly eventsStore: Store
@@ -17,11 +16,11 @@ export class ProposalHandler extends EventKindHandler {
   private readonly getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>
   private readonly checkPsbts: (proposalId: string) => Promise<boolean>
   private readonly getOwnedSigners: () => Promise<PublishedOwnedSigner[]>
-  private readonly getApprovalsByProposalId: (proposal_ids?: string[] | string) => Promise<Map<string, PublishedApprovedProposal[]>>
+  private readonly getApprovalsByProposalId: (proposal_ids?: string[] | string) => Promise<Map<string, Array<PublishedApprovedProposal>>>
   private readonly bitcoinExchangeRate: BitcoinExchangeRate = BitcoinExchangeRate.getInstance();
   constructor(store: Store, eventsStore: Store, approvalsStore: Store, nostrClient: NostrClient, bitcoinUtil: BitcoinUtil, authenticator: Authenticator, getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>, checkPsbts: (proposalId: string) => Promise<boolean>,
-    getOwnedSigners: () => Promise<PublishedOwnedSigner[]>,
-    getApprovalsByProposalId: (proposal_ids?: string[] | string) => Promise<Map<string, PublishedApprovedProposal[]>>) {
+    getOwnedSigners: () => Promise<Array<PublishedOwnedSigner>>,
+    getApprovalsByProposalId: (proposal_ids?: string[] | string) => Promise<Map<string, Array<PublishedApprovedProposal>>>) {
     super()
     this.store = store
     this.eventsStore = eventsStore
@@ -44,7 +43,7 @@ export class ProposalHandler extends EventKindHandler {
     return null
   }
 
-  protected async _handle<K extends number>(proposalEvents: Array<Event<K>>): Promise<Array<PublishedSpendingProposal | PublishedProofOfReserveProposal>> {
+  protected async _handle<K extends number>(proposalEvents: Array<Event<K>>): Promise<Array<ActivePublishedProposal | PublishedKeyAgentPaymentProposal>> {
     const proposalIds = proposalEvents.map(proposal => proposal.id)
     if (!proposalIds.length) return []
     const policiesIds = proposalEvents.map(proposal => getTagValues(proposal, TagType.Event)[0])
@@ -62,21 +61,21 @@ export class ProposalHandler extends EventKindHandler {
     const activeFiatCurrency = this.bitcoinExchangeRate.getActiveFiatCurrency();
     const proposalsStatusMap = new Map(statusResults.map(res => [res.proposalId, res.status]));
 
-    const decryptedProposals: Array<PublishedSpendingProposal | PublishedProofOfReserveProposal> = []
+    const decryptedProposals: Array<ActivePublishedProposal | PublishedKeyAgentPaymentProposal> = []
     const rawEvents: Array<Event<K>> = []
     const fingerprints: string[] = signers.map(signer => signer.fingerprint)
 
     const decryptPromises: Promise<any>[] = proposalEvents.map(async (proposalEvent) => {
-      const storedProposal: PublishedSpendingProposal = this.store.get(proposalEvent.id, 'proposal_id')
+      const storedProposal: PublishedSpendingProposal | PublishedKeyAgentPaymentProposal = this.store.get(proposalEvent.id, 'proposal_id')
 
       if (storedProposal) {
         const proposalStatus = proposalsStatusMap.get(proposalEvent.id);
         const isCurrencyChanged = storedProposal.activeFiatCurrency !== activeFiatCurrency;
         const isExchangeRateChanged = storedProposal.bitcoinExchangeRate !== bitcoinExchangeRate;
         const isStatusChanged = proposalStatus !== storedProposal.status;
-        const isSpending = storedProposal.type === ProposalType.Spending;
+        const shouldIncludeFiat = 'amount' in storedProposal && storedProposal.amount > 0;
 
-        let updatedProposal: PublishedSpendingProposal = { ...storedProposal };
+        let updatedProposal: PublishedSpendingProposal | PublishedKeyAgentPaymentProposal = { ...storedProposal };
         let shouldUpdate = false;
 
         if (proposalStatus && isStatusChanged) {
@@ -84,7 +83,7 @@ export class ProposalHandler extends EventKindHandler {
           shouldUpdate = true;
         }
 
-        if (bitcoinExchangeRate && isSpending && (isCurrencyChanged || isExchangeRateChanged)) {
+        if (bitcoinExchangeRate && shouldIncludeFiat && (isCurrencyChanged || isExchangeRateChanged)) {
           const [amountFiat, feeFiat] = await this.bitcoinExchangeRate.convertToFiat([storedProposal.amount, storedProposal.fee], bitcoinExchangeRate);
           updatedProposal = {
             ...updatedProposal,
@@ -109,8 +108,8 @@ export class ProposalHandler extends EventKindHandler {
 
       if (!sharedKeyAuthenticator) return null
 
-      return sharedKeyAuthenticator.decryptObj(proposalEvent.content).then(async (decryptedProposalObj: SpendingProposal) => {
-        const type = decryptedProposalObj[ProposalType.Spending] ? ProposalType.Spending : ProposalType.ProofOfReserve
+      return sharedKeyAuthenticator.decryptObj(proposalEvent.content).then(async (decryptedProposalObj: SpendingProposal | KeyAgentPaymentProposal | ProofOfReserveProposal) => {
+        const type = Object.keys(decryptedProposalObj)[0] as ProposalType;
         const proposalContent = decryptedProposalObj[type]
         const createdAt = fromNostrDate(proposalEvent.created_at)
         const signerResult: string | null = this.searchSignerInDescriptor(fingerprints, proposalContent.descriptor)
@@ -118,19 +117,38 @@ export class ProposalHandler extends EventKindHandler {
         const psbt = proposalContent.psbt
         const utxos = this.bitcoinUtil.getPsbtUtxos(psbt)
         const fee = Number(this.bitcoinUtil.getFee(psbt))
-        let publishedProposal: PublishedSpendingProposal = {
-          ...proposalContent,
+        const status = proposalsStatusMap.get(proposalEvent.id) ?? ProposalStatus.Unsigned
+        const shouldIncludeFiat = 'amount' in proposalContent && proposalContent.amount > 0
+        let publishedProposal: ActivePublishedProposal;
+        const commonProps = {
           type,
-          status: proposalsStatusMap.get(proposalEvent.id) ?? ProposalStatus.Unsigned,
           signer,
           fee,
           utxos,
           createdAt,
           policy_id: policyId,
           proposal_id: proposalEvent.id,
+          status,
+        };
+        if (type === ProposalType.Spending) {
+          publishedProposal = {
+            ...proposalContent,
+            ...commonProps,
+          } as PublishedSpendingProposal
+        } else if (type === ProposalType.KeyAgentPayment) {
+          publishedProposal = {
+            ...proposalContent,
+            ...commonProps,
+          } as PublishedKeyAgentPaymentProposal
+        } else {
+          publishedProposal = {
+            ...proposalContent,
+            ...commonProps,
+          } as PublishedProofOfReserveProposal
         }
-        if (bitcoinExchangeRate && type === ProposalType.Spending) {
+        if (bitcoinExchangeRate && shouldIncludeFiat) {
           const [amountFiat, feeFiat] = await this.bitcoinExchangeRate.convertToFiat([proposalContent.amount, fee], bitcoinExchangeRate)
+          publishedProposal = publishedProposal as PublishedSpendingProposal | PublishedKeyAgentPaymentProposal
           publishedProposal.amountFiat = amountFiat
           publishedProposal.feeFiat = feeFiat
           publishedProposal.activeFiatCurrency = activeFiatCurrency
@@ -146,7 +164,7 @@ export class ProposalHandler extends EventKindHandler {
         acc.push(result.value);
       }
       return acc;
-    }, [] as { decryptedProposal: PublishedSpendingProposal, rawEvent: Event<K> }[]);
+    }, [] as { decryptedProposal: ActivePublishedProposal, rawEvent: Event<K> }[]);
 
     decryptedProposals.push(...validResults.map(res => res!.decryptedProposal))
     rawEvents.push(...validResults.map(res => res!.rawEvent))
@@ -173,7 +191,7 @@ export class ProposalHandler extends EventKindHandler {
       const proposalEvent = this.eventsStore.get(proposalId)
       if (!proposalEvent) continue
       const proposalRelatedEvents = await this.getProposalRelatedEvents([proposalId])
-      const approvalsRelatedEvents: PublishedApprovedProposal[] | undefined = (proposalRelatedEvents.get(SmartVaultsKind.ApprovedProposal))?.filter(approval => approval.approved_by === pubKey)
+      const approvalsRelatedEvents: Array<PublishedApprovedProposal> | undefined = (proposalRelatedEvents.get(SmartVaultsKind.ApprovedProposal))?.filter(approval => approval.approved_by === pubKey)
       const proposalParticipants = getTagValues(proposalEvent, TagType.PubKey)
       const policyId = getTagValues(proposalEvent, TagType.Event)[0]
       const sharedKeyAuth = await this.getSharedKeysById([policyId])
@@ -195,7 +213,7 @@ export class ProposalHandler extends EventKindHandler {
       if (approvalsRelatedEvents?.length) {
         const approvalsIds = approvalsRelatedEvents.map(approval => approval.approval_id)
         const approvalsRawEventsToDelete = approvalsRelatedEvents.map(approval => this.eventsStore.get(approval.approval_id))
-        const approvalsTags: [TagType, string][] = approvalsIds.map(approvalId => [TagType.Event, approvalId])
+        const approvalsTags: Array<[TagType, string]> = approvalsIds.map(approvalId => [TagType.Event, approvalId])
         const deleteApprovalsEvent = await buildEvent({
           kind: Kind.EventDeletion,
           tags: [...approvalsTags, ...participantsTags],

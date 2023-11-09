@@ -1,6 +1,6 @@
 import { type Event, Kind } from 'nostr-tools'
 import { ProposalType, TagType } from '../enum'
-import { type PublishedCompletedProofOfReserveProposal, type PublishedCompletedSpendingProposal, type CompletedProofOfReserveProposal, type CompletedSpendingProposal, type SharedKeyAuthenticator } from '../types'
+import { type SharedKeyAuthenticator, CompletedPublishedProposal, CompletedProposal } from '../types'
 import { type Store, type NostrClient } from '../service'
 import { getTagValues, fromNostrDate, buildEvent } from '../util'
 import { EventKindHandler } from './EventKindHandler'
@@ -21,7 +21,7 @@ export class CompletedProposalHandler extends EventKindHandler {
     this.getSharedKeysById = getSharedKeysById
   }
 
-  protected async _handle<K extends number>(completedProposalEvents: Array<Event<K>>): Promise<Array<PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal>> {
+  protected async _handle<K extends number>(completedProposalEvents: Array<Event<K>>): Promise<Array<CompletedPublishedProposal>> {
     if (!completedProposalEvents.length) return []
     const policiesIds = completedProposalEvents.map(proposal => getTagValues(proposal, TagType.Event)[1])
     const completedProposalsIds = completedProposalEvents.map(proposal => proposal.id)
@@ -44,17 +44,18 @@ export class CompletedProposalHandler extends EventKindHandler {
       const sharedKeyAuthenticator = sharedKeyAuthenticators.get(policyId)?.sharedKeyAuthenticator
       if (sharedKeyAuthenticator == null) return null
 
-      const decryptedProposalObj: (CompletedProofOfReserveProposal | CompletedSpendingProposal) = await sharedKeyAuthenticator.decryptObj(completedProposalEvent.content)
-      const type = decryptedProposalObj[ProposalType.Spending] ? ProposalType.Spending : ProposalType.ProofOfReserve
+      const decryptedProposalObj: CompletedProposal = await sharedKeyAuthenticator.decryptObj(completedProposalEvent.content)
+      const type = Object.keys(decryptedProposalObj)[0] as ProposalType
+      const completedProposal = decryptedProposalObj[type]
+      const isSpending = 'tx' in completedProposal
       let txId;
-      if (type === ProposalType.Spending) {
-        const spendingProposal: CompletedSpendingProposal = decryptedProposalObj as CompletedSpendingProposal;
-        txId = this.bitcoinUtil.getTrxId(spendingProposal[type].tx)
+      if (isSpending) {
+        txId = this.bitcoinUtil.getTrxId(completedProposal.tx)
       }
-      const publishedCompleteProposal: PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal = {
+      const publishedCompleteProposal: CompletedPublishedProposal = {
         type,
         txId,
-        ...decryptedProposalObj[type],
+        ...completedProposal,
         policy_id: policyId,
         proposal_id: proposalId,
         completed_by: completedProposalEvent.pubkey,
@@ -72,7 +73,7 @@ export class CompletedProposalHandler extends EventKindHandler {
         acc.push(result.value);
       }
       return acc;
-    }, [] as Array<PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal>);
+    }, [] as Array<CompletedPublishedProposal>);
 
     this.store.store(completedProposals)
     this.eventsStore.store(rawCompletedProposals)
@@ -82,10 +83,10 @@ export class CompletedProposalHandler extends EventKindHandler {
 
   protected async _delete<K extends number>(ids: string[]): Promise<void> {
     const promises: Promise<void>[] = []
-    const completedProposals: Array<PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal> = []
+    const completedProposals: Array<CompletedPublishedProposal> = []
     const rawCompletedProposals: Array<Event<K>> = []
     for (const id of ids) {
-      const completedProposal: PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal = this.store.get(id)
+      const completedProposal: CompletedPublishedProposal = this.store.get(id)
       if (completedProposal) {
         const policyId = completedProposal.policy_id
         const sharedKeyAuthenticator = (await this.getSharedKeysById([policyId])).get(policyId)?.sharedKeyAuthenticator
