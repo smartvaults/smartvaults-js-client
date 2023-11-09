@@ -2299,7 +2299,7 @@ export class SmartVaults {
     return updatedProfile
   }
 
-  publishKeyAgentSignalingEvent = async (): Promise<void> => {
+  private publishKeyAgentSignalingEvent = async (): Promise<void> => {
     const identifier = this.getNetworkIdentifier();
     const keyAgentSignalingEvent = await buildEvent({
       kind: SmartVaultsKind.KeyAgents,
