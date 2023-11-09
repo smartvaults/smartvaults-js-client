@@ -29,7 +29,7 @@ describe('SmartVaults', () => {
     nostrClient = new NostrClient([
       //'wss://relay.rip',
       // 'wss://test.relay.report'
-      'wss://armnd.net'
+      'ws://localhost:7777'
     ])
     bitcoinUtil = mock<BitcoinUtil>()
     bitcoinUtil.toDescriptor.mockReturnValue("Descriptor")
@@ -1332,6 +1332,13 @@ describe('SmartVaults', () => {
     it('getVerifiedKeyAgentsPubkeys returns verified key agents pubkeys', async () => {
       const keyAgents = await smartVaults.getVerifiedKeyAgentsPubKeys()
       expect(keyAgents).toEqual([smartVaults.authenticator.getPublicKey()])
+    });
+
+    it('removeVerifiedKeyAgent works', async () => {
+      const pubkey = smartVaults.authenticator.getPublicKey()
+      await smartVaults.removeVerifiedKeyAgent(pubkey)
+      const keyAgents = await smartVaults.getVerifiedKeyAgentsPubKeys()
+      expect(keyAgents).toEqual([])
     });
 
     it('saveVerifiedKeyAgent throws error if user is not authority', async () => {
