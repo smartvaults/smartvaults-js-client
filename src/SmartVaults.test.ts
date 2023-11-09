@@ -1281,12 +1281,12 @@ describe('SmartVaults', () => {
 
     it('saveKeyAgent updates metadata if user is already a key agent', async () => {
       const keyAgentMetadata: KeyAgentMetadata = { jurisdiction: "other jurisdiction", x: "https://twitter.com/smartvaults", facebook: "https://facebook.com/smartvaults" }
-      const keyAgent = await smartVaults.saveKeyAgent(keyAgentMetadata)
+      keyAgent1 = await smartVaults.saveKeyAgent(keyAgentMetadata)
       const updatedMetadata = await smartVaults.getProfile()
       expect(updatedMetadata.jurisdiction).toEqual(keyAgentMetadata.jurisdiction)
       expect(updatedMetadata.x).toEqual(keyAgentMetadata.x)
       expect(updatedMetadata.facebook).toEqual(keyAgentMetadata.facebook)
-      expect(updatedMetadata).toEqual(keyAgent.profile)
+      expect(updatedMetadata).toEqual(keyAgent1.profile)
     });
 
     it('getUnverifiedKeyAgentsByPubKey works', async () => {
@@ -1316,12 +1316,22 @@ describe('SmartVaults', () => {
       await expect(smartVaults.saveSignerOffering(ownedSigner1, signerOffering, async () => false)).rejects.toThrowError('Canceled by user.')
     });
 
+    it('getVerifiedKeyAgentsPubkeys returns empty array if no key agents are verified', async () => {
+      const keyAgents = await smartVaults.getVerifiedKeyAgentsPubKeys()
+      expect(keyAgents).toEqual([])
+    });
+
     it('saveVerifiedKeyAgent works', async () => {
       const pubkey = smartVaults.authenticator.getPublicKey()
       const expected = await smartVaults.saveVerifiedKeyAgent(pubkey)
       const keyAgent = await smartVaults.getVerifiedKeyAgents()
       expect(keyAgent.length).toBe(1)
       expect(keyAgent[0]).toEqual(expected)
+    });
+
+    it('getVerifiedKeyAgentsPubkeys returns verified key agents pubkeys', async () => {
+      const keyAgents = await smartVaults.getVerifiedKeyAgentsPubKeys()
+      expect(keyAgents).toEqual([smartVaults.authenticator.getPublicKey()])
     });
 
     it('saveVerifiedKeyAgent throws error if user is not authority', async () => {

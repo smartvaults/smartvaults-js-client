@@ -2102,14 +2102,17 @@ export class SmartVaults {
 
   getVerifiedKeyAgentsPubKeys = async (): Promise<string[]> => {
     let event: Event<SmartVaultsKind.VerifiedKeyAgents> | undefined
+    let verifiedKeyAgents: string[] = []
     try {
       event = await this.getVerifiedKeyAgentsEvent();
+      if (!event) return []
+      const keyAgentsObj: SmartVaultsTypes.BaseVerifiedKeyAgents = JSON.parse(event.content);
+      verifiedKeyAgents = Object.keys(keyAgentsObj);
     } catch (e) {
       console.warn(e)
       return []
     }
-    const verifiedKeyAgents = JSON.parse(event.content);
-    return Array.from(verifiedKeyAgents.keys());
+    return verifiedKeyAgents
   }
 
   isVerifiedKeyAgent = async (pubkey?: string): Promise<boolean> => {
@@ -2287,46 +2290,60 @@ export class SmartVaults {
     return publishedSignerOffering
   }
 
-  saveKeyAgent = async (keyAgentMetadata?: SmartVaultsTypes.KeyAgentMetadata): Promise<SmartVaultsTypes.KeyAgent> => {
+  updateProfile = async (metadata: SmartVaultsTypes.Metadata): Promise<SmartVaultsTypes.Profile> => {
+    const oldProfile = await this.getProfile() || {}
+    console.log({ oldProfile })
+    const { publicKey, ...oldMetadata } = oldProfile
+    const updatedMetadata: SmartVaultsTypes.Metadata = { ...oldMetadata, ...metadata }
+    const updatedProfile = await this.setProfile(updatedMetadata)
+    return updatedProfile
+  }
 
-    const pubkey = this.authenticator.getPublicKey()
-    const isKeyAgent = await this.isKeyAgent(pubkey)
-    const promises: Array<Promise<any>> = []
+  publishKeyAgentSignalingEvent = async (): Promise<void> => {
+    const identifier = this.getNetworkIdentifier();
+    const keyAgentSignalingEvent = await buildEvent({
+      kind: SmartVaultsKind.KeyAgents,
+      content: '',
+      tags: [[TagType.Identifier, identifier]],
+    },
+      this.authenticator)
+    const pub = this.nostrClient.publish(keyAgentSignalingEvent)
+    await pub.onFirstOkOrCompleteFailure()
+  }
 
-    if (isKeyAgent && !keyAgentMetadata) return {} as SmartVaultsTypes.KeyAgent
+  saveKeyAgent = async (metadata?: SmartVaultsTypes.Metadata): Promise<SmartVaultsTypes.KeyAgent> => {
+    const pubkey = this.authenticator.getPublicKey();
+    const isKeyAgent = await this.isKeyAgent(pubkey);
 
-    if (!isKeyAgent) {
-      const identifier = this.getNetworkIdentifier();
-      const keyAgentSignalingEvent = await buildEvent({
-        kind: SmartVaultsKind.KeyAgents,
-        content: '',
-        tags: [[TagType.Identifier, identifier]],
-      },
-        this.authenticator)
-      const pub = this.nostrClient.publish(keyAgentSignalingEvent)
-      promises.push(pub.onFirstOkOrCompleteFailure())
+    if (isKeyAgent && !metadata) {
+      return { pubkey } as SmartVaultsTypes.KeyAgent;
     }
 
-    let updatedProfile: SmartVaultsTypes.Profile = { publicKey: pubkey }
+    let profile: SmartVaultsTypes.Profile = { publicKey: pubkey };
 
-    if (keyAgentMetadata) {
-      const profile = await this.getProfile() || { publicKey: pubkey }
-      updatedProfile = { ...profile, ...keyAgentMetadata }
-      const saveProfile = this.setProfile(updatedProfile)
-      promises.push(saveProfile)
+    const promises = !isKeyAgent ? [this.publishKeyAgentSignalingEvent()] : [];
+
+    if (metadata) {
+      promises.push(this.updateProfile(metadata).then(updatedProfile => {
+        profile = updatedProfile;
+      }));
     }
 
-    await Promise.all(promises)
+    await Promise.all(promises);
+
+    if (metadata && isKeyAgent && this.getStore(SmartVaultsKind.KeyAgents).has(pubkey)) {
+      this.getStore(SmartVaultsKind.KeyAgents).get(pubkey).profile = profile;
+    }
 
     const keyAgent: SmartVaultsTypes.KeyAgent = {
       pubkey,
-      profile: updatedProfile,
+      profile,
       isVerified: false,
       isContact: false,
-    }
+    };
 
-    return keyAgent
-  }
+    return keyAgent;
+  };
 
   getUnverifiedKeyAgents = async (): Promise<Array<SmartVaultsTypes.KeyAgent>> => {
     const keyAgentsFilter = this.getFilter(SmartVaultsKind.KeyAgents)
