@@ -2,11 +2,12 @@ import { Authenticator, DirectPrivateKeyAuthenticator } from '@smontero/nostr-ua
 import { generatePrivateKey, Kind, Event, Filter, Sub } from 'nostr-tools'
 import { SmartVaultsKind, TagType, ProposalType, ProposalStatus, ApprovalStatus, StoreKind, AuthenticatorType, NetworkType, FiatCurrency, Magic } from './enum'
 import { NostrClient, PubPool, Store } from './service'
-import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished, nostrDate, isNip05Verified, type singleKindFilterParams, FilterBuilder, TimeUtil } from './util'
+import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished, nostrDate, isNip05Verified, type singleKindFilterParams, FilterBuilder, TimeUtil, CurrencyUtil } from './util'
 import { BasicTrxDetails, BaseOwnedSigner, BaseSharedSigner, BitcoinUtil, Contact, Policy, PublishedPolicy, TrxDetails } from './models'
 import * as SmartVaultsTypes from './types'
 import { EventKindHandlerFactory } from './event-kind-handler'
 import { BitcoinExchangeRate } from './util'
+import { PaymentType } from './enum/PaymentType'
 export class SmartVaults {
   authenticator: Authenticator
   bitcoinUtil: BitcoinUtil
@@ -52,7 +53,7 @@ export class SmartVaults {
     this.stores.set(StoreKind.Events, Store.createSingleIndexStore("id"))
     this.stores.set(StoreKind.MySharedSigners, Store.createMultiIndexStore(["id", "signerId"], "id"))
     this.stores.set(SmartVaultsKind.Labels, Store.createMultiIndexStore(["id", "policy_id", "label_id", "labelData"], "id"))
-    this.stores.set(SmartVaultsKind.SignerOffering, Store.createMultiIndexStore(["id", "offeringId", "keyAgentPubKey"], "id"))
+    this.stores.set(SmartVaultsKind.SignerOffering, Store.createMultiIndexStore(["id", "offeringId", "keyAgentPubKey", "signerDescriptor"], "id"))
     this.stores.set(SmartVaultsKind.VerifiedKeyAgents, Store.createMultiIndexStore(["eventId", "pubkey"], "pubkey"))
     this.stores.set(SmartVaultsKind.KeyAgents, Store.createSingleIndexStore("pubkey"))
   }
@@ -694,6 +695,88 @@ export class SmartVaults {
     this.getStore(StoreKind.Events).store(proposalEvent)
 
     return publishedProposal
+  }
+
+  async saveKeyAgentPaymentProposal(payload: SmartVaultsTypes.KeyAgentPaymentProposalPayload): Promise<SmartVaultsTypes.PublishedKeyAgentPaymentProposal> {
+    const keyPaymentProposal = await this.spend(payload);
+    return keyPaymentProposal as SmartVaultsTypes.PublishedKeyAgentPaymentProposal;
+  }
+
+  getPaymentOptions = (offering: SmartVaultsTypes.PublishedSignerOffering): Array<PaymentType> => {
+    const paymentOptions: Array<PaymentType> = [];
+    Object.entries(offering).forEach(([key, value]) => {
+      if (!value) return;
+      switch (key) {
+        case 'cost_per_signature':
+          paymentOptions.push(PaymentType.PerSignature);
+          break;
+        case 'yearly_cost':
+          paymentOptions.push(PaymentType.YearlyCost);
+          break;
+        case 'yearly_cost_basis_points':
+          paymentOptions.push(PaymentType.YearlyCostBasisPoints);
+          break;
+        default:
+          break;
+      }
+    });
+    return paymentOptions;
+  }
+
+  getSuggestedPaymentPeriod = async (policy?: PublishedPolicy): Promise<SmartVaultsTypes.Period> => {
+    const oneYear = 365 * 24 * 60 * 60;
+    const currentDate = TimeUtil.getCurrentTimeInSeconds();
+    if (!policy) return { start: currentDate - oneYear, end: currentDate };
+    const lastCompletedKeyAgentPaymentProposal = await this.getLastCompletedKeyAgentPaymentProposal(policy.id);
+    const policyCreatedAt = TimeUtil.toSeconds(policy.createdAt.getTime())
+    let period: SmartVaultsTypes.Period = { start: policyCreatedAt, end: policyCreatedAt + oneYear };
+    if (lastCompletedKeyAgentPaymentProposal) {
+      const oneDay = 24 * 60 * 60;
+      const lastCompletedProposalCreatedAt = TimeUtil.toSeconds(lastCompletedKeyAgentPaymentProposal.completion_date.getTime());
+      period.start = lastCompletedProposalCreatedAt + oneDay;
+      period.end = period.start + oneYear;
+    }
+    return period;
+  }
+
+  getSuggestedPaymentAmount = async (offering: SmartVaultsTypes.PublishedSignerOffering, paymentType: PaymentType, policy: PublishedPolicy, period?: SmartVaultsTypes.Period): Promise<number> => {
+    let price: SmartVaultsTypes.Price | number = 0;
+    let paymentAmount: number = 0;
+    period = period || await this.getSuggestedPaymentPeriod(policy);
+    const years = TimeUtil.fromSecondsToYears(period.end - period.start);
+    if (years <= 0) throw new Error('Invalid period');
+    switch (paymentType) {
+      case PaymentType.PerSignature:
+        price = offering.cost_per_signature!;
+        paymentAmount = await this.fromPriceToSats(price)
+        break;
+      case PaymentType.YearlyCost:
+        if (!period) {
+          period = await this.getSuggestedPaymentPeriod(policy!);
+        }
+        price = offering.yearly_cost!;
+        paymentAmount = await this.fromPriceToSats(price) * years;
+        break;
+      case PaymentType.YearlyCostBasisPoints:
+        price = offering.yearly_cost_basis_points!;
+        const currentBalance = await policy.getBalance();
+        paymentAmount = Math.floor(CurrencyUtil.fromBasisPointsToDecimal(price) * currentBalance.totalBalance() * years);
+        break;
+      default:
+        throw new Error('Invalid payment type');
+    }
+    return paymentAmount;
+  }
+
+  fromPriceToSats = async (price: SmartVaultsTypes.Price): Promise<number> => {
+    switch (price.currency.toLowerCase()) {
+      case 'sats':
+        return price.amount;
+      case 'btc':
+        return CurrencyUtil.fromBitcoinToSats(price.amount);
+      default:
+        return await this.bitcoinExchangeRate.fromPriceToSats(price);
+    }
   }
 
   /**
@@ -2146,7 +2229,7 @@ export class SmartVaults {
       console.warn(e)
     }
     const verifiedKeyAgents: SmartVaultsTypes.BaseVerifiedKeyAgents = verifiedKeyAgentsEvent?.content ? JSON.parse(verifiedKeyAgentsEvent.content) : {}
-    const currentTimeInSeconds = TimeUtil.toSeconds(new Date().getTime())
+    const currentTimeInSeconds = TimeUtil.getCurrentTimeInSeconds()
     const baseVerifiedKeyAgentData: SmartVaultsTypes.BaseVerifiedKeyAgentData = { approved_at: currentTimeInSeconds }
     const updatedVerifiedKeyAgents: SmartVaultsTypes.BaseVerifiedKeyAgents = { ...verifiedKeyAgents, [keyAgentPubKey]: baseVerifiedKeyAgentData }
     const content = JSON.stringify(updatedVerifiedKeyAgents)
@@ -2256,10 +2339,16 @@ export class SmartVaults {
     if (signerOfferingIdentifiersPromises) signerOfferingsIdentifiers = await Promise.all(signerOfferingIdentifiersPromises)
     const signerOfferingsById = await this.getOwnedSignerOfferingsById(signerOfferingsIdentifiers)
     const offeringsBySignerFingerprint = new Map<string, SmartVaultsTypes.PublishedSignerOffering>()
-    signerOfferingsById.forEach(offering => offeringsBySignerFingerprint.set(offering.SignerFingerprint || 'unknown', offering))
+    signerOfferingsById.forEach(offering => offeringsBySignerFingerprint.set(offering.signerFingerprint || 'unknown', offering))
     return offeringsBySignerFingerprint
   }
 
+  async getOwnedSignerOfferingsBySignerDescriptor(signerDescriptors?: string[]): Promise<Map<string, SmartVaultsTypes.PublishedSignerOffering>> {
+    const signerOfferingsFilter = this.getFilter(SmartVaultsKind.SignerOffering, { authors: this.authenticator.getPublicKey() })
+    await this._getSignerOfferings(signerOfferingsFilter)
+    const store = this.getStore(SmartVaultsKind.SignerOffering);
+    return store.getMany(signerDescriptors, "signerDescriptor");
+  }
 
   getSignerOfferingsByKeyAgentPubKey = async (keyAgentsPubKeys?: string[], fromVerifiedKeyAgents?: boolean, paginationOpts?: PaginationOpts): Promise<Map<string, SmartVaultsTypes.PublishedSignerOffering> | Map<string, Array<SmartVaultsTypes.PublishedSignerOffering>>> => {
     let authors: string[] | undefined
@@ -2317,7 +2406,8 @@ export class SmartVaults {
       id: signerOfferingEvent.id,
       createdAt: fromNostrDate(signerOfferingEvent.created_at),
       keyAgentPubKey: signerOfferingEvent.pubkey,
-      SignerFingerprint: fingerprint,
+      signerFingerprint: fingerprint,
+      signerDescriptor: signer.descriptor,
     }
 
     return publishedSignerOffering
@@ -2397,5 +2487,19 @@ export class SmartVaults {
     return this.getStore(SmartVaultsKind.KeyAgents).getMany(pubKeys, "pubkey")
   }
 
+  getCompletedProposalsByType = async (policyId: string, type: ProposalType,): Promise<SmartVaultsTypes.CompletedPublishedProposal[]> => {
+    const completedProposals = (await this.getCompletedProposalsByPolicyId(policyId)).get(policyId)
+    if (!completedProposals) return []
+    const completedProposalsArray = Array.isArray(completedProposals) ? completedProposals : [completedProposals]
+    const completedProposalsByType = completedProposalsArray.filter(completedProposal => completedProposal.type === type)
+    return completedProposalsByType
+  }
+
+
+  getLastCompletedKeyAgentPaymentProposal = async (policyId: string): Promise<SmartVaultsTypes.CompletedPublishedProposal | undefined> => {
+    const completedProposals = await this.getCompletedProposalsByType(policyId, ProposalType.KeyAgentPayment)
+    const lastCompletedProposal = completedProposals.sort((a, b) => b.completion_date.getTime() - a.completion_date.getTime())[0]
+    return lastCompletedProposal
+  }
 
 }

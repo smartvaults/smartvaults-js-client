@@ -20,4 +20,13 @@ export class TimeUtil {
   static toMinutes(milliseconds: number): number {
     return Math.floor(this.toSeconds(milliseconds) / 60)
   }
+
+  static fromSecondsToYears(seconds: number): number {
+    return seconds / 60 / 60 / 24 / 365
+  }
+
+  static getCurrentTimeInSeconds(): number {
+    return Math.floor(Date.now() / 1000)
+  }
+
 }

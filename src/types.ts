@@ -1,4 +1,4 @@
-import { ProposalType } from './enum';
+import { FiatCurrency, ProposalType } from './enum';
 import { BasePolicy, PublishedPolicy, Utxo, BaseOwnedSigner, BaseSharedSigner } from './models'
 import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { DeviceType } from './enum/DeviceType';
@@ -220,8 +220,8 @@ export type LabeledUtxo = Utxo & {
   frozen: boolean
 }
 
-type Price = {
-  currency: string,
+export type Price = {
+  currency: FiatCurrency,
   amount: number,
 }
 
@@ -239,7 +239,8 @@ export type SignerOffering = {
 export type PublishedSignerOffering = Published & SignerOffering & {
   keyAgentPubKey: string,
   offeringId: string,
-  SignerFingerprint?: string,
+  signerFingerprint?: string,
+  signerDescriptor?: string,
 }
 
 export type KeyAgent = {
@@ -257,7 +258,7 @@ export type BaseVerifiedKeyAgents = {
   [key: string]: BaseVerifiedKeyAgentData
 }
 
-type Period = {
+export type Period = {
   start: number,
   end: number,
 }

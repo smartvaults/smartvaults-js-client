@@ -2,6 +2,7 @@ import { FiatCurrency } from "../enum";
 import { CurrencyUtil } from "./CurrencyUtil";
 import { TimeUtil } from "./TimeUtil";
 import { BitcoinUnit, DatedRate } from "./types";
+import { Price } from "../types";
 
 export class BitcoinExchangeRate {
     private static instance: BitcoinExchangeRate;
@@ -57,6 +58,11 @@ export class BitcoinExchangeRate {
         this.updateInterval = TimeUtil.toMilliSeconds(interval);
     }
 
+    public async fromPriceToSats(price: Price): Promise<number> {
+        const exchangeRate = await this.fetchBitcoinExchangeRate(price.currency);
+        const amount = await this.convertToFiat([price.amount], exchangeRate);
+        return amount[0];
+    }
 
     private async updateExchangeRate(): Promise<void> {
         const now: Date = new Date();

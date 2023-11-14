@@ -5,8 +5,8 @@ import { SmartVaults } from './SmartVaults'
 import { NostrClient, Keys, Store } from './service'
 import { TimeUtil, buildEvent } from './util'
 import { BaseOwnedSigner, Contact, PublishedPolicy, BitcoinUtil, Wallet, type FinalizeTrxResponse } from './models'
-import { Metadata, Profile, SavePolicyPayload, SpendProposalPayload, PublishedDirectMessage, PublishedSpendingProposal, PublishedApprovedProposal, PublishedSharedSigner, PublishedOwnedSigner, MySharedSigner, KeyAgentMetadata, SignerOffering, KeyAgent } from './types'
-import { SmartVaultsKind, ProposalStatus, NetworkType } from './enum'
+import { Metadata, Profile, SavePolicyPayload, SpendProposalPayload, PublishedDirectMessage, PublishedSpendingProposal, PublishedApprovedProposal, PublishedSharedSigner, PublishedOwnedSigner, MySharedSigner, KeyAgentMetadata, SignerOffering, KeyAgent, PublishedSignerOffering, PublishedKeyAgentPaymentProposal, PublishedCompletedKeyAgentPaymentProposal } from './types'
+import { SmartVaultsKind, ProposalStatus, NetworkType, FiatCurrency, PaymentType } from './enum'
 import { Kind } from 'nostr-tools'
 
 jest.setTimeout(1000000);
@@ -21,6 +21,7 @@ describe('SmartVaults', () => {
   let keySet1
   let keySet2
   let altKeySet
+  let keyAgentPaymentProposal1: PublishedKeyAgentPaymentProposal
 
   beforeAll(async () => {
     keySet1 = new KeySet(3)
@@ -936,7 +937,6 @@ describe('SmartVaults', () => {
     let saveApprovedProposal2;
     let saveApprovedProposal3;
     let saveApprovedProposal4;
-    let keyAgentPaymentProposal1;
     let proposalApproved1;
     let proposalApproved2;
     let completedProposal2;
@@ -999,7 +999,7 @@ describe('SmartVaults', () => {
       proofOfReserveProposal3 = await smartVaults._saveProofOfReserveProposal(policy3.id, saveProofOfReserveProposalPayload3)
 
       let keyAgentPaymentPayload1 = keyAgentPaymentPayload(14, policy4)
-      keyAgentPaymentProposal1 = await smartVaults.spend(keyAgentPaymentPayload1)
+      keyAgentPaymentProposal1 = await smartVaults.spend(keyAgentPaymentPayload1) as PublishedKeyAgentPaymentProposal
 
       proposalApproved1 = proofOfReserveProposal3.proposal_id
       proposalApproved2 = spendProposal3.proposal_id
@@ -1262,6 +1262,8 @@ describe('SmartVaults', () => {
     let smartVaults2: SmartVaults
     let smartVaults3: SmartVaults
     let ownedSigner1: PublishedOwnedSigner
+    let signerOffering1: PublishedSignerOffering
+    let completedKeyAgentPaymentProposal1: PublishedCompletedKeyAgentPaymentProposal
     beforeAll(() => {
       smartVaults2 = newSmartVaults(altKeySet.mainKey())
       const keys = new KeySet(1)
@@ -1297,12 +1299,12 @@ describe('SmartVaults', () => {
     });
 
     it('saveSignerOffering works', async () => {
-      const signerOffering: SignerOffering = { temperature: 'cold', device_type: 'coldcard', response_time: 5 }
+      const signerOffering: SignerOffering = { temperature: 'cold', device_type: 'coldcard', response_time: 5, cost_per_signature: { amount: 100, currency: FiatCurrency.USD }, yearly_cost: { amount: 1000, currency: FiatCurrency.USD } }
       ownedSigner1 = (await smartVaults.getOwnedSigners())[0]
-      const expected = await smartVaults.saveSignerOffering(ownedSigner1, signerOffering, async () => false)
+      signerOffering1 = await smartVaults.saveSignerOffering(ownedSigner1, signerOffering, async () => false)
       const offering = await smartVaults.getOwnedSignerOfferingsBySignerFingerprint([ownedSigner1.fingerprint])
       expect(offering.size).toBe(1)
-      expect(offering.get(ownedSigner1.fingerprint)).toEqual(expected)
+      expect(offering.get(ownedSigner1.fingerprint)).toEqual(signerOffering1)
     });
 
     it('saveSignerOffering throws error if user is not a key agent', async () => {
@@ -1344,6 +1346,57 @@ describe('SmartVaults', () => {
     it('saveVerifiedKeyAgent throws error if user is not authority', async () => {
       const pubkey = smartVaults2.authenticator.getPublicKey()
       await expect(smartVaults2.saveVerifiedKeyAgent(pubkey)).rejects.toThrowError('Unauthorized')
+    });
+
+    it('getPaymenOptions works', async () => {
+      const paymentOptions = smartVaults.getPaymentOptions(signerOffering1)
+      expect(paymentOptions.length).toBe(2)
+      expect(paymentOptions).toEqual([PaymentType.PerSignature, PaymentType.YearlyCost])
+    });
+
+    it('getSuggestedPaymentPeriod works with no previous key agent payment', async () => {
+      const policy = (await smartVaults.getPoliciesById([keyAgentPaymentProposal1.policy_id])).get(keyAgentPaymentProposal1.policy_id)!
+      const suggestedPaymentPeriod = await smartVaults.getSuggestedPaymentPeriod(policy)
+      const oneYear = 365 * 24 * 60 * 60
+      const start = TimeUtil.toSeconds(policy.createdAt.getTime())
+      const expected = { start: start, end: start + oneYear }
+      expect(suggestedPaymentPeriod).toEqual(expected)
+    })
+
+
+    it('getLastCompletedKeyAgentPaymentProposal works', async () => {
+      let approvalsMap: Map<string, PublishedApprovedProposal[]> = new Map()
+      approvalsMap.set(keyAgentPaymentProposal1.proposal_id, [{} as PublishedApprovedProposal])
+      jest.spyOn(smartVaults, 'getApprovals').mockResolvedValue(approvalsMap)
+      completedKeyAgentPaymentProposal1 = await smartVaults.finalizeSpendingProposal(keyAgentPaymentProposal1.proposal_id) as PublishedCompletedKeyAgentPaymentProposal
+      const lastCompletedKeyAgentPaymentProposal = await smartVaults.getLastCompletedKeyAgentPaymentProposal(keyAgentPaymentProposal1.policy_id)
+      expect(lastCompletedKeyAgentPaymentProposal).toEqual(completedKeyAgentPaymentProposal1)
+    });
+
+
+    it('getSuggestedPaymentPeriod works if there is there is previuos key agent payment', async () => {
+      const policy = (await smartVaults.getPoliciesById([keyAgentPaymentProposal1.policy_id])).get(keyAgentPaymentProposal1.policy_id)!
+      const suggestedPaymentPeriod = await smartVaults.getSuggestedPaymentPeriod(policy)
+      const oneYear = 365 * 24 * 60 * 60
+      const oneDay = 24 * 60 * 60
+      const start = TimeUtil.toSeconds(completedKeyAgentPaymentProposal1.completion_date.getTime()) + oneDay
+      const expected = { start, end: start + oneYear }
+      expect(suggestedPaymentPeriod).toEqual(expected)
+    });
+
+    it('getSuggestedPaymentPeriod default works', async () => {
+      const suggestedPaymentPeriod = await smartVaults.getSuggestedPaymentPeriod()
+      const oneYear = 365 * 24 * 60 * 60
+      const currentTimeInSeconds = TimeUtil.getCurrentTimeInSeconds()
+      const start = currentTimeInSeconds - oneYear
+      const expected = { start, end: currentTimeInSeconds }
+      expect(suggestedPaymentPeriod).toEqual(expected)
+    })
+
+    it('getSuggestedPaymentAmount works', async () => {
+      const policy = (await smartVaults.getPoliciesById([keyAgentPaymentProposal1.policy_id])).get(keyAgentPaymentProposal1.policy_id)!
+      const suggestedPaymentAmount = await smartVaults.getSuggestedPaymentAmount(signerOffering1, PaymentType.YearlyCost, policy)
+      expect(suggestedPaymentAmount).toEqual(signerOffering1.yearly_cost!.amount)
     });
 
   });
