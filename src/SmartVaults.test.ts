@@ -1356,12 +1356,20 @@ describe('SmartVaults', () => {
 
     it('getSuggestedPaymentPeriod works with no previous key agent payment', async () => {
       const policy = (await smartVaults.getPoliciesById([keyAgentPaymentProposal1.policy_id])).get(keyAgentPaymentProposal1.policy_id)!
-      const suggestedPaymentPeriod = await smartVaults.getSuggestedPaymentPeriod(policy)
-      const oneYear = 365 * 24 * 60 * 60
+      const suggestedPaymentPeriod = await smartVaults.getSuggestedPaymentPeriod(policy, keyAgentPaymentProposal1.signer_descriptor)
+      const oneYear = TimeUtil.fromYearsToSeconds(1)
       const start = TimeUtil.toSeconds(policy.createdAt.getTime())
       const expected = { start: start, end: start + oneYear }
       expect(suggestedPaymentPeriod).toEqual(expected)
     })
+
+    it('hasActiveKeyAgentPaymentProposal works', async () => {
+      const hasActiveKeyAgentPaymentProposal1 = await smartVaults.hasActiveKeyAgentPaymentProposal(keyAgentPaymentProposal1.policy_id, keyAgentPaymentProposal1.signer_descriptor)
+      expect(hasActiveKeyAgentPaymentProposal1).toEqual(true)
+      const hasActiveKeyAgentPaymentProposal2 = await smartVaults.hasActiveKeyAgentPaymentProposal(keyAgentPaymentProposal1.policy_id, 'other signer descriptor')
+      expect(hasActiveKeyAgentPaymentProposal2).toEqual(false)
+    });
+
 
 
     it('getLastCompletedKeyAgentPaymentProposal works', async () => {
@@ -1369,33 +1377,24 @@ describe('SmartVaults', () => {
       approvalsMap.set(keyAgentPaymentProposal1.proposal_id, [{} as PublishedApprovedProposal])
       jest.spyOn(smartVaults, 'getApprovals').mockResolvedValue(approvalsMap)
       completedKeyAgentPaymentProposal1 = await smartVaults.finalizeSpendingProposal(keyAgentPaymentProposal1.proposal_id) as PublishedCompletedKeyAgentPaymentProposal
-      const lastCompletedKeyAgentPaymentProposal = await smartVaults.getLastCompletedKeyAgentPaymentProposal(keyAgentPaymentProposal1.policy_id)
+      const lastCompletedKeyAgentPaymentProposal = await smartVaults.getLastCompletedKeyAgentPaymentProposal(keyAgentPaymentProposal1.policy_id, keyAgentPaymentProposal1.signer_descriptor)
       expect(lastCompletedKeyAgentPaymentProposal).toEqual(completedKeyAgentPaymentProposal1)
     });
 
 
     it('getSuggestedPaymentPeriod works if there is there is previuos key agent payment', async () => {
       const policy = (await smartVaults.getPoliciesById([keyAgentPaymentProposal1.policy_id])).get(keyAgentPaymentProposal1.policy_id)!
-      const suggestedPaymentPeriod = await smartVaults.getSuggestedPaymentPeriod(policy)
-      const oneYear = 365 * 24 * 60 * 60
-      const oneDay = 24 * 60 * 60
+      const suggestedPaymentPeriod = await smartVaults.getSuggestedPaymentPeriod(policy, keyAgentPaymentProposal1.signer_descriptor)
+      const oneYear = TimeUtil.fromYearsToSeconds(1)
+      const oneDay = TimeUtil.fromDaysToSeconds(1)
       const start = TimeUtil.toSeconds(completedKeyAgentPaymentProposal1.completion_date.getTime()) + oneDay
       const expected = { start, end: start + oneYear }
       expect(suggestedPaymentPeriod).toEqual(expected)
     });
 
-    it('getSuggestedPaymentPeriod default works', async () => {
-      const suggestedPaymentPeriod = await smartVaults.getSuggestedPaymentPeriod()
-      const oneYear = 365 * 24 * 60 * 60
-      const currentTimeInSeconds = TimeUtil.getCurrentTimeInSeconds()
-      const start = currentTimeInSeconds - oneYear
-      const expected = { start, end: currentTimeInSeconds }
-      expect(suggestedPaymentPeriod).toEqual(expected)
-    })
-
     it('getSuggestedPaymentAmount works', async () => {
       const policy = (await smartVaults.getPoliciesById([keyAgentPaymentProposal1.policy_id])).get(keyAgentPaymentProposal1.policy_id)!
-      const suggestedPaymentAmount = await smartVaults.getSuggestedPaymentAmount(signerOffering1, PaymentType.YearlyCost, policy)
+      const suggestedPaymentAmount = await smartVaults.getSuggestedPaymentAmount(signerOffering1, PaymentType.YearlyCost, policy, keyAgentPaymentProposal1.signer_descriptor)
       expect(suggestedPaymentAmount).toEqual(signerOffering1.yearly_cost!.amount)
     });
 

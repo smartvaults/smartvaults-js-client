@@ -25,6 +25,14 @@ export class TimeUtil {
     return seconds / 60 / 60 / 24 / 365
   }
 
+  static fromYearsToSeconds(years: number): number {
+    return years * this.fromDaysToSeconds(365)
+  }
+
+  static fromDaysToSeconds(days: number): number {
+    return days * 60 * 60 * 24
+  }
+
   static getCurrentTimeInSeconds(): number {
     return Math.floor(Date.now() / 1000)
   }

@@ -698,6 +698,8 @@ export class SmartVaults {
   }
 
   async saveKeyAgentPaymentProposal(payload: SmartVaultsTypes.KeyAgentPaymentProposalPayload): Promise<SmartVaultsTypes.PublishedKeyAgentPaymentProposal> {
+    const hastActiveKeyAgentPaymentProposal = await this.hasActiveKeyAgentPaymentProposal(payload.policy.id, payload.keyAgentPayment.signer_descriptor);
+    if (hastActiveKeyAgentPaymentProposal) throw new Error('There is already an active key agent payment proposal for this signer');
     const keyPaymentProposal = await this.spend(payload);
     return keyPaymentProposal as SmartVaultsTypes.PublishedKeyAgentPaymentProposal;
   }
@@ -723,26 +725,24 @@ export class SmartVaults {
     return paymentOptions;
   }
 
-  getSuggestedPaymentPeriod = async (policy?: PublishedPolicy): Promise<SmartVaultsTypes.Period> => {
-    const oneYear = 365 * 24 * 60 * 60;
-    const currentDate = TimeUtil.getCurrentTimeInSeconds();
-    if (!policy) return { start: currentDate - oneYear, end: currentDate };
-    const lastCompletedKeyAgentPaymentProposal = await this.getLastCompletedKeyAgentPaymentProposal(policy.id);
+  getSuggestedPaymentPeriod = async (policy: PublishedPolicy, signerDescriptor: string): Promise<SmartVaultsTypes.Period> => {
+    const oneYear = TimeUtil.fromYearsToSeconds(1);
+    const lastCompletedKeyAgentPaymentProposal = await this.getLastCompletedKeyAgentPaymentProposal(policy.id, signerDescriptor);
     const policyCreatedAt = TimeUtil.toSeconds(policy.createdAt.getTime())
     let period: SmartVaultsTypes.Period = { start: policyCreatedAt, end: policyCreatedAt + oneYear };
     if (lastCompletedKeyAgentPaymentProposal) {
-      const oneDay = 24 * 60 * 60;
-      const lastCompletedProposalCreatedAt = TimeUtil.toSeconds(lastCompletedKeyAgentPaymentProposal.completion_date.getTime());
+      const oneDay = TimeUtil.fromDaysToSeconds(1);
+      const lastCompletedProposalCreatedAt = TimeUtil.toSeconds(new Date(lastCompletedKeyAgentPaymentProposal.completion_date).getTime());
       period.start = lastCompletedProposalCreatedAt + oneDay;
       period.end = period.start + oneYear;
     }
     return period;
   }
 
-  getSuggestedPaymentAmount = async (offering: SmartVaultsTypes.PublishedSignerOffering, paymentType: PaymentType, policy: PublishedPolicy, period?: SmartVaultsTypes.Period): Promise<number> => {
+  getSuggestedPaymentAmount = async (offering: SmartVaultsTypes.PublishedSignerOffering, paymentType: PaymentType, policy: PublishedPolicy, signerDescriptor: string, period?: SmartVaultsTypes.Period): Promise<number> => {
     let price: SmartVaultsTypes.Price | number = 0;
     let paymentAmount: number = 0;
-    period = period || await this.getSuggestedPaymentPeriod(policy);
+    period = period || await this.getSuggestedPaymentPeriod(policy, signerDescriptor);
     const years = TimeUtil.fromSecondsToYears(period.end - period.start);
     if (years <= 0) throw new Error('Invalid period');
     switch (paymentType) {
@@ -1505,13 +1505,18 @@ export class SmartVaults {
     const policyMembers = policy.nostrPublicKeys.map(pubkey => [TagType.PubKey, pubkey])
 
     const sharedKeyAuthenticator = policy.sharedKeyAuth
+    const isKeyAgentPayment = 'signer_descriptor' in proposal
 
-    const completedProposal: SmartVaultsTypes.CompletedSpendingProposal = {
+    const completedProposal = {
       [type]: {
         tx: txResponse.trx,
         description: proposal.description,
+        ...(isKeyAgentPayment && {
+          signer_descriptor: proposal.signer_descriptor,
+          period: proposal.period
+        })
       }
-    }
+    } as SmartVaultsTypes.CompletedSpendingProposal | SmartVaultsTypes.CompletedKeyAgentPaymentProposal;
 
     const content = await sharedKeyAuthenticator.encryptObj(completedProposal)
 
@@ -2189,7 +2194,6 @@ export class SmartVaults {
       const keyAgentsObj: SmartVaultsTypes.BaseVerifiedKeyAgents = JSON.parse(event.content);
       verifiedKeyAgents = Object.keys(keyAgentsObj);
     } catch (e) {
-      console.warn(e)
       return []
     }
     return verifiedKeyAgents
@@ -2206,7 +2210,6 @@ export class SmartVaults {
     try {
       verifiedKeyAgentsEvent = await this.getVerifiedKeyAgentsEvent()
     } catch (e) {
-      console.warn(e)
       return []
     }
     const verifiedKeyAgentHandler = this.eventKindHandlerFactor.getHandler(SmartVaultsKind.VerifiedKeyAgents)
@@ -2492,11 +2495,25 @@ export class SmartVaults {
     return completedProposalsByType
   }
 
-
-  getLastCompletedKeyAgentPaymentProposal = async (policyId: string): Promise<SmartVaultsTypes.CompletedPublishedProposal | undefined> => {
-    const completedProposals = await this.getCompletedProposalsByType(policyId, ProposalType.KeyAgentPayment)
-    const lastCompletedProposal = completedProposals.sort((a, b) => b.completion_date.getTime() - a.completion_date.getTime())[0]
-    return lastCompletedProposal
+  getActiveProposalsByType = async (policyId: string, type: ProposalType,): Promise<SmartVaultsTypes.ActivePublishedProposal[]> => {
+    const activeProposals = (await this.getProposalsByPolicyId(policyId)).get(policyId)
+    if (!activeProposals) return []
+    const activeProposalsArray = Array.isArray(activeProposals) ? activeProposals : [activeProposals]
+    const activeProposalsByType = activeProposalsArray.filter(activeProposal => activeProposal.type === type)
+    return activeProposalsByType
   }
 
+
+  getLastCompletedKeyAgentPaymentProposal = async (policyId: string, signerDescriptor?: string): Promise<SmartVaultsTypes.CompletedPublishedProposal | undefined> => {
+    let completedProposals = await this.getCompletedProposalsByType(policyId, ProposalType.KeyAgentPayment)
+    if (signerDescriptor) completedProposals = completedProposals.filter(completedProposal => 'signer_descriptor' in completedProposal && completedProposal.signer_descriptor === signerDescriptor)
+    const lastCompletedProposal = completedProposals.sort((a, b) => b.completion_date.getTime() - a.completion_date.getTime())
+    return lastCompletedProposal[0]
+  }
+
+  hasActiveKeyAgentPaymentProposal = async (policyId: string, signerDescriptor?: string): Promise<boolean> => {
+    const activeProposals = await this.getActiveProposalsByType(policyId, ProposalType.KeyAgentPayment)
+    if (signerDescriptor) return activeProposals.some(activeProposal => 'signer_descriptor' in activeProposal && activeProposal.signer_descriptor === signerDescriptor)
+    return activeProposals.length > 0
+  }
 }
