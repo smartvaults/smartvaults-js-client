@@ -751,9 +751,6 @@ export class SmartVaults {
         paymentAmount = await this.fromPriceToSats(price)
         break;
       case PaymentType.YearlyCost:
-        if (!period) {
-          period = await this.getSuggestedPaymentPeriod(policy!);
-        }
         price = offering.yearly_cost!;
         paymentAmount = await this.fromPriceToSats(price) * years;
         break;
