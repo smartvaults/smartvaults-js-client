@@ -765,7 +765,7 @@ export class SmartVaults {
     return paymentAmount;
   }
 
-  fromPriceToSats = async (price: SmartVaultsTypes.Price): Promise<number> => {
+  private fromPriceToSats = async (price: SmartVaultsTypes.Price): Promise<number> => {
     switch (price.currency.toLowerCase()) {
       case 'sats':
         return price.amount;
