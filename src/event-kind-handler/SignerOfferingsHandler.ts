@@ -65,7 +65,8 @@ export class SignerOfferingsHandler extends EventKindHandler {
             if (keyAgentPubKey === ownPubkey) {
                 const ownedSigner = ownedSignersByOfferingIdentifiers?.get(signerOfferingId)
                 if (ownedSigner) {
-                    publishedSignerOffering.SignerFingerprint = ownedSigner.fingerprint
+                    publishedSignerOffering.signerFingerprint = ownedSigner.fingerprint
+                    publishedSignerOffering.signerDescriptor = ownedSigner.descriptor
                 }
             }
 
