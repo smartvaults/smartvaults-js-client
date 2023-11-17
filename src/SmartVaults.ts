@@ -2533,7 +2533,7 @@ export class SmartVaults {
   downloadProposalPsbt = async (proposalId: string): Promise<void> => {
     const psbt = await this.getProposalPsbt(proposalId)
     const bytes = new Uint8Array(this.bitcoinUtil.fromBase64(psbt))
-    const name = `proposal-${proposalId.slice(-8)}.psbt`
+    const name = `proposal-${proposalId.slice(-8)}`
     saveFile(name, bytes.buffer)
   }
 
