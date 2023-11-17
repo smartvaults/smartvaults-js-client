@@ -6,7 +6,7 @@ import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate,
 import { BasicTrxDetails, BaseOwnedSigner, BaseSharedSigner, BitcoinUtil, Contact, Policy, PublishedPolicy, TrxDetails } from './models'
 import * as SmartVaultsTypes from './types'
 import { EventKindHandlerFactory } from './event-kind-handler'
-import { BitcoinExchangeRate } from './util'
+import { BitcoinExchangeRate, saveFile, readFile } from './util'
 import { PaymentType } from './enum/PaymentType'
 export class SmartVaults {
   authenticator: Authenticator
@@ -1778,25 +1778,32 @@ export class SmartVaults {
   /**
   * @ignore
   */
-  async _saveApprovedProposal(proposal_id: string): Promise<SmartVaultsTypes.PublishedApprovedProposal> {
-    const proposalEvent = await this.getProposalEvent(proposal_id)
-    const policyId = getTagValues(proposalEvent, TagType.Event)[0]
+  async saveApprovedProposal(proposal_id: string): Promise<SmartVaultsTypes.PublishedApprovedProposal> {
+    let signedPsbt
+    try {
+      signedPsbt = this.getPsbtFromFileSystem()
+    } catch (error) {
+      throw new Error(`No psbt found for proposal with id ${proposal_id}`)
+    }
+    console.log(signedPsbt)
+    const proposal = (await this.getProposalsById(proposal_id)).get(proposal_id)
+    if (!proposal) throw new Error(`Proposal with id ${proposal_id} not found`)
+
+    const policyId = proposal.policy_id
     const policyEvent = await this.getPolicyEvent(policyId)
     const policyMembers = policyEvent.tags
-
     const sharedKeyAuthenticator: any = (await this.getSharedKeysById([policyId])).get(policyId)?.sharedKeyAuthenticator
-
-    const decryptedProposalObj = await sharedKeyAuthenticator.decryptObj(proposalEvent.content)
-    const type = decryptedProposalObj[ProposalType.Spending] ? ProposalType.Spending : ProposalType.ProofOfReserve
+    const type = proposal.type
 
     const approvedProposal: SmartVaultsTypes.BaseApprovedProposal = {
       [type]: {
-        ...decryptedProposalObj[type],
+        psbt: signedPsbt,
       }
     }
 
-    const expirationDate = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7 // 7 days
+    const expirationDate = TimeUtil.getCurrentTimeInSeconds() + TimeUtil.fromDaysToSeconds(7)
     const content = await sharedKeyAuthenticator.encryptObj(approvedProposal)
+
     const approvedProposalEvent = await buildEvent({
       kind: SmartVaultsKind.ApprovedProposal,
       content,
@@ -1806,7 +1813,7 @@ export class SmartVaults {
 
     const publishedApprovedProposal: SmartVaultsTypes.PublishedApprovedProposal = {
       type,
-      ...decryptedProposalObj[type],
+      psbt: signedPsbt,
       proposal_id,
       policy_id: policyId,
       approval_id: approvedProposalEvent.id,
@@ -2516,4 +2523,23 @@ export class SmartVaults {
     if (signerDescriptor) return activeProposals.some(activeProposal => 'signer_descriptor' in activeProposal && activeProposal.signer_descriptor === signerDescriptor)
     return activeProposals.length > 0
   }
+
+  getProposalPsbt = async (proposalId: string): Promise<string> => {
+    const proposal = (await this.getProposalsById(proposalId)).get(proposalId)
+    if (!proposal) throw new Error(`Proposal with id ${proposalId} not found`)
+    return proposal.psbt
+  }
+
+  downloadProposalPsbt = async (proposalId: string): Promise<void> => {
+    const psbt = await this.getProposalPsbt(proposalId)
+    const bytes = new Uint8Array(this.bitcoinUtil.fromBase64(psbt))
+    const name = `proposal-${proposalId.slice(-8)}.psbt`
+    saveFile(name, bytes.buffer)
+  }
+
+  getPsbtFromFileSystem = (): string => {
+    const psbt: string = readFile((file: any) => { return this.bitcoinUtil.toBase64(new Uint8Array(file)) })
+    return psbt
+  }
+
 }
