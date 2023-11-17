@@ -1431,7 +1431,7 @@ export class SmartVaults {
       }
 
       const approvals = Array.isArray(approvalData) ? approvalData : [approvalData];
-
+      if (approvals.some(approval => !approval.psbt)) return false;
       const psbts: string[] = approvals
         .filter(approval => approval.status === ApprovalStatus.Active)
         .map(activeApproval => activeApproval.psbt);
@@ -1779,13 +1779,8 @@ export class SmartVaults {
   * @ignore
   */
   async saveApprovedProposal(proposal_id: string): Promise<SmartVaultsTypes.PublishedApprovedProposal> {
-    let signedPsbt
-    try {
-      signedPsbt = this.getPsbtFromFileSystem()
-    } catch (error) {
-      throw new Error(`No psbt found for proposal with id ${proposal_id}`)
-    }
-    console.log(signedPsbt)
+    const signedPsbt = await this.getPsbtFromFileSystem()
+    if (!signedPsbt) throw new Error('No signed psbt provided')
     const proposal = (await this.getProposalsById(proposal_id)).get(proposal_id)
     if (!proposal) throw new Error(`Proposal with id ${proposal_id} not found`)
 
@@ -2537,9 +2532,12 @@ export class SmartVaults {
     saveFile(name, bytes.buffer)
   }
 
-  getPsbtFromFileSystem = (): string => {
-    const psbt: string = readFile((file: any) => { return this.bitcoinUtil.toBase64(new Uint8Array(file)) })
-    return psbt
+  async getPsbtFromFileSystem(): Promise<string> {
+    try {
+      const fileContent = await readFile();
+      return this.bitcoinUtil.toBase64(new Uint8Array(fileContent as ArrayBuffer));
+    } catch (error) {
+      throw new Error(`Could not read file: ${error}`);
+    }
   }
-
 }
