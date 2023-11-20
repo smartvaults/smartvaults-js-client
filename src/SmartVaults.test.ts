@@ -1319,6 +1319,18 @@ describe('SmartVaults', () => {
       await expect(smartVaults.saveSignerOffering(ownedSigner1, signerOffering, async () => false)).rejects.toThrowError('Canceled by user.')
     });
 
+    it('getContactsSignerOfferingsBySignerDescriptor works', async () => {
+      const offering = await smartVaults.saveSignerOffering(ownedSigner1, { temperature: 'cold', device_type: 'coldcard', response_time: 5 }, async () => true)
+      const signerOfferings = await smartVaults2.getContactsSignerOfferingsBySignerDescriptor([ownedSigner1.descriptor])
+      expect(signerOfferings.size).toBe(0)
+      await smartVaults2.upsertContacts(new Contact({ publicKey: keyAgent1.profile.publicKey }))
+      await smartVaults.saveSharedSigner(ownedSigner1, smartVaults2.authenticator.getPublicKey())
+      await sleep(100)
+      const signerOfferings2 = await smartVaults2.getContactsSignerOfferingsBySignerDescriptor([ownedSigner1.descriptor])
+      expect(signerOfferings2.size).toBe(1)
+      expect(signerOfferings2.get(ownedSigner1.descriptor)).toEqual(offering)
+    });
+
     it('getVerifiedKeyAgentsPubkeys returns empty array if no key agents are verified', async () => {
       const keyAgents = await smartVaults.getVerifiedKeyAgentsPubKeys()
       expect(keyAgents).toEqual([])

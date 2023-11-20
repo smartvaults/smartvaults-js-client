@@ -235,13 +235,17 @@ export class SmartVaults {
    * const contacts = await getContacts();
    */
   getContacts = async (): Promise<Contact[]> => {
-    const contactsFilter = this.getFilter(Kind.Contacts)
+    const contactsEvents = await this.getContactsEvents()
+    return this.eventKindHandlerFactor.getHandler(Kind.Contacts).handle(contactsEvents)
+  }
 
+  getContactsEvents = async (): Promise<Event<Kind.Contacts>[]> => {
+    const contactsFilter = this.getFilter(Kind.Contacts)
     const contactsEvent = await this.nostrClient.list(contactsFilter)
     if (!contactsEvent) {
       return []
     }
-    return this.eventKindHandlerFactor.getHandler(Kind.Contacts).handle(contactsEvent)
+    return contactsEvent
   }
 
   /**
@@ -748,16 +752,16 @@ export class SmartVaults {
     switch (paymentType) {
       case PaymentType.PerSignature:
         price = offering.cost_per_signature!;
-        paymentAmount = await this.fromPriceToSats(price)
+        paymentAmount = Math.ceil(await this.fromPriceToSats(price))
         break;
       case PaymentType.YearlyCost:
         price = offering.yearly_cost!;
-        paymentAmount = await this.fromPriceToSats(price) * years;
+        paymentAmount = Math.ceil(await this.fromPriceToSats(price) * years);
         break;
       case PaymentType.YearlyCostBasisPoints:
         price = offering.yearly_cost_basis_points!;
         const currentBalance = await policy.getBalance();
-        paymentAmount = Math.floor(CurrencyUtil.fromBasisPointsToDecimal(price) * currentBalance.totalBalance() * years);
+        paymentAmount = Math.ceil(CurrencyUtil.fromBasisPointsToDecimal(price) * currentBalance.totalBalance() * years);
         break;
       default:
         throw new Error('Invalid payment type');
@@ -1018,6 +1022,14 @@ export class SmartVaults {
     const keysToFilter = Array.isArray(publicKeys) ? publicKeys : (publicKeys ? [publicKeys] : []);
     const sharedSignersFilter = keysToFilter.length ? this.getFilter(SmartVaultsKind.SharedSigners, { authors: keysToFilter }) : this.getFilter(SmartVaultsKind.SharedSigners)
     return this._getSharedSigners(sharedSignersFilter);
+  }
+
+  getSharedSignersByOfferingIdentifiers = async (publicKeys?: string | string[]): Promise<Map<string, SmartVaultsTypes.PublishedSharedSigner>> => {
+    const sharedSigners = await this.getSharedSigners(publicKeys)
+    const augmentedSharedSignersPromises = sharedSigners.map(async signer => ({ ...signer, offeringIdentifier: await this.generateSignerOfferingIdentifier(signer.fingerprint) }))
+    const augmentedSharedSigners = await Promise.all(augmentedSharedSignersPromises)
+    const sharedSignersByOfferingIdentifiers: Map<string, SmartVaultsTypes.PublishedSharedSigner> = new Map(augmentedSharedSigners.map(signer => [signer.offeringIdentifier, signer]))
+    return sharedSignersByOfferingIdentifiers
   }
 
   extractKey(descriptor: string): string {
@@ -2345,10 +2357,25 @@ export class SmartVaults {
     return offeringsBySignerFingerprint
   }
 
+  async getContactsSignerOfferingsBySignerDescriptor(signerDescriptors?: string[]): Promise<Map<string, SmartVaultsTypes.PublishedSignerOffering>> {
+    const contacts = await this.getContacts()
+    const contactsPubkeys = contacts.map(contact => contact.publicKey)
+    const signerOfferingsFilter = this.getFilter(SmartVaultsKind.SignerOffering, { authors: contactsPubkeys })
+    await this._getSignerOfferings(signerOfferingsFilter)
+    const store = this.getStore(SmartVaultsKind.SignerOffering);
+    const signers = await this.getSharedSigners(contactsPubkeys)
+    const contactsSignerDescriptors = signers.map(signer => signer.descriptor)
+    signerDescriptors = signerDescriptors || contactsSignerDescriptors
+    return store.getMany(signerDescriptors, "signerDescriptor");
+  }
+
   async getOwnedSignerOfferingsBySignerDescriptor(signerDescriptors?: string[]): Promise<Map<string, SmartVaultsTypes.PublishedSignerOffering>> {
     const signerOfferingsFilter = this.getFilter(SmartVaultsKind.SignerOffering, { authors: this.authenticator.getPublicKey() })
     await this._getSignerOfferings(signerOfferingsFilter)
     const store = this.getStore(SmartVaultsKind.SignerOffering);
+    const signers = await this.getOwnedSigners();
+    const ownedSignerDescriptors = signers.map(signer => signer.descriptor);
+    signerDescriptors = signerDescriptors || ownedSignerDescriptors;
     return store.getMany(signerDescriptors, "signerDescriptor");
   }
 

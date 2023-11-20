@@ -241,6 +241,7 @@ export type PublishedSignerOffering = Published & SignerOffering & {
   offeringId: string,
   signerFingerprint?: string,
   signerDescriptor?: string,
+  latestContactEventId?: string,
 }
 
 export type KeyAgent = {

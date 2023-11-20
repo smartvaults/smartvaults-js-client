@@ -2,20 +2,25 @@ import { type Event } from 'nostr-tools'
 import { fromNostrDate, getTagValue } from '../util'
 import { TagType } from '../enum'
 import { EventKindHandler } from './EventKindHandler'
-import { SignerOffering, PublishedSignerOffering, PublishedOwnedSigner } from '../types'
+import { SignerOffering, PublishedSignerOffering, PublishedOwnedSigner, PublishedSharedSigner } from '../types'
 import { type Store } from '../service'
 import { type Authenticator } from '@smontero/nostr-ual'
+import { type Contact } from '../models'
 export class SignerOfferingsHandler extends EventKindHandler {
     private readonly authenticator: Authenticator
     private readonly store: Store
     private readonly eventsStore: Store
     private readonly getOwnedSignersByOfferingIdentifiers: () => Promise<Map<string, PublishedOwnedSigner>>
-    constructor(authenticator: Authenticator, store: Store, eventsStore: Store, getOwnedSignersByOfferingIdentifiers: () => Promise<Map<string, PublishedOwnedSigner>>) {
+    private readonly getSharedSignersByOfferingIdentifiers: (pubkeys?: string | string[]) => Promise<Map<string, PublishedSharedSigner>>
+    private readonly getContacs: () => Promise<Array<Contact>>
+    constructor(authenticator: Authenticator, store: Store, eventsStore: Store, getOwnedSignersByOfferingIdentifiers: () => Promise<Map<string, PublishedOwnedSigner>>, getSharedSignersByOfferingIdentifiers: (pubkeys?: string | string[]) => Promise<Map<string, PublishedSharedSigner>>, getContacs: () => Promise<Array<Contact>>) {
         super()
         this.authenticator = authenticator
         this.store = store
         this.eventsStore = eventsStore
         this.getOwnedSignersByOfferingIdentifiers = getOwnedSignersByOfferingIdentifiers
+        this.getSharedSignersByOfferingIdentifiers = getSharedSignersByOfferingIdentifiers
+        this.getContacs = getContacs
     }
 
     protected async _handle<K extends number>(signerOfferingEvents: Array<Event<K>>): Promise<PublishedSignerOffering[]> {
@@ -30,6 +35,12 @@ export class SignerOfferingsHandler extends EventKindHandler {
         const includesOwned = missingSignerOfferingEvents.some(signerOfferingEvent => signerOfferingEvent.pubkey === ownPubkey)
         if (includesOwned) {
             ownedSignersByOfferingIdentifiers = await this.getOwnedSignersByOfferingIdentifiers()
+        }
+        const contactsPubkeys = await this.getContacs().then(contacts => contacts.map(contact => contact.publicKey))
+        const includesContact = missingSignerOfferingEvents.some(signerOfferingEvent => contactsPubkeys.includes(signerOfferingEvent.pubkey))
+        let sharedSignersByOfferingIdentifiers: Map<string, PublishedSharedSigner> | undefined
+        if (includesContact) {
+            sharedSignersByOfferingIdentifiers = await this.getSharedSignersByOfferingIdentifiers(contactsPubkeys)
         }
         const signerOfferings = missingSignerOfferingEvents.map(signerOfferingEvent => {
             const {
@@ -67,6 +78,12 @@ export class SignerOfferingsHandler extends EventKindHandler {
                 if (ownedSigner) {
                     publishedSignerOffering.signerFingerprint = ownedSigner.fingerprint
                     publishedSignerOffering.signerDescriptor = ownedSigner.descriptor
+                }
+            } else if (contactsPubkeys.includes(keyAgentPubKey)) {
+                const sharedSigner = sharedSignersByOfferingIdentifiers?.get(signerOfferingId)
+                if (sharedSigner) {
+                    publishedSignerOffering.signerFingerprint = sharedSigner.fingerprint
+                    publishedSignerOffering.signerDescriptor = sharedSigner.descriptor
                 }
             }
 
