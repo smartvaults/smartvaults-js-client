@@ -66,7 +66,8 @@ export interface BitcoinUtil {
   getTrxId(trx: any): string
   getFee(psbt: string): number
   getPsbtUtxos(psbt: string): Array<string>
-  fromBase64(base64: string): number[]
-  toBase64(bytes: Uint8Array): string
+  bytesFromBase64(base64: string): number[]
+  bytesToBase64(bytes: Uint8Array): string
+  psbtFromBase64(base64: string): any
 }
 

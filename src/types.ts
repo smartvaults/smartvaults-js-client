@@ -296,3 +296,13 @@ export type PublishedCompletedKeyAgentPaymentProposal = PublishedCompleted & Bas
 export type ActivePublishedProposal = PublishedSpendingProposal | PublishedProofOfReserveProposal | PublishedKeyAgentPaymentProposal
 
 export type CompletedPublishedProposal = PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal | PublishedCompletedKeyAgentPaymentProposal
+
+export type PsbtObject = {
+  inputs: any[]
+  outputs: any[]
+  proprietary: any[]
+  unknown: any[]
+  unsigned_tx: any
+  version: number
+  xpub: Map<string, any>
+}

@@ -1791,10 +1791,13 @@ export class SmartVaults {
   * @ignore
   */
   async saveApprovedProposal(proposal_id: string): Promise<SmartVaultsTypes.PublishedApprovedProposal> {
+
     const signedPsbt = await this.getPsbtFromFileSystem()
     if (!signedPsbt) throw new Error('No signed psbt provided')
     const proposal = (await this.getProposalsById(proposal_id)).get(proposal_id)
     if (!proposal) throw new Error(`Proposal with id ${proposal_id} not found`)
+
+    await this.signedPsbtSanityCheck(proposal.psbt, signedPsbt)
 
     const policyId = proposal.policy_id
     const policyEvent = await this.getPolicyEvent(policyId)
@@ -2554,7 +2557,7 @@ export class SmartVaults {
 
   downloadProposalPsbt = async (proposalId: string): Promise<void> => {
     const psbt = await this.getProposalPsbt(proposalId)
-    const bytes = new Uint8Array(this.bitcoinUtil.fromBase64(psbt))
+    const bytes = new Uint8Array(this.bitcoinUtil.bytesFromBase64(psbt))
     const name = `proposal-${proposalId.slice(-8)}`
     saveFile(name, bytes.buffer)
   }
@@ -2562,9 +2565,21 @@ export class SmartVaults {
   async getPsbtFromFileSystem(): Promise<string> {
     try {
       const fileContent = await readFile();
-      return this.bitcoinUtil.toBase64(new Uint8Array(fileContent as ArrayBuffer));
+      return this.bitcoinUtil.bytesToBase64(new Uint8Array(fileContent as ArrayBuffer));
     } catch (error) {
       throw new Error(`Could not read file: ${error}`);
     }
   }
+
+  signedPsbtSanityCheck = async (unsiged: string, signed: string): Promise<void> => {
+    if (signed === unsiged) throw new Error('Signed and unsigned psbts are the same')
+    const signedObj: SmartVaultsTypes.PsbtObject = this.bitcoinUtil.psbtFromBase64(signed)
+    if (signedObj.inputs[0].tap_script_sigs.length === 0) throw new Error('No signatures found in signed PSBT')
+    const unsignedObj: SmartVaultsTypes.PsbtObject = this.bitcoinUtil.psbtFromBase64(unsiged)
+    const signedPsbtTrx = signedObj.unsigned_tx
+    const unsignedPsbtTrx = unsignedObj.unsigned_tx
+    if (!signedPsbtTrx || !unsignedPsbtTrx) throw new Error('Could not get PSBT\'s transactions')
+    if (JSON.stringify(signedPsbtTrx) !== JSON.stringify(unsignedPsbtTrx)) throw new Error('PSBTs are not compatible')
+  }
+
 }
