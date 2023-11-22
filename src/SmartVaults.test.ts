@@ -49,6 +49,7 @@ describe('SmartVaults', () => {
       json: () => Promise.resolve({ bitcoin: { usd: 100_000_000 } }),
     }));
     jest.spyOn(smartVaults, 'getPsbtFromFileSystem').mockResolvedValue('psbt')
+    jest.spyOn(smartVaults, 'signedPsbtSanityCheck').mockResolvedValue()
   })
 
   afterEach(() => {
@@ -236,6 +237,7 @@ describe('SmartVaults', () => {
       policy3 = await smartVaults.savePolicy(savePayload)
       bitcoinUtil.getPsbtUtxos.mockReturnValue(["utxo1", "utxo2"])
       jest.spyOn(smartVaults, 'getPsbtFromFileSystem').mockResolvedValue('psbt')
+      jest.spyOn(smartVaults, 'signedPsbtSanityCheck').mockResolvedValue()
     })
 
     // it('lee policies', async () => {
@@ -344,6 +346,7 @@ describe('SmartVaults', () => {
       bitcoinUtil.getFee.mockReturnValue(100)
       bitcoinUtil.getPsbtUtxos.mockReturnValue(["utxo1", "utxo2"])
       jest.spyOn(smartVaults, 'getPsbtFromFileSystem').mockResolvedValue('psbt')
+      jest.spyOn(smartVaults, 'signedPsbtSanityCheck').mockResolvedValue()
     })
 
     it('should receive policy events', async () => {
@@ -973,6 +976,7 @@ describe('SmartVaults', () => {
       bitcoinUtil.canFinalizePsbt.mockReturnValue(false)
       bitcoinUtil.getPsbtUtxos.mockReturnValue(['utxo1', 'utxo2'])
       jest.spyOn(smartVaults, 'getPsbtFromFileSystem').mockResolvedValue('psbt')
+      jest.spyOn(smartVaults, 'signedPsbtSanityCheck').mockResolvedValue()
       let savePolicyPayload1 = getSavePolicyPayload(11, keySet1.getPublicKeys(), -10)
       policy1 = await smartVaults.savePolicy(savePolicyPayload1) // Policy 1 is created by authenticator 1
       let savePolicyPayload2 = getSavePolicyPayload(12, altKeySet.getPublicKeys(), -12)

@@ -1820,7 +1820,6 @@ export class SmartVaults {
       tags: [...policyMembers, [TagType.Event, proposal_id], [TagType.Event, policyId], [TagType.Expiration, expirationDate.toString()]],
     },
       this.authenticator)
-
     const publishedApprovedProposal: SmartVaultsTypes.PublishedApprovedProposal = {
       type,
       psbt: signedPsbt,
@@ -2571,11 +2570,11 @@ export class SmartVaults {
     }
   }
 
-  signedPsbtSanityCheck = async (unsiged: string, signed: string): Promise<void> => {
-    if (signed === unsiged) throw new Error('Signed and unsigned psbts are the same')
+  signedPsbtSanityCheck = async (unsigned: string, signed: string): Promise<void> => {
+    if (signed === unsigned) throw new Error('Signed and unsigned psbts are the same')
     const signedObj: SmartVaultsTypes.PsbtObject = this.bitcoinUtil.psbtFromBase64(signed)
-    if (signedObj.inputs[0].tap_script_sigs.length === 0) throw new Error('No signatures found in signed PSBT')
-    const unsignedObj: SmartVaultsTypes.PsbtObject = this.bitcoinUtil.psbtFromBase64(unsiged)
+    if (signedObj.inputs.some(input => input.tap_script_sigs.length === 0 && !input.tap_key_sig)) throw new Error('No signatures found in signed PSBT')
+    const unsignedObj: SmartVaultsTypes.PsbtObject = this.bitcoinUtil.psbtFromBase64(unsigned)
     const signedPsbtTrx = signedObj.unsigned_tx
     const unsignedPsbtTrx = unsignedObj.unsigned_tx
     if (!signedPsbtTrx || !unsignedPsbtTrx) throw new Error('Could not get PSBT\'s transactions')

@@ -42,7 +42,7 @@ export class ApprovalsHandler extends EventKindHandler {
       const sharedKeyAuthenticator = sharedKeys.get(policyId)?.sharedKeyAuthenticator
       if (!sharedKeyAuthenticator) return null
       const decryptedProposalObj: BaseApprovedProposal = await sharedKeyAuthenticator.decryptObj(approvedProposalEvent.content)
-      const type = decryptedProposalObj[ProposalType.Spending] ? ProposalType.Spending : ProposalType.ProofOfReserve
+      const type = Object.keys(decryptedProposalObj)[0] as ProposalType;
       const expirationDate = fromNostrDate(getTagValues(approvedProposalEvent, TagType.Expiration)[0])
 
       const publishedApprovedProposal: PublishedApprovedProposal = {
