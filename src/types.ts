@@ -297,12 +297,66 @@ export type ActivePublishedProposal = PublishedSpendingProposal | PublishedProof
 
 export type CompletedPublishedProposal = PublishedCompletedSpendingProposal | PublishedCompletedProofOfReserveProposal | PublishedCompletedKeyAgentPaymentProposal
 
+export type Input = {
+  non_witness_utxo?: any
+  witness_utxo?: any
+  partial_sigs: any
+  sighash_type?: any
+  redeem_script?: any
+  witness_script?: any
+  bip32_derivation: any[]
+  final_script_sig?: any
+  final_script_witness?: any
+  ripemd160_preimages: any,
+  sha256_preimages: any,
+  hash160_preimages: any,
+  hash256_preimages: any,
+  tap_key_sig?: any,
+  tap_script_sigs: any[],
+  tap_scripts: any[],
+  tap_key_origins: any[],
+  tap_internal_key?: string,
+  tap_merkle_root?: string,
+  proprietary: any[],
+  unknown: any[],
+}
+
+export type Output = {
+  redeem_script?: any
+  witness_script?: any
+  bip32_derivation: any[]
+  tap_internal_key?: string,
+  tap_tree?: any[],
+  tap_key_origins: any[],
+  proprietary: any[],
+  unknown: any[],
+}
+
+export type TxIn = {
+  previuos_output: string
+  script_sig: string
+  sequence: number
+  witness: any[]
+}
+
+export type TxOut = {
+  value: number
+  script_pubkey: string
+}
+
+export type Transaction = {
+  version: number
+  lock_time: number
+  input: TxIn[]
+  output: TxOut[]
+}
+
 export type PsbtObject = {
-  inputs: any[]
-  outputs: any[]
+  inputs: Input[]
+  outputs: Output[]
   proprietary: any[]
   unknown: any[]
-  unsigned_tx: any
+  unsigned_tx: Transaction
   version: number
-  xpub: Map<string, any>
+  xpub: any
 }

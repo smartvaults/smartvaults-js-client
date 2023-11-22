@@ -2570,7 +2570,7 @@ export class SmartVaults {
     }
   }
 
-  signedPsbtSanityCheck = async (unsigned: string, signed: string): Promise<void> => {
+  async signedPsbtSanityCheck(unsigned: string, signed: string): Promise<void> {
     if (signed === unsigned) throw new Error('Signed and unsigned psbts are the same')
     const signedObj: SmartVaultsTypes.PsbtObject = this.bitcoinUtil.psbtFromBase64(signed)
     if (signedObj.inputs.some(input => input.tap_script_sigs.length === 0 && !input.tap_key_sig)) throw new Error('No signatures found in signed PSBT')
