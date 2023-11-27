@@ -1,4 +1,5 @@
 import { BaseOwnedSigner, Trx, FinalizeTrxResponse, UndecoratedBasicTrxDetails, UndecoratedTrxDetails, Utxo, PolicyPathSelector, PolicyPathsResult } from "./types"
+import { PsbtObject } from "../types"
 
 type BalancePayload = {
   confirmed: number
@@ -66,5 +67,8 @@ export interface BitcoinUtil {
   getTrxId(trx: any): string
   getFee(psbt: string): number
   getPsbtUtxos(psbt: string): Array<string>
+  bytesFromBase64(base64: string): number[]
+  bytesToBase64(bytes: Uint8Array): string
+  psbtFromBase64(base64: string): PsbtObject
 }
 

@@ -6,7 +6,7 @@ import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate,
 import { BasicTrxDetails, BaseOwnedSigner, BaseSharedSigner, BitcoinUtil, Contact, Policy, PublishedPolicy, TrxDetails } from './models'
 import * as SmartVaultsTypes from './types'
 import { EventKindHandlerFactory } from './event-kind-handler'
-import { BitcoinExchangeRate } from './util'
+import { BitcoinExchangeRate, saveFile, readFile } from './util'
 import { PaymentType } from './enum/PaymentType'
 export class SmartVaults {
   authenticator: Authenticator
@@ -235,13 +235,17 @@ export class SmartVaults {
    * const contacts = await getContacts();
    */
   getContacts = async (): Promise<Contact[]> => {
-    const contactsFilter = this.getFilter(Kind.Contacts)
+    const contactsEvents = await this.getContactsEvents()
+    return this.eventKindHandlerFactor.getHandler(Kind.Contacts).handle(contactsEvents)
+  }
 
+  getContactsEvents = async (): Promise<Event<Kind.Contacts>[]> => {
+    const contactsFilter = this.getFilter(Kind.Contacts)
     const contactsEvent = await this.nostrClient.list(contactsFilter)
     if (!contactsEvent) {
       return []
     }
-    return this.eventKindHandlerFactor.getHandler(Kind.Contacts).handle(contactsEvent)
+    return contactsEvent
   }
 
   /**
@@ -507,6 +511,14 @@ export class SmartVaults {
     return storeResult
   }
 
+  private async getSharedKeyAuthenticator(id: string): Promise<DirectPrivateKeyAuthenticator> {
+    const sharedKeyAuthenticators = await this.getSharedKeysById([id])
+    if (!sharedKeyAuthenticators.has(id)) {
+      throw new Error(`Shared key with id ${id} not found`)
+    }
+    return sharedKeyAuthenticators.get(id)!.sharedKeyAuthenticator
+  }
+
   private async _getPolicies(filter: Filter<SmartVaultsKind.Policy>[]): Promise<PublishedPolicy[]> {
     const policyEvents = await this.nostrClient.list(filter)
     const policyHandler = this.eventKindHandlerFactor.getHandler(SmartVaultsKind.Policy)
@@ -519,7 +531,7 @@ export class SmartVaults {
     return sharedKeyHandler.handle(sharedKeyEvents)
   }
 
-  async getPolicyEvent(policy_id: string): Promise<any> {
+  async getPolicyEvent(policy_id: string): Promise<Event> {
     const policiesFilter = filterBuilder()
       .kinds(SmartVaultsKind.Policy)
       .ids(policy_id)
@@ -748,16 +760,16 @@ export class SmartVaults {
     switch (paymentType) {
       case PaymentType.PerSignature:
         price = offering.cost_per_signature!;
-        paymentAmount = await this.fromPriceToSats(price)
+        paymentAmount = Math.ceil(await this.fromPriceToSats(price))
         break;
       case PaymentType.YearlyCost:
         price = offering.yearly_cost!;
-        paymentAmount = await this.fromPriceToSats(price) * years;
+        paymentAmount = Math.ceil(await this.fromPriceToSats(price) * years);
         break;
       case PaymentType.YearlyCostBasisPoints:
         price = offering.yearly_cost_basis_points!;
         const currentBalance = await policy.getBalance();
-        paymentAmount = Math.floor(CurrencyUtil.fromBasisPointsToDecimal(price) * currentBalance.totalBalance() * years);
+        paymentAmount = Math.ceil(CurrencyUtil.fromBasisPointsToDecimal(price) * currentBalance.totalBalance() * years);
         break;
       default:
         throw new Error('Invalid payment type');
@@ -1018,6 +1030,14 @@ export class SmartVaults {
     const keysToFilter = Array.isArray(publicKeys) ? publicKeys : (publicKeys ? [publicKeys] : []);
     const sharedSignersFilter = keysToFilter.length ? this.getFilter(SmartVaultsKind.SharedSigners, { authors: keysToFilter }) : this.getFilter(SmartVaultsKind.SharedSigners)
     return this._getSharedSigners(sharedSignersFilter);
+  }
+
+  getSharedSignersByOfferingIdentifiers = async (publicKeys?: string | string[]): Promise<Map<string, SmartVaultsTypes.PublishedSharedSigner>> => {
+    const sharedSigners = await this.getSharedSigners(publicKeys)
+    const augmentedSharedSignersPromises = sharedSigners.map(async signer => ({ ...signer, offeringIdentifier: await this.generateSignerOfferingIdentifier(signer.fingerprint) }))
+    const augmentedSharedSigners = await Promise.all(augmentedSharedSignersPromises)
+    const sharedSignersByOfferingIdentifiers: Map<string, SmartVaultsTypes.PublishedSharedSigner> = new Map(augmentedSharedSigners.map(signer => [signer.offeringIdentifier, signer]))
+    return sharedSignersByOfferingIdentifiers
   }
 
   extractKey(descriptor: string): string {
@@ -1372,6 +1392,13 @@ export class SmartVaults {
     return store.getMany(proposalIds, "proposal_id");
   }
 
+  private async getProposal(id: string): Promise<SmartVaultsTypes.ActivePublishedProposal> {
+    const proposal = await this.getProposalsById(id)
+    if (!proposal.has(id)) {
+      throw new Error(`Proposal with id ${id} not found`)
+    }
+    return proposal.get(id)!
+  }
   /**
    * Asynchronously fetches proposals by associated policy IDs.
    *
@@ -1431,7 +1458,7 @@ export class SmartVaults {
       }
 
       const approvals = Array.isArray(approvalData) ? approvalData : [approvalData];
-
+      if (approvals.some(approval => !approval.psbt)) return false;
       const psbts: string[] = approvals
         .filter(approval => approval.status === ApprovalStatus.Active)
         .map(activeApproval => activeApproval.psbt);
@@ -1778,36 +1805,36 @@ export class SmartVaults {
   /**
   * @ignore
   */
-  async _saveApprovedProposal(proposal_id: string): Promise<SmartVaultsTypes.PublishedApprovedProposal> {
-    const proposalEvent = await this.getProposalEvent(proposal_id)
-    const policyId = getTagValues(proposalEvent, TagType.Event)[0]
-    const policyEvent = await this.getPolicyEvent(policyId)
+  async saveApprovedProposal(proposalId: string, signedPsbt: string): Promise<SmartVaultsTypes.PublishedApprovedProposal> {
+
+    const proposal = await this.getProposal(proposalId)
+    await this.signedPsbtSanityCheck(proposal.psbt, signedPsbt)
+
+    const policyId = proposal.policy_id
+    const [policyEvent, sharedKeyAuthenticator] = await Promise.all([this.getPolicyEvent(policyId), this.getSharedKeyAuthenticator(policyId)])
     const policyMembers = policyEvent.tags
 
-    const sharedKeyAuthenticator: any = (await this.getSharedKeysById([policyId])).get(policyId)?.sharedKeyAuthenticator
-
-    const decryptedProposalObj = await sharedKeyAuthenticator.decryptObj(proposalEvent.content)
-    const type = decryptedProposalObj[ProposalType.Spending] ? ProposalType.Spending : ProposalType.ProofOfReserve
+    const type = proposal.type
 
     const approvedProposal: SmartVaultsTypes.BaseApprovedProposal = {
       [type]: {
-        ...decryptedProposalObj[type],
+        psbt: signedPsbt,
       }
     }
 
-    const expirationDate = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7 // 7 days
+    const expirationDate = TimeUtil.getCurrentTimeInSeconds() + TimeUtil.fromDaysToSeconds(7)
     const content = await sharedKeyAuthenticator.encryptObj(approvedProposal)
     const approvedProposalEvent = await buildEvent({
       kind: SmartVaultsKind.ApprovedProposal,
       content,
-      tags: [...policyMembers, [TagType.Event, proposal_id], [TagType.Event, policyId], [TagType.Expiration, expirationDate.toString()]],
+      tags: [...policyMembers, [TagType.Event, proposalId], [TagType.Event, policyId], [TagType.Expiration, expirationDate.toString()]],
     },
       this.authenticator)
 
     const publishedApprovedProposal: SmartVaultsTypes.PublishedApprovedProposal = {
       type,
-      ...decryptedProposalObj[type],
-      proposal_id,
+      psbt: signedPsbt,
+      proposal_id: proposalId,
       policy_id: policyId,
       approval_id: approvedProposalEvent.id,
       approved_by: approvedProposalEvent.pubkey,
@@ -1821,6 +1848,9 @@ export class SmartVaults {
 
     return publishedApprovedProposal
   }
+
+
+
 
   /**
   * @ignore
@@ -2343,10 +2373,25 @@ export class SmartVaults {
     return offeringsBySignerFingerprint
   }
 
+  async getContactsSignerOfferingsBySignerDescriptor(signerDescriptors?: string[]): Promise<Map<string, SmartVaultsTypes.PublishedSignerOffering>> {
+    const contacts = await this.getContacts()
+    const contactsPubkeys = contacts.map(contact => contact.publicKey)
+    const signerOfferingsFilter = this.getFilter(SmartVaultsKind.SignerOffering, { authors: contactsPubkeys })
+    await this._getSignerOfferings(signerOfferingsFilter)
+    const store = this.getStore(SmartVaultsKind.SignerOffering);
+    const signers = await this.getSharedSigners(contactsPubkeys)
+    const contactsSignerDescriptors = signers.map(signer => signer.descriptor)
+    signerDescriptors = signerDescriptors || contactsSignerDescriptors
+    return store.getMany(signerDescriptors, "signerDescriptor");
+  }
+
   async getOwnedSignerOfferingsBySignerDescriptor(signerDescriptors?: string[]): Promise<Map<string, SmartVaultsTypes.PublishedSignerOffering>> {
     const signerOfferingsFilter = this.getFilter(SmartVaultsKind.SignerOffering, { authors: this.authenticator.getPublicKey() })
     await this._getSignerOfferings(signerOfferingsFilter)
     const store = this.getStore(SmartVaultsKind.SignerOffering);
+    const signers = await this.getOwnedSigners();
+    const ownedSignerDescriptors = signers.map(signer => signer.descriptor);
+    signerDescriptors = signerDescriptors || ownedSignerDescriptors;
     return store.getMany(signerDescriptors, "signerDescriptor");
   }
 
@@ -2516,4 +2561,38 @@ export class SmartVaults {
     if (signerDescriptor) return activeProposals.some(activeProposal => 'signer_descriptor' in activeProposal && activeProposal.signer_descriptor === signerDescriptor)
     return activeProposals.length > 0
   }
+
+  getProposalPsbt = async (proposalId: string): Promise<string> => {
+    const proposal = (await this.getProposalsById(proposalId)).get(proposalId)
+    if (!proposal) throw new Error(`Proposal with id ${proposalId} not found`)
+    return proposal.psbt
+  }
+
+  downloadProposalPsbt = async (proposalId: string): Promise<void> => {
+    const psbt = await this.getProposalPsbt(proposalId)
+    const bytes = new Uint8Array(this.bitcoinUtil.bytesFromBase64(psbt))
+    const name = `proposal-${proposalId.slice(-8)}`
+    saveFile(name, bytes.buffer)
+  }
+
+  async getPsbtFromFileSystem(): Promise<string> {
+    try {
+      const fileContent = await readFile();
+      return this.bitcoinUtil.bytesToBase64(new Uint8Array(fileContent as ArrayBuffer));
+    } catch (error) {
+      throw new Error(`Could not read file: ${error}`);
+    }
+  }
+
+  async signedPsbtSanityCheck(unsigned: string, signed: string): Promise<void> {
+    if (signed === unsigned) throw new Error('Signed and unsigned psbts are the same')
+    const signedObj: SmartVaultsTypes.PsbtObject = this.bitcoinUtil.psbtFromBase64(signed)
+    if (signedObj.inputs.some(input => input.tap_script_sigs.length === 0 && !input.tap_key_sig)) throw new Error('No signatures found in signed PSBT')
+    const unsignedObj: SmartVaultsTypes.PsbtObject = this.bitcoinUtil.psbtFromBase64(unsigned)
+    const signedPsbtTrx = signedObj.unsigned_tx
+    const unsignedPsbtTrx = unsignedObj.unsigned_tx
+    if (!signedPsbtTrx || !unsignedPsbtTrx) throw new Error('Could not get PSBT\'s transactions')
+    if (JSON.stringify(signedPsbtTrx) !== JSON.stringify(unsignedPsbtTrx)) throw new Error('PSBTs are not compatible')
+  }
+
 }

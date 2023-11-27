@@ -46,6 +46,7 @@ export class EventKindHandlerFactory {
       const getContacts = this.smartVaults.getContacts
       const getVerifiedKeyAgentsPubKeys = this.smartVaults.getVerifiedKeyAgentsPubKeys
       const getOwnedSignersByOfferingIdentifiers = this.smartVaults.getOwnedSignersByOfferingIdentifiers
+      const getSharedSignersByOfferingIdentifiers = this.smartVaults.getSharedSignersByOfferingIdentifiers
       const eventsStore = stores.get(StoreKind.Events)!
       const completedProposalsStore = stores.get(SmartVaultsKind.CompletedProposal)!
       const proposalsStore = stores.get(SmartVaultsKind.Proposal)!
@@ -95,7 +96,7 @@ export class EventKindHandlerFactory {
           this.handlers.set(eventKind, new UnverifiedKeyAgentsHandler(stores.get(eventKind)!, getContacts, getProfiles, getVerifiedKeyAgentsPubKeys))
           break
         case SmartVaultsKind.SignerOffering:
-          this.handlers.set(eventKind, new SignerOfferingsHandler(authenticator, stores.get(eventKind)!, eventsStore, getOwnedSignersByOfferingIdentifiers))
+          this.handlers.set(eventKind, new SignerOfferingsHandler(authenticator, stores.get(eventKind)!, eventsStore, getOwnedSignersByOfferingIdentifiers, getSharedSignersByOfferingIdentifiers, getContacts))
           break
         default:
           throw new Error(`There is no handler for event kind: ${eventKind}`)

@@ -48,6 +48,8 @@ describe('SmartVaults', () => {
       ok: true,
       json: () => Promise.resolve({ bitcoin: { usd: 100_000_000 } }),
     }));
+    jest.spyOn(smartVaults, 'getPsbtFromFileSystem').mockResolvedValue('psbt')
+    jest.spyOn(smartVaults, 'signedPsbtSanityCheck').mockResolvedValue()
   })
 
   afterEach(() => {
@@ -81,7 +83,6 @@ describe('SmartVaults', () => {
       profile3 = await setProfile(3, smartVaults)
       smartVaults.setAuthenticator(authenticator)
       profile4 = await smartVaults.setProfile(getMetadata(420))
-
       contact1 = getContact(1, profile1.publicKey)
       contact2 = getContact(2, profile2.publicKey)
       contact3 = getContact(3, profile3.publicKey)
@@ -235,6 +236,8 @@ describe('SmartVaults', () => {
       savePayload = getSavePolicyPayload(3, keySet2.getPublicKeys())
       policy3 = await smartVaults.savePolicy(savePayload)
       bitcoinUtil.getPsbtUtxos.mockReturnValue(["utxo1", "utxo2"])
+      jest.spyOn(smartVaults, 'getPsbtFromFileSystem').mockResolvedValue('psbt')
+      jest.spyOn(smartVaults, 'signedPsbtSanityCheck').mockResolvedValue()
     })
 
     // it('lee policies', async () => {
@@ -300,7 +303,7 @@ describe('SmartVaults', () => {
       const completedProposals = await smartVaults.getCompletedProposals()
       const proposal2 = await smartVaults._saveProofOfReserveProposal(policy2.id, saveProofOfReserveProposalPayload(2))
       const proposals = await smartVaults.getProposals()
-      await smartVaults._saveApprovedProposal(proposal2.proposal_id)
+      await smartVaults.saveApprovedProposal(proposal2.proposal_id, 'signedPsbt')
       const approvals = await smartVaults.getApprovals()
       expect(proposals.length).toBe(1)
       expect(policies.length).toBe(3)
@@ -342,7 +345,8 @@ describe('SmartVaults', () => {
       bitcoinUtil.createWallet.mockReturnValue(wallet)
       bitcoinUtil.getFee.mockReturnValue(100)
       bitcoinUtil.getPsbtUtxos.mockReturnValue(["utxo1", "utxo2"])
-
+      jest.spyOn(smartVaults, 'getPsbtFromFileSystem').mockResolvedValue('psbt')
+      jest.spyOn(smartVaults, 'signedPsbtSanityCheck').mockResolvedValue()
     })
 
     it('should receive policy events', async () => {
@@ -481,10 +485,10 @@ describe('SmartVaults', () => {
       let spendProposal2 = await smartVaults.spend(spendProposalPayload2)
       let proofOfReserveProposal1 = await smartVaults._saveProofOfReserveProposal(policy1.id, saveProofOfReserveProposalPayload1)
       let proofOfReserveProposal2 = await smartVaults._saveProofOfReserveProposal(policy2.id, saveProofOfReserveProposalPayload2)
-      let approvedProposal1 = await smartVaults._saveApprovedProposal(spendProposal1.proposal_id)
-      let approvedProposal2 = await smartVaults._saveApprovedProposal(spendProposal2.proposal_id)
-      let approvedProposal3 = await smartVaults._saveApprovedProposal(proofOfReserveProposal1.proposal_id)
-      let approvedProposal4 = await smartVaults._saveApprovedProposal(proofOfReserveProposal2.proposal_id)
+      let approvedProposal1 = await smartVaults.saveApprovedProposal(spendProposal1.proposal_id, 'signedPsbt')
+      let approvedProposal2 = await smartVaults.saveApprovedProposal(spendProposal2.proposal_id, 'signedPsbt')
+      let approvedProposal3 = await smartVaults.saveApprovedProposal(proofOfReserveProposal1.proposal_id, 'signedPsbt')
+      let approvedProposal4 = await smartVaults.saveApprovedProposal(proofOfReserveProposal2.proposal_id, 'signedPsbt')
 
       await sleep(100)
       sub.unsub()
@@ -569,7 +573,7 @@ describe('SmartVaults', () => {
       let saveProofOfReserveProposalPayload1 = saveProofOfReserveProposalPayload(1)
       let proofOfReserveProposal1 = await smartVaults._saveProofOfReserveProposal(policy1.id, saveProofOfReserveProposalPayload1)
       await sleep(100)
-      let approvedProposal1 = await smartVaults._saveApprovedProposal(proofOfReserveProposal1.proposal_id)
+      let approvedProposal1 = await smartVaults.saveApprovedProposal(proofOfReserveProposal1.proposal_id, 'signedPsbt')
       await sleep(100)
       let completedProposal1 = await smartVaults._saveCompletedProposal(proofOfReserveProposal1.proposal_id, saveProofOfReserveProposalPayload1)
       await sleep(300)
@@ -627,9 +631,9 @@ describe('SmartVaults', () => {
       let spendProposalPayload2 = spendProposalPayload(2, policy2)
       let spendProposal1 = await smartVaults.spend(spendProposalPayload1)
       let spendProposal2 = await smartVaults.spend(spendProposalPayload2)
-      let approval1 = await smartVaults._saveApprovedProposal(spendProposal2.proposal_id)
-      let approval2 = await smartVaults._saveApprovedProposal(spendProposal2.proposal_id)
-      let approval3 = await smartVaults._saveApprovedProposal(spendProposal2.proposal_id)
+      let approval1 = await smartVaults.saveApprovedProposal(spendProposal2.proposal_id, 'signedPsbt')
+      let approval2 = await smartVaults.saveApprovedProposal(spendProposal2.proposal_id, 'signedPsbt')
+      let approval3 = await smartVaults.saveApprovedProposal(spendProposal2.proposal_id, 'signedPsbt')
       const expectedDeleteEvent1 = new Map([[SmartVaultsKind.Proposal, [spendProposal1.proposal_id]]])
       const expectedDeleteEvent2 = new Map([[SmartVaultsKind.Policy, [policy1.id]]])
       const expectedDeleteEvent3 = new Map([[SmartVaultsKind.ApprovedProposal, [approval1.approval_id, approval2.approval_id, approval3.approval_id]]])
@@ -971,7 +975,8 @@ describe('SmartVaults', () => {
       bitcoinUtil.getFee.mockReturnValue(420)
       bitcoinUtil.canFinalizePsbt.mockReturnValue(false)
       bitcoinUtil.getPsbtUtxos.mockReturnValue(['utxo1', 'utxo2'])
-
+      jest.spyOn(smartVaults, 'getPsbtFromFileSystem').mockResolvedValue('psbt')
+      jest.spyOn(smartVaults, 'signedPsbtSanityCheck').mockResolvedValue()
       let savePolicyPayload1 = getSavePolicyPayload(11, keySet1.getPublicKeys(), -10)
       policy1 = await smartVaults.savePolicy(savePolicyPayload1) // Policy 1 is created by authenticator 1
       let savePolicyPayload2 = getSavePolicyPayload(12, altKeySet.getPublicKeys(), -12)
@@ -1007,10 +1012,10 @@ describe('SmartVaults', () => {
     }
     )
     it('save approvals', async () => {
-      saveApprovedProposal1 = await smartVaults._saveApprovedProposal(proposalApproved1)
-      saveApprovedProposal2 = await smartVaults._saveApprovedProposal(proposalApproved2)
-      saveApprovedProposal3 = await smartVaults._saveApprovedProposal(proposalApproved2)
-      saveApprovedProposal4 = await smartVaults._saveApprovedProposal(proposalApproved1)
+      saveApprovedProposal1 = await smartVaults.saveApprovedProposal(proposalApproved1, 'signedPsbt')
+      saveApprovedProposal2 = await smartVaults.saveApprovedProposal(proposalApproved2, 'signedPsbt')
+      saveApprovedProposal3 = await smartVaults.saveApprovedProposal(proposalApproved2, 'signedPsbt')
+      saveApprovedProposal4 = await smartVaults.saveApprovedProposal(proposalApproved1, 'signedPsbt')
     });
 
     const checkProposals = async (smartVaults: SmartVaults, expectedLength: number, expectedProposals: any) => {
@@ -1185,7 +1190,7 @@ describe('SmartVaults', () => {
     it('finalizeSpendingProposal works', async () => {
       bitcoinUtil.canFinalizePsbt.mockReturnValue(true)
       bitcoinUtil.getPsbtUtxos.mockReturnValue(['utxo1', 'otherUtxo'])
-      await smartVaults._saveApprovedProposal(spendProposal1.proposal_id)
+      await smartVaults.saveApprovedProposal(spendProposal1.proposal_id, 'signedPsbt')
       const proposalWithOneCommonUtxo = await smartVaults.spend(spendProposalPayload(22, policy1))
       await smartVaults.getProposals()
       bitcoinUtil.getPsbtUtxos.mockReturnValue(['nocommon', 'utxos'])
@@ -1316,6 +1321,18 @@ describe('SmartVaults', () => {
     it('saveSignerOffering throws error if a signer offering already exists for the signer and user cancels', async () => {
       const signerOffering = {} as SignerOffering
       await expect(smartVaults.saveSignerOffering(ownedSigner1, signerOffering, async () => false)).rejects.toThrowError('Canceled by user.')
+    });
+
+    it('getContactsSignerOfferingsBySignerDescriptor works', async () => {
+      const offering = await smartVaults.saveSignerOffering(ownedSigner1, { temperature: 'cold', device_type: 'coldcard', response_time: 5 }, async () => true)
+      const signerOfferings = await smartVaults2.getContactsSignerOfferingsBySignerDescriptor([ownedSigner1.descriptor])
+      expect(signerOfferings.size).toBe(0)
+      await smartVaults2.upsertContacts(new Contact({ publicKey: keyAgent1.profile.publicKey }))
+      await smartVaults.saveSharedSigner(ownedSigner1, smartVaults2.authenticator.getPublicKey())
+      await sleep(100)
+      const signerOfferings2 = await smartVaults2.getContactsSignerOfferingsBySignerDescriptor([ownedSigner1.descriptor])
+      expect(signerOfferings2.size).toBe(1)
+      expect(signerOfferings2.get(ownedSigner1.descriptor)).toEqual(offering)
     });
 
     it('getVerifiedKeyAgentsPubkeys returns empty array if no key agents are verified', async () => {
