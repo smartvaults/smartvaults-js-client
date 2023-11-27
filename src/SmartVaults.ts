@@ -511,6 +511,14 @@ export class SmartVaults {
     return storeResult
   }
 
+  private async getSharedKeyAuthenticator(id: string): Promise<DirectPrivateKeyAuthenticator> {
+    const sharedKeyAuthenticators = await this.getSharedKeysById([id])
+    if (!sharedKeyAuthenticators.has(id)) {
+      throw new Error(`Shared key with id ${id} not found`)
+    }
+    return sharedKeyAuthenticators.get(id)!.sharedKeyAuthenticator
+  }
+
   private async _getPolicies(filter: Filter<SmartVaultsKind.Policy>[]): Promise<PublishedPolicy[]> {
     const policyEvents = await this.nostrClient.list(filter)
     const policyHandler = this.eventKindHandlerFactor.getHandler(SmartVaultsKind.Policy)
@@ -523,7 +531,7 @@ export class SmartVaults {
     return sharedKeyHandler.handle(sharedKeyEvents)
   }
 
-  async getPolicyEvent(policy_id: string): Promise<any> {
+  async getPolicyEvent(policy_id: string): Promise<Event> {
     const policiesFilter = filterBuilder()
       .kinds(SmartVaultsKind.Policy)
       .ids(policy_id)
@@ -1384,6 +1392,13 @@ export class SmartVaults {
     return store.getMany(proposalIds, "proposal_id");
   }
 
+  private async getProposal(id: string): Promise<SmartVaultsTypes.ActivePublishedProposal> {
+    const proposal = await this.getProposalsById(id)
+    if (!proposal.has(id)) {
+      throw new Error(`Proposal with id ${id} not found`)
+    }
+    return proposal.get(id)!
+  }
   /**
    * Asynchronously fetches proposals by associated policy IDs.
    *
@@ -1790,19 +1805,15 @@ export class SmartVaults {
   /**
   * @ignore
   */
-  async saveApprovedProposal(proposal_id: string): Promise<SmartVaultsTypes.PublishedApprovedProposal> {
+  async saveApprovedProposal(proposalId: string, signedPsbt: string): Promise<SmartVaultsTypes.PublishedApprovedProposal> {
 
-    const signedPsbt = await this.getPsbtFromFileSystem()
-    if (!signedPsbt) throw new Error('No signed psbt provided')
-    const proposal = (await this.getProposalsById(proposal_id)).get(proposal_id)
-    if (!proposal) throw new Error(`Proposal with id ${proposal_id} not found`)
-
+    const proposal = await this.getProposal(proposalId)
     await this.signedPsbtSanityCheck(proposal.psbt, signedPsbt)
 
     const policyId = proposal.policy_id
-    const policyEvent = await this.getPolicyEvent(policyId)
+    const [policyEvent, sharedKeyAuthenticator] = await Promise.all([this.getPolicyEvent(policyId), this.getSharedKeyAuthenticator(policyId)])
     const policyMembers = policyEvent.tags
-    const sharedKeyAuthenticator: any = (await this.getSharedKeysById([policyId])).get(policyId)?.sharedKeyAuthenticator
+
     const type = proposal.type
 
     const approvedProposal: SmartVaultsTypes.BaseApprovedProposal = {
@@ -1813,17 +1824,17 @@ export class SmartVaults {
 
     const expirationDate = TimeUtil.getCurrentTimeInSeconds() + TimeUtil.fromDaysToSeconds(7)
     const content = await sharedKeyAuthenticator.encryptObj(approvedProposal)
-
     const approvedProposalEvent = await buildEvent({
       kind: SmartVaultsKind.ApprovedProposal,
       content,
-      tags: [...policyMembers, [TagType.Event, proposal_id], [TagType.Event, policyId], [TagType.Expiration, expirationDate.toString()]],
+      tags: [...policyMembers, [TagType.Event, proposalId], [TagType.Event, policyId], [TagType.Expiration, expirationDate.toString()]],
     },
       this.authenticator)
+
     const publishedApprovedProposal: SmartVaultsTypes.PublishedApprovedProposal = {
       type,
       psbt: signedPsbt,
-      proposal_id,
+      proposal_id: proposalId,
       policy_id: policyId,
       approval_id: approvedProposalEvent.id,
       approved_by: approvedProposalEvent.pubkey,
@@ -1837,6 +1848,9 @@ export class SmartVaults {
 
     return publishedApprovedProposal
   }
+
+
+
 
   /**
   * @ignore
