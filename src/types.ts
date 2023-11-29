@@ -1,8 +1,6 @@
-import { FiatCurrency, ProposalType } from './enum';
+import { FiatCurrency, ProposalType, DeviceType, Temperature, NetworkType } from './enum';
 import { BasePolicy, PublishedPolicy, Utxo, BaseOwnedSigner, BaseSharedSigner } from './models'
 import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
-import { DeviceType } from './enum/DeviceType';
-import { Temperature } from './enum/Temperature';
 
 export type Published = {
   id: string
@@ -220,8 +218,11 @@ export type LabeledUtxo = Utxo & {
   frozen: boolean
 }
 
+type BitcoinCurrency = 'SAT' | 'BTC'
+type Currency = Uppercase<FiatCurrency> | BitcoinCurrency
+
 export type Price = {
-  currency: FiatCurrency,
+  currency: Currency,
   amount: number,
 }
 
@@ -234,6 +235,7 @@ export type SignerOffering = {
   cost_per_signature?: Price,
   yearly_cost_basis_points?: number,
   yearly_cost?: Price,
+  network?: NetworkType,
 }
 
 export type PublishedSignerOffering = Published & SignerOffering & {

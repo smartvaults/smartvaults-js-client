@@ -59,7 +59,7 @@ export class BitcoinExchangeRate {
     }
 
     public async fromPriceToSats(price: Price): Promise<number> {
-        const exchangeRate = await this.fetchBitcoinExchangeRate(price.currency);
+        const exchangeRate = await this.fetchBitcoinExchangeRate(price.currency.toLowerCase() as FiatCurrency);
         const amount = await this.convertToFiat([price.amount], exchangeRate);
         return amount[0];
     }

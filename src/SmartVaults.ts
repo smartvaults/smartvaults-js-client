@@ -2447,6 +2447,7 @@ export class SmartVaults {
 
     const publishedSignerOffering: SmartVaultsTypes.PublishedSignerOffering = {
       ...offering,
+      network: this.network,
       offeringId: id,
       id: signerOfferingEvent.id,
       createdAt: fromNostrDate(signerOfferingEvent.created_at),
