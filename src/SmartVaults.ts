@@ -2434,7 +2434,7 @@ export class SmartVaults {
         throw new Error(`Canceled by user.`)
       }
     }
-
+    offering.network = this.network
     const signerOfferingEvent = await buildEvent({
       kind: SmartVaultsKind.SignerOffering,
       content: JSON.stringify(offering),
@@ -2447,7 +2447,6 @@ export class SmartVaults {
 
     const publishedSignerOffering: SmartVaultsTypes.PublishedSignerOffering = {
       ...offering,
-      network: this.network,
       offeringId: id,
       id: signerOfferingEvent.id,
       createdAt: fromNostrDate(signerOfferingEvent.created_at),

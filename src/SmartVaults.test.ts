@@ -6,7 +6,7 @@ import { NostrClient, Keys, Store } from './service'
 import { TimeUtil, buildEvent } from './util'
 import { BaseOwnedSigner, Contact, PublishedPolicy, BitcoinUtil, Wallet, type FinalizeTrxResponse } from './models'
 import { Metadata, Profile, SavePolicyPayload, SpendProposalPayload, PublishedDirectMessage, PublishedSpendingProposal, PublishedApprovedProposal, PublishedSharedSigner, PublishedOwnedSigner, MySharedSigner, KeyAgentMetadata, SignerOffering, KeyAgent, PublishedSignerOffering, PublishedKeyAgentPaymentProposal, PublishedCompletedKeyAgentPaymentProposal } from './types'
-import { SmartVaultsKind, ProposalStatus, NetworkType, FiatCurrency, PaymentType } from './enum'
+import { SmartVaultsKind, ProposalStatus, NetworkType, PaymentType } from './enum'
 import { Kind } from 'nostr-tools'
 
 jest.setTimeout(1000000);
@@ -1304,7 +1304,7 @@ describe('SmartVaults', () => {
     });
 
     it('saveSignerOffering works', async () => {
-      const signerOffering: SignerOffering = { temperature: 'cold', device_type: 'coldcard', response_time: 5, cost_per_signature: { amount: 100, currency: FiatCurrency.USD }, yearly_cost: { amount: 1000, currency: FiatCurrency.USD } }
+      const signerOffering: SignerOffering = { temperature: 'cold', device_type: 'coldcard', response_time: 5, cost_per_signature: { amount: 100, currency: 'USD' }, yearly_cost: { amount: 1000, currency: 'USD' }, network: NetworkType.Bitcoin }
       ownedSigner1 = (await smartVaults.getOwnedSigners())[0]
       signerOffering1 = await smartVaults.saveSignerOffering(ownedSigner1, signerOffering, async () => false)
       const offering = await smartVaults.getOwnedSignerOfferingsBySignerFingerprint([ownedSigner1.fingerprint])
@@ -1313,7 +1313,7 @@ describe('SmartVaults', () => {
     });
 
     it('saveSignerOffering throws error if user is not a key agent', async () => {
-      const signerOffering: SignerOffering = { temperature: 'cold', device_type: 'coldcard', response_time: 5 }
+      const signerOffering: SignerOffering = { temperature: 'cold', device_type: 'coldcard', response_time: 5, network: NetworkType.Bitcoin }
       const ownedSigner = {} as PublishedOwnedSigner
       await expect(smartVaults3.saveSignerOffering(ownedSigner, signerOffering, async () => false)).rejects.toThrowError('Only key agents can create signer offerings')
     });
