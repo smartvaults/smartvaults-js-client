@@ -1,4 +1,4 @@
-import { FiatCurrency, ProposalType, DeviceType, Temperature, NetworkType } from './enum';
+import { FiatCurrency, ProposalType, DeviceType, Temperature, Magic } from './enum';
 import { BasePolicy, PublishedPolicy, Utxo, BaseOwnedSigner, BaseSharedSigner } from './models'
 import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 
@@ -235,7 +235,7 @@ export type SignerOffering = {
   cost_per_signature?: Price,
   yearly_cost_basis_points?: number,
   yearly_cost?: Price,
-  network?: NetworkType,
+  network?: Magic,
 }
 
 export type PublishedSignerOffering = Published & SignerOffering & {
