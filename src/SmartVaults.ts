@@ -2434,14 +2434,14 @@ export class SmartVaults {
         throw new Error(`Canceled by user.`)
       }
     }
-    offering.network = this.network
+    offering.network = this.getNetworkIdentifier()
     const signerOfferingEvent = await buildEvent({
       kind: SmartVaultsKind.SignerOffering,
       content: JSON.stringify(offering),
       tags: [[TagType.Identifier, id]],
     },
       this.authenticator)
-
+    console.log({ signerOfferingEvent })
     const pub = this.nostrClient.publish(signerOfferingEvent)
     await pub.onFirstOkOrCompleteFailure()
 
