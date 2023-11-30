@@ -2441,7 +2441,6 @@ export class SmartVaults {
       tags: [[TagType.Identifier, id]],
     },
       this.authenticator)
-    console.log({ signerOfferingEvent })
     const pub = this.nostrClient.publish(signerOfferingEvent)
     await pub.onFirstOkOrCompleteFailure()
 
