@@ -16,6 +16,8 @@ import { SignerOfferingsHandler } from "./SignerOfferingsHandler";
 import { Kind } from "nostr-tools";
 import { VerifiedKeyAgentsHandler } from "./VerifiedKeyAgentsHandler";
 import { UnverifiedKeyAgentsHandler } from "./UnverifiedKeyAgentsHandler";
+import { DirecMessagesHandler } from "./DirectMessagesHandler";
+
 export class EventKindHandlerFactory {
   private smartVaults: SmartVaults
   private handlers: Map<number, EventKindHandler>
@@ -47,6 +49,8 @@ export class EventKindHandlerFactory {
       const getVerifiedKeyAgentsPubKeys = this.smartVaults.getVerifiedKeyAgentsPubKeys
       const getOwnedSignersByOfferingIdentifiers = this.smartVaults.getOwnedSignersByOfferingIdentifiers
       const getSharedSignersByOfferingIdentifiers = this.smartVaults.getSharedSignersByOfferingIdentifiers
+      const isValidPolicyId = this.smartVaults.isValidPolicyId
+      const getChat = this.smartVaults.getChat
       const eventsStore = stores.get(StoreKind.Events)!
       const completedProposalsStore = stores.get(SmartVaultsKind.CompletedProposal)!
       const proposalsStore = stores.get(SmartVaultsKind.Proposal)!
@@ -84,7 +88,7 @@ export class EventKindHandlerFactory {
           this.handlers.set(eventKind, new ContactsHandler())
           break
         case Kind.EventDeletion:
-          this.handlers.set(eventKind, new EventDeletionHandler(stores))
+          this.handlers.set(eventKind, new EventDeletionHandler(stores, getChat))
           break
         case SmartVaultsKind.Labels:
           this.handlers.set(eventKind, new LabelsHandler(stores.get(eventKind)!, eventsStore, getSharedKeysById))
@@ -97,6 +101,9 @@ export class EventKindHandlerFactory {
           break
         case SmartVaultsKind.SignerOffering:
           this.handlers.set(eventKind, new SignerOfferingsHandler(authenticator, stores.get(eventKind)!, eventsStore, getOwnedSignersByOfferingIdentifiers, getSharedSignersByOfferingIdentifiers, getContacts))
+          break
+        case Kind.EncryptedDirectMessage:
+          this.handlers.set(eventKind, new DirecMessagesHandler(authenticator, nostrClient, stores.get(eventKind)!, eventsStore, getSharedKeysById, isValidPolicyId))
           break
         default:
           throw new Error(`There is no handler for event kind: ${eventKind}`)
