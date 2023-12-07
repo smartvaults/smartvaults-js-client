@@ -86,8 +86,8 @@ export class Chat {
         return this.activeConversationId;
     }
 
-    public async getConversationMessages(conversationId: string): Promise<PublishedDirectMessage[]> {
-        await this.updateConversationMessages(conversationId);
+    public async getConversationMessages(conversationId: string, paginationOpts?: PaginationOpts): Promise<PublishedDirectMessage[]> {
+        await this.updateConversationMessages(conversationId, paginationOpts);
         return this.conversations.get(conversationId)?.messages.toArray() || [];
     }
 
