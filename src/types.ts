@@ -1,6 +1,7 @@
 import { FiatCurrency, ProposalType, DeviceType, Temperature, Magic } from './enum';
 import { BasePolicy, PublishedPolicy, Utxo, BaseOwnedSigner, BaseSharedSigner } from './models'
 import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
+import { type DoublyLinkedList } from './util'
 
 export type Published = {
   id: string
@@ -9,11 +10,20 @@ export type Published = {
 
 export type DirectMessage = {
   message: string
-  publicKey: string
+  author: string
 }
 
-export type PublishedDirectMessage = DirectMessage & Published
+export type PublishedDirectMessage = DirectMessage & Published & {
+  conversationId: string
+}
 
+export type Conversation = {
+  conversationId: string
+  messages: DoublyLinkedList<PublishedDirectMessage>
+  members: string[]
+  hasUnreadMessages: boolean
+  isGroupChat: boolean
+}
 
 export type PublishedSharedSigner = BaseSharedSigner & Published & {
   ownerPubKey?: string;
