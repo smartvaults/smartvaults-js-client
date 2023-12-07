@@ -118,6 +118,10 @@ export class Store {
     return indexValues.filter(v => !index.has(v))
   }
 
+  getIndexValues(indexKey: string): string[] {
+    return Array.from(this.getIndex(indexKey).keys())
+  }
+
   private getIndex(indexKey?: string): Map<string, any> {
     indexKey = indexKey ?? this.indexes.keys().next().value
     if (!indexKey) {
@@ -141,4 +145,7 @@ export class Store {
     })
     return new Store(indexMap)
   }
+
+
+
 }

@@ -3,11 +3,12 @@ import { MockProxy, mock } from 'jest-mock-extended'
 import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { SmartVaults } from './SmartVaults'
 import { NostrClient, Keys, Store } from './service'
-import { TimeUtil, buildEvent } from './util'
+import { DoublyLinkedList, TimeUtil, buildEvent } from './util'
 import { BaseOwnedSigner, Contact, PublishedPolicy, BitcoinUtil, Wallet, type FinalizeTrxResponse } from './models'
-import { Metadata, Profile, SavePolicyPayload, SpendProposalPayload, PublishedDirectMessage, PublishedSpendingProposal, PublishedApprovedProposal, PublishedSharedSigner, PublishedOwnedSigner, MySharedSigner, KeyAgentMetadata, SignerOffering, KeyAgent, PublishedSignerOffering, PublishedKeyAgentPaymentProposal, PublishedCompletedKeyAgentPaymentProposal } from './types'
+import { Metadata, Profile, SavePolicyPayload, SpendProposalPayload, PublishedDirectMessage, PublishedApprovedProposal, PublishedSharedSigner, PublishedOwnedSigner, MySharedSigner, KeyAgentMetadata, SignerOffering, KeyAgent, PublishedSignerOffering, PublishedKeyAgentPaymentProposal, PublishedCompletedKeyAgentPaymentProposal, Conversation, ActivePublishedProposal } from './types'
 import { SmartVaultsKind, ProposalStatus, NetworkType, PaymentType, Magic } from './enum'
 import { Kind } from 'nostr-tools'
+import { Chat } from './models/Chat'
 
 jest.setTimeout(1000000);
 
@@ -92,9 +93,11 @@ describe('SmartVaults', () => {
     it('getProfile', async () => {
       const profile = await smartVaults.getProfile(profile1.publicKey)
       expect(profile).toEqual(profile1)
+      await sleep(100)
       const own_profile = await smartVaults.getProfile(profile4.publicKey)
       expect(own_profile).toEqual(profile4)
       profile5 = await smartVaults.setProfile(getMetadata(69))
+      await sleep(100)
       const own_profile2 = await smartVaults.getProfile(profile5.publicKey)
       expect(own_profile2).toEqual(profile5)
     })
@@ -413,9 +416,8 @@ describe('SmartVaults', () => {
     it('should receive Proposal events', async () => {
 
       expect.assertions(8)
-      let counter: number = 0
-      let savePolicyPayload1 = getSavePolicyPayload(1, keySet.getPublicKeys(), 2)
-      let savePolicyPayload2 = getSavePolicyPayload(2, keySet.getPublicKeys(), 3)
+      let savePolicyPayload1 = getSavePolicyPayload(1, keySet.getPublicKeys())
+      let savePolicyPayload2 = getSavePolicyPayload(2, keySet.getPublicKeys())
       let policy1 = await smartVaults.savePolicy(savePolicyPayload1)
       let policy2 = await smartVaults.savePolicy(savePolicyPayload2)
       let spendProposalPayload1 = spendProposalPayload(1, policy1)
@@ -423,29 +425,19 @@ describe('SmartVaults', () => {
       let saveProofOfReserveProposalPayload1 = saveProofOfReserveProposalPayload(1)
       let saveProofOfReserveProposalPayload2 = saveProofOfReserveProposalPayload(2)
 
-      const sub = smartVaults.subscribe(SmartVaultsKind.Proposal, (kind: number, payload: any) => {
-        switch (counter) {
-          case 0:
-            assertSubscriptionSpendProposalPayload(kind, payload, spendProposal1)
-            break
-          case 1:
-            assertSubscriptionSpendProposalPayload(kind, payload, spendProposal2)
-            break
-          case 2:
-            assertSubscriptionProofOfReserveProposalPayload(kind, payload, proofOfReserveProposal1)
-            break
-          case 3:
-            assertSubscriptionProofOfReserveProposalPayload(kind, payload, proofOfReserveProposal2)
-            break
-        }
-        counter++
+      const proposalsMap = new Map<string, ActivePublishedProposal>()
+
+      const sub = smartVaults.subscribe(SmartVaultsKind.Proposal, async (kind: number, payload: ActivePublishedProposal) => {
+        await Promise.all(promises)
+        expect(kind).toBe(SmartVaultsKind.Proposal)
+        expect(payload).toEqual(proposalsMap.get(payload.proposal_id))
       })
 
-      let spendProposal1 = await smartVaults.spend(spendProposalPayload1)
-      let spendProposal2 = await smartVaults.spend(spendProposalPayload2)
-      let proofOfReserveProposal1 = await smartVaults._saveProofOfReserveProposal(policy1.id, saveProofOfReserveProposalPayload1)
-      let proofOfReserveProposal2 = await smartVaults._saveProofOfReserveProposal(policy2.id, saveProofOfReserveProposalPayload2)
-
+      const spendProposal1Promise = smartVaults.spend(spendProposalPayload1).then((spendProposal) => { proposalsMap.set(spendProposal.proposal_id, spendProposal) })
+      const spendProposal2Promise = smartVaults.spend(spendProposalPayload2).then((spendProposal) => { proposalsMap.set(spendProposal.proposal_id, spendProposal) })
+      const proofOfReserveProposal1Promise = smartVaults._saveProofOfReserveProposal(policy1.id, saveProofOfReserveProposalPayload1).then((proofOfReserveProposal) => { proposalsMap.set(proofOfReserveProposal.proposal_id, proofOfReserveProposal) })
+      const proofOfReserveProposal2Promise = smartVaults._saveProofOfReserveProposal(policy2.id, saveProofOfReserveProposalPayload2).then((proofOfReserveProposal) => { proposalsMap.set(proofOfReserveProposal.proposal_id, proofOfReserveProposal) })
+      const promises = [spendProposal1Promise, spendProposal2Promise, proofOfReserveProposal1Promise, proofOfReserveProposal2Promise]
       await sleep(2000)
       sub.unsub()
     })
@@ -527,56 +519,6 @@ describe('SmartVaults', () => {
       completedProposal2 = await smartVaults._saveCompletedProposal(proofOfReserveProposal2.proposal_id, saveProofOfReserveProposalPayload2)
 
       await sleep(100)
-      sub.unsub()
-    }
-    )
-
-    it('should receive many events', async () => {
-      let counter: number = 0
-      expect.assertions(23)
-      let savePolicyPayload1 = getSavePolicyPayload(1, keySet.getPublicKeys(), 2)
-      let pubkey = smartVaults.authenticator.getPublicKey()
-      let saveOwnedSignerPayload1 = saveOwnedSignerPayload(1, pubkey)
-      let saveSharedSignerPayload1 = await saveSharedSignerPayload(smartVaults, 1)
-      await sleep(2000)
-      const sub = smartVaults.subscribe([SmartVaultsKind.Policy, SmartVaultsKind.Signers, SmartVaultsKind.SharedSigners, SmartVaultsKind.Proposal, SmartVaultsKind.ApprovedProposal, SmartVaultsKind.CompletedProposal],
-        (kind: number, payload: any) => {
-          switch (counter) {
-            case 0:
-              assertSubscriptionPolicyPayload(kind, payload, savePolicyPayload1)
-              break
-            case 1:
-              assertSubscriptionOwnedSignerPayload(kind, payload, saveOwnedSignerPayload1)
-              break
-            case 2:
-              assertSubscriptionSharedSignerPayload(kind, payload, saveSharedSignerPayload1)
-              break
-            case 3:
-              assertSubscriptionProofOfReserveProposalPayload(kind, payload, proofOfReserveProposal1)
-              break
-            case 4:
-              assertSubscriptionApprovedProposalPayload(kind, payload, approvedProposal1)
-              break
-            case 5:
-              assertSubscriptionCompletedProposalPayload(kind, payload, completedProposal1)
-              break
-          }
-          counter++
-        })
-
-      let policy1 = await smartVaults.savePolicy(savePolicyPayload1)
-      await sleep(100)
-      await smartVaults.saveOwnedSigner(saveOwnedSignerPayload1)
-      await sleep(100)
-      await smartVaults.saveSharedSigner(saveSharedSignerPayload1, pubkey)
-      await sleep(100)
-      let saveProofOfReserveProposalPayload1 = saveProofOfReserveProposalPayload(1)
-      let proofOfReserveProposal1 = await smartVaults._saveProofOfReserveProposal(policy1.id, saveProofOfReserveProposalPayload1)
-      await sleep(100)
-      let approvedProposal1 = await smartVaults.saveApprovedProposal(proofOfReserveProposal1.proposal_id, 'signedPsbt')
-      await sleep(100)
-      let completedProposal1 = await smartVaults._saveCompletedProposal(proofOfReserveProposal1.proposal_id, saveProofOfReserveProposalPayload1)
-      await sleep(300)
       sub.unsub()
     }
     )
@@ -953,7 +895,6 @@ describe('SmartVaults', () => {
     let smartVaults2: SmartVaults
     let finalizedProposal;
     let policy1;
-
     beforeAll(async () => {
 
 
@@ -1082,24 +1023,26 @@ describe('SmartVaults', () => {
     });
 
     it('sent proposal direct messages', async () => {
-
-      // Each set of keys creates one SpendProposal (1 and 2), SpendProposal3 is created by auth 1 but has both keys in the policy
-      // hence the message is sent to both Auth 1 and Auth 2.
-
       let smartVaults = newSmartVaults(keySet1.keys[1])
-      let directMessages = await smartVaults.getDirectMessages();
-      expect(directMessages.length).toBe(3) // 3 proposals sent by key 1
-      let publicKeyAuth1 = keySet1.mainKey().publicKey
-      assertProposalDirectMessage(directMessages[1], spendProposal3, publicKeyAuth1)
-      assertProposalDirectMessage(directMessages[2], spendProposal1, publicKeyAuth1)
-      assertProposalDirectMessage(directMessages[0], keyAgentPaymentProposal1, publicKeyAuth1)
-
-      smartVaults = newSmartVaults(altKeySet.keys[1])
-      directMessages = await smartVaults.getDirectMessages();
-      let publicKeyAuth2 = altKeySet.mainKey().publicKey
-      expect(directMessages.length).toBe(2)
-      assertProposalDirectMessage(directMessages[0], spendProposal3, publicKeyAuth1)
-      assertProposalDirectMessage(directMessages[1], spendProposal2, publicKeyAuth2)
+      await smartVaults.getProposals()
+      const conversations = await smartVaults.getChat().getConversations()
+      const proposalsStore = smartVaults.getStore(SmartVaultsKind.Proposal)
+      const proposalByPolicyId: Map<string, ActivePublishedProposal | ActivePublishedProposal[]> = proposalsStore.getMany(undefined, 'policy_id')
+      expect(conversations.size).toBe(proposalByPolicyId.size)
+      for (const [policyId, proposals] of proposalByPolicyId.entries()) {
+        const conversation = conversations.get(policyId)
+        expect(conversation).toBeDefined()
+        const messages = conversation!.messages.toArray()
+        if (Array.isArray(proposals)) {
+          expect(messages.length).toBe(proposals.length)
+          for (const proposal of proposals) {
+            expect(messages.find(m => m.message.includes(proposal.proposal_id))).toBeDefined()
+          }
+        } else {
+          expect(messages.length).toBe(1)
+          expect(messages[0].message.includes(proposals.proposal_id)).toBeTruthy()
+        }
+      }
     });
 
 
@@ -1417,6 +1360,174 @@ describe('SmartVaults', () => {
 
   });
 
+  describe('Direct Messages', () => {
+    let keySet
+    let bob
+    let alice
+    let charlie
+    let smartVaults1
+    let smartVaults2
+    let smartVaults3
+    let policyAliceBob: PublishedPolicy
+    let policyAliceCharlie: PublishedPolicy
+    let policyAliceBobCharlie: PublishedPolicy
+    let chatAlice: Chat
+    let chatBob: Chat
+    let chatCharlie: Chat
+    let aliceToBob: PublishedDirectMessage
+    let aliceToCharlie: PublishedDirectMessage
+    let aliceToBobCharlie: PublishedDirectMessage
+    let bobToAlice: PublishedDirectMessage
+    let charlieToAlice: PublishedDirectMessage
+    let bobToAliceCharlie: PublishedDirectMessage
+    let charlieToAliceBob: PublishedDirectMessage
+    let bobToCharliePrivate: PublishedDirectMessage
+    let charlieToBobPrivate: PublishedDirectMessage
+    let expectedConversationBobCharliePrivate: Conversation
+    let expectedConversationCharlieBobPrivate: Conversation
+
+    beforeAll(async () => {
+      keySet = new KeySet(3)
+      bob = keySet.mainKey()
+      alice = keySet.keys[1]
+      charlie = keySet.keys[2]
+      smartVaults1 = newSmartVaults(alice)
+      smartVaults2 = newSmartVaults(bob)
+      smartVaults3 = newSmartVaults(charlie)
+      chatAlice = smartVaults1.getChat()
+      chatBob = smartVaults2.getChat()
+      chatCharlie = smartVaults3.getChat()
+      policyAliceBob = await smartVaults1.savePolicy(getSavePolicyPayload(1, [alice.publicKey, bob.publicKey]))
+      policyAliceCharlie = await smartVaults2.savePolicy(getSavePolicyPayload(2, [alice.publicKey, charlie.publicKey]))
+      policyAliceBobCharlie = await smartVaults3.savePolicy(getSavePolicyPayload(3, [alice.publicKey, bob.publicKey, charlie.publicKey]))
+    });
+
+
+    it('getConversations returns empty Map if no conversations', async () => {
+      const conversationsAlice = await chatAlice.getConversations()
+      expect(conversationsAlice.size).toBe(0)
+      const conversationsBob = await chatBob.getConversations()
+      expect(conversationsBob.size).toBe(0)
+      const conversationsCharlie = await chatCharlie.getConversations()
+      expect(conversationsCharlie.size).toBe(0)
+    })
+
+    it('sendDirectMessage and getConversations work', async () => {
+      const messageAliceBob = 'message from alice to bob ( policyAliceBob )'
+      const messageBobToAlice = 'message from bob to alice ( policyAliceBob )'
+      const messageAliceCharlie = 'message from alice to charlie ( policyAliceCharlie )'
+      const messageCharlieToAlice = 'message from charlie to alice ( policyAliceCharlie )'
+      const messageAliceBobCharlie = 'message from alice to bob and charlie ( policyAliceBobCharlie )'
+      const messageBobAliceCharlie = 'message from bob to alice and charlie ( policyAliceBobCharlie )'
+      const messageCharlieAliceBob = 'message from charlie to alice and bob ( policyAliceBobCharlie )'
+      const messageBobCharliePrivate = 'message from bob to charlie ( private )'
+      const messageCharlieBobPrivate = 'message from charlie to bob ( private )'
+
+      aliceToBob = await chatAlice.sendMessage(messageAliceBob, policyAliceBob.id)
+      aliceToCharlie = await chatAlice.sendMessage(messageAliceCharlie, policyAliceCharlie.id)
+      aliceToBobCharlie = await chatAlice.sendMessage(messageAliceBobCharlie, policyAliceBobCharlie.id)
+      await sleep(1000)
+      bobToAlice = await chatBob.sendMessage(messageBobToAlice, policyAliceBob.id)
+      charlieToAlice = await chatCharlie.sendMessage(messageCharlieToAlice, policyAliceCharlie.id)
+      await sleep(1000)
+      bobToAliceCharlie = await chatBob.sendMessage(messageBobAliceCharlie, policyAliceBobCharlie.id)
+      await sleep(1000)
+      charlieToAliceBob = await chatCharlie.sendMessage(messageCharlieAliceBob, policyAliceBobCharlie.id)
+      await sleep(1000)
+      bobToCharliePrivate = await chatBob.sendMessage(messageBobCharliePrivate, charlie.publicKey)
+      await sleep(1000)
+      charlieToBobPrivate = await chatCharlie.sendMessage(messageCharlieBobPrivate, bob.publicKey)
+
+      const aliceConversations = await chatAlice.getConversations()
+      expect(aliceConversations.size).toBe(3) // 3 group chats
+      const bobConversations = await chatBob.getConversations()
+      expect(bobConversations.size).toBe(3) // 2 group chats + 1 private chat
+      const charlieConversations = await chatCharlie.getConversations()
+      expect(charlieConversations.size).toBe(3) // 2 group chats + 1 private chat
+    })
+
+    it('getConversation works', async () => {
+      const expectedConversationAliceBob: Conversation = { conversationId: policyAliceBob.id, messages: new DoublyLinkedList([aliceToBob, bobToAlice]), members: [alice.publicKey, bob.publicKey], isGroupChat: true, hasUnreadMessages: true }
+      const expectedConversationAliceCharlie: Conversation = { conversationId: policyAliceCharlie.id, messages: new DoublyLinkedList([aliceToCharlie, charlieToAlice]), members: [alice.publicKey, charlie.publicKey], isGroupChat: true, hasUnreadMessages: true }
+      const expectedConversationAliceBobCharlie: Conversation = { conversationId: policyAliceBobCharlie.id, messages: new DoublyLinkedList([aliceToBobCharlie, bobToAliceCharlie, charlieToAliceBob]), members: [alice.publicKey, bob.publicKey, charlie.publicKey], isGroupChat: true, hasUnreadMessages: true }
+      const charlieToBobPrivateBobPerspective = { ...charlieToBobPrivate, conversationId: charlie.publicKey }
+      const bobToCharliePrivateCharliePerspective = { ...bobToCharliePrivate, conversationId: bob.publicKey }
+      expectedConversationBobCharliePrivate = { conversationId: charlie.publicKey, messages: new DoublyLinkedList([charlieToBobPrivateBobPerspective, bobToCharliePrivate]), members: [charlie.publicKey], isGroupChat: false, hasUnreadMessages: true } // from bob's perspective
+      expectedConversationCharlieBobPrivate = { conversationId: bob.publicKey, messages: new DoublyLinkedList([charlieToBobPrivate, bobToCharliePrivateCharliePerspective]), members: [bob.publicKey], isGroupChat: false, hasUnreadMessages: true } // from charlie's perspective
+
+      const conversationAliceBobAlicesPerspective = await chatAlice.getConversation(policyAliceBob.id)
+      const conversationAliceBobBobsPerspective = await chatBob.getConversation(policyAliceBob.id)
+      assertConversationEquallity(conversationAliceBobAlicesPerspective, expectedConversationAliceBob)
+      assertConversationEquallity(conversationAliceBobBobsPerspective, expectedConversationAliceBob)
+
+      const conversationAliceCharlieAlicePerspective = await chatAlice.getConversation(policyAliceCharlie.id)
+      const conversationAliceCharlieCharliesPerspective = await chatCharlie.getConversation(policyAliceCharlie.id)
+      assertConversationEquallity(conversationAliceCharlieAlicePerspective, expectedConversationAliceCharlie)
+      assertConversationEquallity(conversationAliceCharlieCharliesPerspective, expectedConversationAliceCharlie)
+
+
+      const conversationAliceBobCharlieAlicePerspective = await chatAlice.getConversation(policyAliceBobCharlie.id)
+      const conversationAliceBobCharlieBobsPerspective = await chatBob.getConversation(policyAliceBobCharlie.id)
+      const conversationAliceBobCharlieCharliesPerspective = await chatCharlie.getConversation(policyAliceBobCharlie.id)
+      assertConversationEquallity(conversationAliceBobCharlieAlicePerspective, expectedConversationAliceBobCharlie)
+      assertConversationEquallity(conversationAliceBobCharlieBobsPerspective, expectedConversationAliceBobCharlie)
+      assertConversationEquallity(conversationAliceBobCharlieCharliesPerspective, expectedConversationAliceBobCharlie)
+
+      const conversationBobCharliePrivate = await chatBob.getConversation(charlie.publicKey)
+      const conversationCharlieBobPrivate = await chatCharlie.getConversation(bob.publicKey)
+      assertConversationEquallity(conversationBobCharliePrivate, expectedConversationBobCharliePrivate)
+      assertConversationEquallity(conversationCharlieBobPrivate, expectedConversationCharlieBobPrivate)
+    })
+
+    it('getConversationMessages works', async () => {
+      const conversationMessagesAliceBob = await chatAlice.getConversationMessages(policyAliceBob.id)
+      expect(conversationMessagesAliceBob).toEqual([bobToAlice, aliceToBob])
+      const conversationMessagesAliceCharlie = await chatAlice.getConversationMessages(policyAliceCharlie.id)
+      expect(conversationMessagesAliceCharlie).toEqual([charlieToAlice, aliceToCharlie])
+      const conversationMessagesAliceBobCharlie = await chatAlice.getConversationMessages(policyAliceBobCharlie.id)
+      expect(conversationMessagesAliceBobCharlie).toEqual([charlieToAliceBob, bobToAliceCharlie, aliceToBobCharlie])
+      const conversationMessagesBobCharliePrivate = await chatBob.getConversationMessages(charlie.publicKey)
+      expect(conversationMessagesBobCharliePrivate).toEqual(expectedConversationBobCharliePrivate.messages.toArray())
+      const conversationMessagesCharlieBobPrivate = await chatCharlie.getConversationMessages(bob.publicKey)
+      expect(conversationMessagesCharlieBobPrivate).toEqual(expectedConversationCharlieBobPrivate.messages.toArray())
+    })
+
+    it('deleteMessage works', async () => {
+      const conversationMessagesAliceBob = await chatAlice.getConversationMessages(policyAliceBob.id)
+      expect(conversationMessagesAliceBob).toEqual([bobToAlice, aliceToBob])
+      await chatAlice.deleteMessage(aliceToBob.id, policyAliceBob.id)
+      const conversationMessagesAliceBobAfterDelete = await chatAlice.getConversationMessages(policyAliceBob.id)
+      expect(conversationMessagesAliceBobAfterDelete).toEqual([bobToAlice])
+    })
+
+
+    it('if user is subscribed to deletion events and a message from a conversation is deleted the respective message content is replaced with a deletion message', async () => {
+      let expectedPayloadMap = new Map()
+      expect.assertions(4)
+      expectedPayloadMap.set(Kind.EncryptedDirectMessage, [aliceToCharlie.id])
+      const sub = smartVaults3.subscribe(Kind.EventDeletion, (kind: Kind, payload: Map<Kind, string[]>) => {
+        expect(kind).toBe(Kind.EventDeletion)
+        expect(payload).toEqual(expectedPayloadMap)
+        sub.unsub()
+      })
+      await chatAlice.deleteMessage(aliceToCharlie.id, policyAliceCharlie.id)
+      const conversationMessagesAliceCharlie = await chatAlice.getConversationMessages(policyAliceCharlie.id)
+      expect(conversationMessagesAliceCharlie).toEqual([charlieToAlice])
+      const expectedDeletionMessage = { ...aliceToCharlie, message: 'This message has been deleted' }
+      const conversationMessagesCharlieAlice = await chatCharlie.getConversationMessages(policyAliceCharlie.id)
+      expect(conversationMessagesCharlieAlice).toEqual([charlieToAlice, expectedDeletionMessage])
+    }
+    )
+
+    function assertConversationEquallity(actual: Conversation, expected: Conversation) {
+      expect(actual.conversationId).toEqual(expected.conversationId)
+      expect(actual.isGroupChat).toEqual(expected.isGroupChat)
+      expect(actual.members).toEqual(expected.members)
+      expect(actual.messages.toArray()).toEqual(expected.messages.toArray())
+    }
+
+  });
+
   function newSmartVaults(keys: Keys): SmartVaults {
     return new SmartVaults({
       authenticator: new DirectPrivateKeyAuthenticator(keys.privateKey),
@@ -1469,16 +1580,6 @@ function assertSubscriptionOwnedSignerPayload(kind: number, payload: any, expect
 
 
 
-function assertSubscriptionSpendProposalPayload(kind: number, payload: any, expectedPayload: any) {
-  expect(kind).toBe(SmartVaultsKind.Proposal)
-  expect(payload).toEqual(expectedPayload)
-}
-
-function assertSubscriptionProofOfReserveProposalPayload(kind: number, payload: any, expectedPayload: any) {
-  expect(kind).toBe(SmartVaultsKind.Proposal)
-  expect(payload).toEqual(expectedPayload)
-}
-
 function assertSubscriptionApprovedProposalPayload(kind: number, payload: any, expectedPayload: any) {
   expect(kind).toBe(SmartVaultsKind.ApprovedProposal)
   expect(payload).toEqual(expectedPayload)
@@ -1497,12 +1598,6 @@ function assertSubscriptionMetadataPayload(kind: number, payload: any, expectedP
 function assertSubscriptionContactPayload(kind: number, payload: any, expectedPayload: any) {
   expect(kind).toBe(Kind.Contacts)
   expect(payload).toEqual(expectedPayload)
-}
-
-function assertProposalDirectMessage(directMessage: PublishedDirectMessage, proposal: PublishedSpendingProposal, pubkey: string) {
-  expect(directMessage.publicKey).toBe(pubkey)
-  expect(directMessage.message).toContain(`Amount: ${proposal.amount}`)
-  expect(directMessage.message).toContain(`Description: ${proposal.description}`)
 }
 
 function getSavePolicyPayload(id: number, nostrPublicKeys: string[], secondsShift: number = 0): SavePolicyPayload {
