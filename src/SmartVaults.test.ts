@@ -1360,7 +1360,7 @@ describe('SmartVaults', () => {
 
   });
 
-  describe('Direct Messages', () => {
+  describe.only('Direct Messages', () => {
     let keySet
     let bob
     let alice
@@ -1518,6 +1518,30 @@ describe('SmartVaults', () => {
       expect(conversationMessagesCharlieAlice).toEqual([charlieToAlice, expectedDeletionMessage])
     }
     )
+
+    it('subscription to messages work', async () => {
+      expect.assertions(6)
+      let expectedPayloadsMap: Map<string, PublishedDirectMessage> = new Map()
+
+      const sub = smartVaults3.subscribe(Kind.EncryptedDirectMessage, async (kind: Kind, payload: PublishedDirectMessage) => {
+        await Promise.all(promises)
+        let latestMessage: PublishedDirectMessage = (await chatCharlie.getConversationMessages(payload.conversationId))[0]
+        expect(kind).toBe(Kind.EncryptedDirectMessage)
+        expect(payload).toEqual(expectedPayloadsMap.get(payload.conversationId))
+        expect(latestMessage).toEqual(payload)
+      })
+
+      const promiseMsg1 = chatAlice.sendMessage('new message from alice to charlie! ( policyAliceCharlie )', policyAliceCharlie.id).then((message) => {
+        expectedPayloadsMap.set(message.conversationId, message)
+      })
+      const promiseMsg2 = chatBob.sendMessage('new message from bob to charlie! ( private )', charlie.publicKey).then((message) => {
+        const messageFromCharliesPerspective = { ...message, conversationId: bob.publicKey }
+        expectedPayloadsMap.set(bob.publicKey, messageFromCharliesPerspective)
+      })
+      const promises = [promiseMsg1, promiseMsg2]
+
+      await sleep(2000).then(sub.unsub())
+    })
 
     function assertConversationEquallity(actual: Conversation, expected: Conversation) {
       expect(actual.conversationId).toEqual(expected.conversationId)
