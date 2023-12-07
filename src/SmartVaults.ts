@@ -8,12 +8,15 @@ import * as SmartVaultsTypes from './types'
 import { EventKindHandlerFactory } from './event-kind-handler'
 import { BitcoinExchangeRate, saveFile, readFile } from './util'
 import { PaymentType } from './enum/PaymentType'
+import { Chat } from './models/Chat'
+
 export class SmartVaults {
   authenticator: Authenticator
   bitcoinUtil: BitcoinUtil
   nostrClient: NostrClient
   stores!: Map<number, Store>
   network: NetworkType
+  private chat!: Chat
   private readonly authority: string
   private eventKindHandlerFactor!: EventKindHandlerFactory
   private readonly bitcoinExchangeRate: BitcoinExchangeRate = BitcoinExchangeRate.getInstance();
@@ -37,6 +40,7 @@ export class SmartVaults {
     this.network = network
     this.authority = authority
     this.initStores()
+    this.initChat()
     this.initEventKindHandlerFactory()
   }
 
@@ -56,11 +60,23 @@ export class SmartVaults {
     this.stores.set(SmartVaultsKind.SignerOffering, Store.createMultiIndexStore(["id", "offeringId", "keyAgentPubKey", "signerDescriptor"], "id"))
     this.stores.set(SmartVaultsKind.VerifiedKeyAgents, Store.createMultiIndexStore(["eventId", "pubkey"], "pubkey"))
     this.stores.set(SmartVaultsKind.KeyAgents, Store.createSingleIndexStore("pubkey"))
+    this.stores.set(Kind.EncryptedDirectMessage, Store.createMultiIndexStore(["id", "conversationId"], "id"))
   }
+
   initEventKindHandlerFactory() {
     this.eventKindHandlerFactor = new EventKindHandlerFactory(this)
   }
 
+  initChat() {
+    const helpers = {
+      sendMessage: this.sendDirectMessage,
+      getDirectMessagesByConversationId: this.getDirectMessagesByConversationId,
+      getGroupsIds: this.getPolicyIds,
+      getPolicyMembers: this.getPolicyMembers,
+      deleteDirectMessages: this.deleteDirectMessages,
+    }
+    this.chat = new Chat(helpers)
+  }
 
   setAuthenticator(authenticator: Authenticator): void {
     if (authenticator !== this.authenticator) {
@@ -319,9 +335,10 @@ export class SmartVaults {
     }
 
     const tags = nostrPublicKeys.map(pubkey => [TagType.PubKey, pubkey])
+    const content = await sharedKeyAuthenticator.encryptObj(policyContent)
     const policyEvent = await buildEvent({
       kind: SmartVaultsKind.Policy,
-      content: await sharedKeyAuthenticator.encryptObj(policyContent),
+      content,
       tags: [...tags],
       createdAt
     },
@@ -548,6 +565,24 @@ export class SmartVaults {
     return policyEvent[0]
   }
 
+  getPolicyIds = async (): Promise<Set<string>> => {
+    const policiesFilter = this.getFilter(SmartVaultsKind.Policy, { pubkeys: [this.authenticator.getPublicKey()] })
+    const policyEvents = await this.nostrClient.list(policiesFilter)
+    return new Set(policyEvents.map(event => event.id))
+  }
+
+
+  isValidPolicyId = async (id: string): Promise<boolean> => {
+    const policyFilter = this.getFilter(SmartVaultsKind.Policy, { ids: [id] })
+    const policyEvents = await this.nostrClient.list(policyFilter)
+    return policyEvents.length === 1
+  }
+
+  getPolicyMembers = async (policy_id: string): Promise<string[]> => {
+    const policyEvent = await this.getPolicyEvent(policy_id)
+    return getTagValues(policyEvent, TagType.PubKey)
+  }
+
   /**
    * Asynchronously initiates a spending proposal.
    *
@@ -657,16 +692,15 @@ export class SmartVaults {
     const pub = this.nostrClient.publish(proposalEvent)
     await pub.onFirstOkOrCompleteFailure()
     const createdAt = fromNostrDate(proposalEvent.created_at)
+
     let msg = keyAgentPayment ? "New key agent payment proposal:\n" : "New spending proposal:\n"
+    msg += `- Proposer: ${this.authenticator.getPublicKey()}\n`
     msg += `- Amount: ${amount}\n`
     msg += `- Description: ${description}\n`
-    const promises: Promise<void>[] = []
-    for (const publicKey of nostrPublicKeys) {
-      if (publicKey !== this.authenticator.getPublicKey()) {
-        const pub = await this.sendDirectMsg(msg, publicKey)
-        promises.push(pub.onFirstOkOrCompleteFailure())
-      }
-    }
+    msg += `- ID: ${proposalEvent.id}\n`
+
+    await this.getChat().sendMessage(msg, policy.id)
+
     const signer = 'Unknown'
     const fee = Number(this.bitcoinUtil.getFee(psbt))
     const utxo = this.bitcoinUtil.getPsbtUtxos(psbt)
@@ -687,7 +721,7 @@ export class SmartVaults {
       bitcoinExchangeRate,
       activeFiatCurrency,
     }
-    Promise.all(promises)
+
     let publishedProposal: SmartVaultsTypes.PublishedSpendingProposal | SmartVaultsTypes.PublishedKeyAgentPaymentProposal
     if (keyAgentPayment) {
       publishedProposal = {
@@ -1135,15 +1169,63 @@ export class SmartVaults {
     return sharedSigners
   }
 
-  private async sendDirectMsg(msg: string, publicKey: string): Promise<PubPool> {
-    const content = await this.authenticator.encrypt(msg, publicKey)
+  sendDirectMsg = async (msg: string, contactPublicKey: string): Promise<[PubPool, SmartVaultsTypes.PublishedDirectMessage]> => {
+    const content = await this.authenticator.encrypt(msg, contactPublicKey)
     const directMsgEvent = await buildEvent({
       kind: Kind.EncryptedDirectMessage,
       content,
-      tags: [[TagType.PubKey, publicKey]],
+      tags: [[TagType.PubKey, contactPublicKey]],
     },
       this.authenticator)
-    return this.nostrClient.publish(directMsgEvent)
+
+    const store = this.getStore(Kind.EncryptedDirectMessage)
+    const publishedDirectMessage: SmartVaultsTypes.PublishedDirectMessage = {
+      id: directMsgEvent.id,
+      message: msg,
+      author: this.authenticator.getPublicKey(),
+      createdAt: fromNostrDate(directMsgEvent.created_at),
+      conversationId: contactPublicKey,
+    }
+    store.store(publishedDirectMessage)
+
+    return [this.nostrClient.publish(directMsgEvent), publishedDirectMessage]
+  }
+
+  sendGroupMsg = async (msg: string, groupId: string): Promise<[PubPool, SmartVaultsTypes.PublishedDirectMessage]> => {
+    const policy = (await this.getPoliciesById([groupId])).get(groupId)
+    if (!policy) {
+      throw new Error(`Policy with id ${groupId} not found`)
+    }
+    const sharedKeyAuthenticator = policy.sharedKeyAuth
+    const content = await sharedKeyAuthenticator.encrypt(msg)
+    const members = policy.nostrPublicKeys
+    const tags = members.map(member => [TagType.PubKey, member])
+    tags.push([TagType.Event, groupId])
+    const groupMsgEvent = await buildEvent({
+      kind: Kind.EncryptedDirectMessage,
+      content,
+      tags,
+    },
+      this.authenticator)
+
+    const store = this.getStore(Kind.EncryptedDirectMessage)
+    const publishedDirectMessage: SmartVaultsTypes.PublishedDirectMessage = {
+      id: groupMsgEvent.id,
+      message: msg,
+      author: this.authenticator.getPublicKey(),
+      createdAt: fromNostrDate(groupMsgEvent.created_at),
+      conversationId: groupId,
+    }
+
+    store.store(publishedDirectMessage)
+    return [this.nostrClient.publish(groupMsgEvent), publishedDirectMessage]
+  }
+
+  sendDirectMessage = async (msg: string, conversationId: string): Promise<[PubPool, SmartVaultsTypes.PublishedDirectMessage]> => {
+    const groupIds = await this.getPolicyIds()
+    const isGroup = groupIds.has(conversationId)
+    if (isGroup) return this.sendGroupMsg(msg, conversationId)
+    return this.sendDirectMsg(msg, conversationId)
   }
 
   /**
@@ -1151,20 +1233,24 @@ export class SmartVaults {
    * Get direct messages
    * @returns {Promise<SmartVaultsTypes.PublishedDirectMessage[]>}
    */
-  async getDirectMessages(paginationOpts: PaginationOpts = {}): Promise<SmartVaultsTypes.PublishedDirectMessage[]> {
-
-    const directMessagesFilter = this.getFilter(Kind.EncryptedDirectMessage, { paginationOpts })
-    const directMessageEvents = await this.nostrClient.list(directMessagesFilter)
-    let directMessages: SmartVaultsTypes.PublishedDirectMessage[] = []
-    for (let directMessageEvent of directMessageEvents) {
-      let {
-        content,
-        pubkey
-      } = directMessageEvent
-      const message = await this.authenticator.decrypt(content, pubkey)
-      directMessages.push(toPublished({ message, publicKey: pubkey }, directMessageEvent))
-    }
+  async getDirectMessages(conversationId?: string, paginationOpts?: PaginationOpts): Promise<SmartVaultsTypes.PublishedDirectMessage[]> {
+    paginationOpts = paginationOpts || {}
+    const directMessagesFilters = await this.buildDirectMessagesFilters(paginationOpts, conversationId)
+    const directMessageEvents = await this.nostrClient.list(directMessagesFilters)
+    const directMessageHandler = this.eventKindHandlerFactor.getHandler(Kind.EncryptedDirectMessage)
+    const directMessages = await directMessageHandler.handle(directMessageEvents)
     return directMessages
+  }
+
+  getDirectMessagesByConversationId = async (conversationId?: string, paginationOpts?: PaginationOpts): Promise<Map<string, SmartVaultsTypes.PublishedDirectMessage[]>> => {
+    paginationOpts = paginationOpts || {}
+    const directMessagesFilter = await this.buildDirectMessagesFilters(paginationOpts, conversationId)
+    const directMessageHandler = this.eventKindHandlerFactor.getHandler(Kind.EncryptedDirectMessage)
+    const directMessagesEvents = await this.nostrClient.list(directMessagesFilter)
+    await directMessageHandler.handle(directMessagesEvents)
+    const store = this.getStore(Kind.EncryptedDirectMessage)
+    const conversations = conversationId ? store.getMany([conversationId], "conversationId") : store.getMany(undefined, "conversationId")
+    return conversations
   }
 
 
@@ -1172,6 +1258,24 @@ export class SmartVaults {
     return filterBuilder()
       .kinds(SmartVaultsKind.SharedSigners)
       .authors(this.authenticator.getPublicKey())
+  }
+
+  private async buildDirectMessagesFilters(paginationOpts: PaginationOpts = {}, conversationId?: string): Promise<Filter<Kind.EncryptedDirectMessage>[]> {
+    let authorFilterBuilder = filterBuilder()
+      .kinds(Kind.EncryptedDirectMessage)
+      .authors(this.authenticator.getPublicKey())
+    let recipientFilterBuilder = filterBuilder()
+      .kinds(Kind.EncryptedDirectMessage)
+      .pubkeys(this.authenticator.getPublicKey())
+    if (conversationId) {
+      const groupIds = await this.getPolicyIds()
+      const isGroup = groupIds.has(conversationId)
+      authorFilterBuilder = isGroup ? authorFilterBuilder.events(conversationId) : authorFilterBuilder.pubkeys(conversationId)
+      recipientFilterBuilder = isGroup ? recipientFilterBuilder.events(conversationId) : recipientFilterBuilder.pubkeys(conversationId)
+    }
+    const authorFilter = authorFilterBuilder.pagination(paginationOpts).toFilter()
+    const recipientFilter = recipientFilterBuilder.pagination(paginationOpts).toFilter()
+    return [authorFilter, recipientFilter]
   }
 
   private async getProposalEvent(proposal_id: string) {
@@ -1757,6 +1861,10 @@ export class SmartVaults {
     mySharedSignersStore.delete(mySharedSignersToDelete);
   }
 
+  deleteDirectMessages = async (ids: string | string[]): Promise<void> => {
+    const directMessagesIds = Array.isArray(ids) ? ids : [ids]
+    await this.eventKindHandlerFactor.getHandler(Kind.EncryptedDirectMessage).delete(directMessagesIds)
+  }
 
   /**
   * @ignore
@@ -1793,6 +1901,12 @@ export class SmartVaults {
     const pub = this.nostrClient.publish(proposalEvent)
     const createdAt = fromNostrDate(proposalEvent.created_at)
     await pub.onFirstOkOrCompleteFailure()
+
+    let msg = "New Proof of Reserve proposal:\n"
+    msg += `- Proposer: ${this.authenticator.getPublicKey()}\n`
+    msg += `- ID: ${proposalEvent.id}\n`
+
+    await this.getChat().sendMessage(msg, policy.id)
     const proposal_id = proposalEvent.id
     const status = ProposalStatus.Unsigned
     const signer = 'Unknown'
@@ -2441,7 +2555,6 @@ export class SmartVaults {
       tags: [[TagType.Identifier, id]],
     },
       this.authenticator)
-    console.log({ signerOfferingEvent })
     const pub = this.nostrClient.publish(signerOfferingEvent)
     await pub.onFirstOkOrCompleteFailure()
 
@@ -2593,6 +2706,10 @@ export class SmartVaults {
     const unsignedPsbtTrx = unsignedObj.unsigned_tx
     if (!signedPsbtTrx || !unsignedPsbtTrx) throw new Error('Could not get PSBT\'s transactions')
     if (JSON.stringify(signedPsbtTrx) !== JSON.stringify(unsignedPsbtTrx)) throw new Error('PSBTs are not compatible')
+  }
+
+  getChat = (): Chat => {
+    return this.chat
   }
 
 }
