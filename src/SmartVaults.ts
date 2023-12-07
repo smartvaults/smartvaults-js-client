@@ -69,7 +69,7 @@ export class SmartVaults {
 
   initChat() {
     const helpers = {
-      sendMessage: this.sendDirectMessage,
+      sendMessage: this.sendMessage,
       getDirectMessagesByConversationId: this.getDirectMessagesByConversationId,
       getGroupsIds: this.getPolicyIds,
       getPolicyMembers: this.getPolicyMembers,
@@ -847,7 +847,7 @@ export class SmartVaults {
     if (!Array.isArray(kinds)) {
       kinds = [kinds]
     }
-    const kindsHaveHandler = new Set([...Object.values(SmartVaultsKind), Kind.Metadata, Kind.Contacts, Kind.EventDeletion]);
+    const kindsHaveHandler = new Set([...Object.values(SmartVaultsKind), Kind.Metadata, Kind.Contacts, Kind.EventDeletion, Kind.EncryptedDirectMessage]);
     let filters = this.subscriptionFilters(kinds)
     return this.nostrClient.sub(filters, async (event: Event<number>) => {
       const {
@@ -1221,7 +1221,7 @@ export class SmartVaults {
     return [this.nostrClient.publish(groupMsgEvent), publishedDirectMessage]
   }
 
-  sendDirectMessage = async (msg: string, conversationId: string): Promise<[PubPool, SmartVaultsTypes.PublishedDirectMessage]> => {
+  sendMessage = async (msg: string, conversationId: string): Promise<[PubPool, SmartVaultsTypes.PublishedDirectMessage]> => {
     const groupIds = await this.getPolicyIds()
     const isGroup = groupIds.has(conversationId)
     if (isGroup) return this.sendGroupMsg(msg, conversationId)
