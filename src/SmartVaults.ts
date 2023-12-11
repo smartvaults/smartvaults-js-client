@@ -2746,29 +2746,41 @@ export class SmartVaults {
       const isGroupMessage = maybePolicyId !== undefined && policiesIds.has(maybePolicyId!)
       const isValidOneToOneMessage = !isGroupMessage && getTagValues(directMessageEvent, TagType.PubKey).length === 1
       const isOwnMessage = directMessageEvent.pubkey === this.authenticator.getPublicKey()
-
+      const chat = this.getChat()
 
       if (isGroupMessage) {
         const conversationId = maybePolicyId!
-        const conversation: SmartVaultsTypes.Conversation = {
-          conversationId,
-          isGroupChat: true,
-          participants: await this.getPolicyMembers(conversationId),
-          hasUnreadMessages: false,
-          messages: {} as DoublyLinkedList<SmartVaultsTypes.PublishedDirectMessage>,
+        const savedConversation = chat._getConversation(conversationId)
+        if (!savedConversation) {
+          const newConversation: SmartVaultsTypes.Conversation = {
+            conversationId,
+            isGroupChat: true,
+            participants: await this.getPolicyMembers(conversationId),
+            hasUnreadMessages: false,
+            messages: new DoublyLinkedList<SmartVaultsTypes.PublishedDirectMessage>,
+          }
+          chat.addConversation(newConversation)
+          conversations.push(newConversation)
+        } else {
+          conversations.push(savedConversation)
         }
-        conversations.push(conversation)
         ids.add(conversationId)
       } else if (isValidOneToOneMessage) {
         const conversationId = isOwnMessage ? getTagValues(directMessageEvent, TagType.PubKey)[0] : directMessageEvent.pubkey
-        const conversation: SmartVaultsTypes.Conversation = {
-          conversationId,
-          isGroupChat: false,
-          participants: [conversationId],
-          hasUnreadMessages: false,
-          messages: {} as DoublyLinkedList<SmartVaultsTypes.PublishedDirectMessage>,
+        const savedConversation = chat._getConversation(conversationId)
+        if (!savedConversation) {
+          const newConversation: SmartVaultsTypes.Conversation = {
+            conversationId,
+            isGroupChat: false,
+            participants: [conversationId],
+            hasUnreadMessages: false,
+            messages: new DoublyLinkedList<SmartVaultsTypes.PublishedDirectMessage>,
+          }
+          chat.addConversation(newConversation)
+          conversations.push(newConversation)
+        } else {
+          conversations.push(savedConversation)
         }
-        conversations.push(conversation)
         ids.add(conversationId)
       }
     }
