@@ -9,6 +9,7 @@ type ChatHelpers = {
     getGroupsIds: () => Promise<Set<string>>;
     getPolicyMembers: (policyId: string) => Promise<string[]>;
     deleteDirectMessages: (messageIds: string | string[]) => Promise<void>;
+    getConversations: (paginationOpts: PaginationOpts, contacsOnly: boolean) => Promise<Conversation[]>;
 }
 
 
@@ -20,6 +21,7 @@ export class Chat {
     private readonly getGroupsIds: () => Promise<Set<string>>;
     private readonly getPolicyMembers: (policyId: string) => Promise<string[]>;
     private readonly deleteDirectMessages: (messageIds: string | string[]) => Promise<void>;
+    private readonly getConversationsWithoutMessages: (paginationOpts: PaginationOpts, contactsOnly: boolean) => Promise<Conversation[]>;
 
     constructor(helpers: ChatHelpers) {
         this.sendMsg = helpers.sendMessage;
@@ -27,6 +29,7 @@ export class Chat {
         this.getGroupsIds = helpers.getGroupsIds;
         this.getPolicyMembers = helpers.getPolicyMembers;
         this.deleteDirectMessages = helpers.deleteDirectMessages;
+        this.getConversationsWithoutMessages = helpers.getConversations;
     }
 
     private async addMessagesToConversation(conversationId: string, messages: PublishedDirectMessage | PublishedDirectMessage[]): Promise<void> {
@@ -39,28 +42,19 @@ export class Chat {
             const isGroupChat = groupIds.has(conversationId);
             const conversation: Conversation = {
                 conversationId,
-                messages: new DoublyLinkedList<PublishedDirectMessage>(),
-                members: isGroupChat ? await this.getPolicyMembers(conversationId) : [conversationId],
+                messages: new DoublyLinkedList<PublishedDirectMessage>(messages),
+                participants: isGroupChat ? await this.getPolicyMembers(conversationId) : [conversationId],
                 hasUnreadMessages: conversationId !== this.activeConversationId,
                 isGroupChat,
             }
-            conversation.messages.insertSorted(messages);
             this.conversations.set(conversationId, conversation);
         }
     }
 
     private async updateConversationMessages(conversationId: string, paginationOpts?: PaginationOpts): Promise<void> {
-        const conversationMessages = (await this.getDirectMessagesByConversationId(conversationId, paginationOpts)).get(conversationId)
-        if (!conversationMessages) return;
-        await this.addMessagesToConversation(conversationId, conversationMessages);
+        await this.getDirectMessagesByConversationId(conversationId, paginationOpts)
     }
 
-    private async updateAllConversationsMessages(paginationOpts?: PaginationOpts): Promise<void> {
-        const conversationMessages = await this.getDirectMessagesByConversationId(undefined, paginationOpts);
-        for (const [conversationId, messages] of conversationMessages.entries()) {
-            await this.addMessagesToConversation(conversationId, messages);
-        };
-    }
 
     public async sendMessage(message: string, conversationId: string): Promise<PublishedDirectMessage> {
         const [pub, publishedDirectMessage] = await this.sendMsg(message, conversationId);
@@ -96,9 +90,10 @@ export class Chat {
         return this.getConversationMessages(this.activeConversationId);
     }
 
-    public async getConversations(paginationOpts?: PaginationOpts): Promise<Map<string, Conversation>> {
-        await this.updateAllConversationsMessages(paginationOpts);
-        return this.conversations;
+    public async getConversations(paginationOpts?: PaginationOpts, contactsOnly: boolean = false): Promise<Conversation[]> {
+        paginationOpts = paginationOpts || {}
+        const conversations = await this.getConversationsWithoutMessages(paginationOpts, contactsOnly)
+        return conversations
     }
 
     public async getConversation(conversationId: string, paginationOpts?: PaginationOpts): Promise<Conversation> {
@@ -107,8 +102,13 @@ export class Chat {
         return this.conversations.get(conversationId)!;
     }
 
-    public getConversationMembers(conversationId: string): string[] {
-        return this.conversations.get(conversationId)?.members || [];
+    public _getConversation(conversationId: string): Conversation {
+        if (!this.conversations.has(conversationId)) throw new Error('Conversation not found');
+        return this.conversations.get(conversationId)!;
+    }
+
+    public getConversationParticipants(conversationId: string): string[] {
+        return this.conversations.get(conversationId)?.participants || [];
     }
 
     public getConversationHasUnreadMessages(conversationId: string): boolean {

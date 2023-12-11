@@ -103,7 +103,7 @@ export class EventKindHandlerFactory {
           this.handlers.set(eventKind, new SignerOfferingsHandler(authenticator, stores.get(eventKind)!, eventsStore, getOwnedSignersByOfferingIdentifiers, getSharedSignersByOfferingIdentifiers, getContacts))
           break
         case Kind.EncryptedDirectMessage:
-          this.handlers.set(eventKind, new DirecMessagesHandler(authenticator, nostrClient, stores.get(eventKind)!, eventsStore, getSharedKeysById, isValidPolicyId))
+          this.handlers.set(eventKind, new DirecMessagesHandler(authenticator, nostrClient, stores.get(eventKind)!, eventsStore, getSharedKeysById, isValidPolicyId, getChat))
           break
         default:
           throw new Error(`There is no handler for event kind: ${eventKind}`)

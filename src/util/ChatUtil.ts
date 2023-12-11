@@ -126,4 +126,8 @@ export class DoublyLinkedList<T extends { createdAt: Date, id: string }> {
     return array;
   }
 
+  has(id: string): boolean {
+    return this.idSet.has(id);
+  }
+
 }

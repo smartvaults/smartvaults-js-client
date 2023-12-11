@@ -2,7 +2,7 @@ import { Authenticator, DirectPrivateKeyAuthenticator } from '@smontero/nostr-ua
 import { generatePrivateKey, Kind, Event, Filter, Sub } from 'nostr-tools'
 import { SmartVaultsKind, TagType, ProposalType, ProposalStatus, ApprovalStatus, StoreKind, AuthenticatorType, NetworkType, FiatCurrency, Magic } from './enum'
 import { NostrClient, PubPool, Store } from './service'
-import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished, nostrDate, isNip05Verified, type singleKindFilterParams, FilterBuilder, TimeUtil, CurrencyUtil } from './util'
+import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished, nostrDate, isNip05Verified, type singleKindFilterParams, FilterBuilder, TimeUtil, CurrencyUtil, getTagValue, DoublyLinkedList } from './util'
 import { BasicTrxDetails, BaseOwnedSigner, BaseSharedSigner, BitcoinUtil, Contact, Policy, PublishedPolicy, TrxDetails } from './models'
 import * as SmartVaultsTypes from './types'
 import { EventKindHandlerFactory } from './event-kind-handler'
@@ -74,6 +74,7 @@ export class SmartVaults {
       getGroupsIds: this.getPolicyIds,
       getPolicyMembers: this.getPolicyMembers,
       deleteDirectMessages: this.deleteDirectMessages,
+      getConversations: this.getConversations,
     }
     this.chat = new Chat(helpers)
   }
@@ -1260,7 +1261,7 @@ export class SmartVaults {
       .authors(this.authenticator.getPublicKey())
   }
 
-  private async buildDirectMessagesFilters(paginationOpts: PaginationOpts = {}, conversationId?: string): Promise<Filter<Kind.EncryptedDirectMessage>[]> {
+  private async buildDirectMessagesFilters(paginationOpts: PaginationOpts = {}, conversationId?: string, pubkeys?: string[]): Promise<Filter<Kind.EncryptedDirectMessage>[]> {
     let authorFilterBuilder = filterBuilder()
       .kinds(Kind.EncryptedDirectMessage)
       .authors(this.authenticator.getPublicKey())
@@ -1271,7 +1272,11 @@ export class SmartVaults {
       const groupIds = await this.getPolicyIds()
       const isGroup = groupIds.has(conversationId)
       authorFilterBuilder = isGroup ? authorFilterBuilder.events(conversationId) : authorFilterBuilder.pubkeys(conversationId)
-      recipientFilterBuilder = isGroup ? recipientFilterBuilder.events(conversationId) : recipientFilterBuilder.pubkeys(conversationId)
+      recipientFilterBuilder = isGroup ? recipientFilterBuilder.events(conversationId) : recipientFilterBuilder.authors(conversationId)
+    }
+    if (pubkeys) {
+      authorFilterBuilder = authorFilterBuilder.pubkeys(pubkeys)
+      recipientFilterBuilder = recipientFilterBuilder.authors(pubkeys)
     }
     const authorFilter = authorFilterBuilder.pagination(paginationOpts).toFilter()
     const recipientFilter = recipientFilterBuilder.pagination(paginationOpts).toFilter()
@@ -2710,6 +2715,66 @@ export class SmartVaults {
 
   getChat = (): Chat => {
     return this.chat
+  }
+
+  getConversations = async (paginationOpts?: PaginationOpts, contactsOnly: boolean = true): Promise<SmartVaultsTypes.Conversation[]> => {
+
+    let contactsPubkeys: string[] | undefined
+    if (contactsOnly) {
+      contactsPubkeys = (await this.getContacts()).map(contact => contact.publicKey)
+    }
+
+    const directMessagesFilter = contactsPubkeys ? await this.buildDirectMessagesFilters(paginationOpts, undefined, contactsPubkeys) : await this.buildDirectMessagesFilters(paginationOpts)
+    const directMessagesEvents = await this.nostrClient.list(directMessagesFilter)
+    if (!directMessagesEvents.length) return []
+    const directMessagesEventsOrdered = directMessagesEvents.sort((a, b) => b.created_at - a.created_at)
+
+    let conversations: SmartVaultsTypes.Conversation[] = []
+    let ids: Set<string> = new Set()
+
+    for (const directMessageEvent of directMessagesEventsOrdered) {
+
+      let maybePolicyId: string | undefined
+
+      try {
+        maybePolicyId = getTagValue(directMessageEvent, TagType.Event)
+      } catch (e) { maybePolicyId = undefined }
+
+      if (!maybePolicyId && (ids.has(directMessageEvent.pubkey) || ids.has(getTagValues(directMessageEvent, TagType.PubKey)[0]))) continue
+      if (maybePolicyId && ids.has(maybePolicyId!)) continue
+
+      const isGroupMessage = maybePolicyId !== undefined && await this.isValidPolicyId(maybePolicyId)
+      const isValidOneToOneMessage = !isGroupMessage && getTagValues(directMessageEvent, TagType.PubKey).length === 1
+      const isOwnMessage = directMessageEvent.pubkey === this.authenticator.getPublicKey()
+
+
+      if (isGroupMessage) {
+        const conversationId = maybePolicyId!
+        const conversation: SmartVaultsTypes.Conversation = {
+          conversationId,
+          isGroupChat: true,
+          participants: await this.getPolicyMembers(conversationId),
+          hasUnreadMessages: false,
+          messages: {} as DoublyLinkedList<SmartVaultsTypes.PublishedDirectMessage>,
+        }
+        conversations.push(conversation)
+        ids.add(conversationId)
+      } else if (isValidOneToOneMessage) {
+        const conversationId = isOwnMessage ? getTagValues(directMessageEvent, TagType.PubKey)[0] : directMessageEvent.pubkey
+        const conversation: SmartVaultsTypes.Conversation = {
+          conversationId,
+          isGroupChat: false,
+          participants: [conversationId],
+          hasUnreadMessages: false,
+          messages: {} as DoublyLinkedList<SmartVaultsTypes.PublishedDirectMessage>,
+        }
+        conversations.push(conversation)
+        ids.add(conversationId)
+      }
+    }
+
+    return conversations
+
   }
 
 }

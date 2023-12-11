@@ -20,7 +20,7 @@ export type PublishedDirectMessage = DirectMessage & Published & {
 export type Conversation = {
   conversationId: string
   messages: DoublyLinkedList<PublishedDirectMessage>
-  members: string[]
+  participants: string[]
   hasUnreadMessages: boolean
   isGroupChat: boolean
 }
