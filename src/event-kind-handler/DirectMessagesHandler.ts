@@ -69,7 +69,7 @@ export class DirecMessagesHandler extends EventKindHandler {
                             id: directMessageEvent.id,
                             createdAt: fromNostrDate(directMessageEvent.created_at)
                         }
-                        if (!conversation.messages.has(publishedDirectMessage.id)) conversation.messages.insertSorted(publishedDirectMessage)
+                        conversation.messages.insertSorted(publishedDirectMessage)
                         return { publishedDirectMessage, rawEvent: directMessageEvent };
                     })
                     .catch(
@@ -90,7 +90,7 @@ export class DirecMessagesHandler extends EventKindHandler {
                             createdAt: fromNostrDate(directMessageEvent.created_at),
                             conversationId
                         }
-                        if (!conversation.messages.has(publishedDirectMessage.id)) conversation.messages.insertSorted(publishedDirectMessage)
+                        conversation.messages.insertSorted(publishedDirectMessage)
                         return { publishedDirectMessage, rawEvent: directMessageEvent };
                     })
                     .catch(
@@ -99,8 +99,9 @@ export class DirecMessagesHandler extends EventKindHandler {
                             return Promise.resolve(null);
                         });
 
+            } else {
+                return Promise.resolve(null);
             }
-            return Promise.resolve(null);
         })
 
         const results = await Promise.allSettled(messagesPromises)
@@ -154,9 +155,7 @@ export class DirecMessagesHandler extends EventKindHandler {
                     publishedDirectMessages.push(publishedDirectMessage)
                     rawDirectMessageEvents.push(directMessageEvent)
                     const conversation = chat._getConversation(conversationId)
-                    if (!conversation.messages.has(directMessageEvent.id)) {
-                        conversation.messages.insertSorted(publishedDirectMessage)
-                    }
+                    conversation.messages.insertSorted(publishedDirectMessage)
                 } catch (e) {
                     console.error(`Error decrypting message  with id ${directMessageEvent.id}: ${e}`)
                 }
@@ -168,9 +167,7 @@ export class DirecMessagesHandler extends EventKindHandler {
                     publishedDirectMessages.push(publishedDirectMessage)
                     rawDirectMessageEvents.push(directMessageEvent)
                     const conversation = chat._getConversation(conversationId)
-                    if (!conversation.messages.has(directMessageEvent.id)) {
-                        conversation.messages.insertSorted(publishedDirectMessage)
-                    }
+                    conversation.messages.insertSorted(publishedDirectMessage)
                 } catch (e) {
                     console.error(`Error decrypting message with id ${directMessageEvent.id}: ${e}`)
                 }

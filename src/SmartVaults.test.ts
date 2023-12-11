@@ -1360,7 +1360,7 @@ describe('SmartVaults', () => {
 
   });
 
-  describe.only('Direct Messages', () => {
+  describe('Direct Messages', () => {
     let keySet
     let bob
     let alice

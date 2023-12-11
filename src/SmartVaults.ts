@@ -2728,7 +2728,7 @@ export class SmartVaults {
     const directMessagesEvents = await this.nostrClient.list(directMessagesFilter)
     if (!directMessagesEvents.length) return []
     const directMessagesEventsOrdered = directMessagesEvents.sort((a, b) => b.created_at - a.created_at)
-
+    const policiesIds = await this.getPolicyIds()
     let conversations: SmartVaultsTypes.Conversation[] = []
     let ids: Set<string> = new Set()
 
@@ -2743,7 +2743,7 @@ export class SmartVaults {
       if (!maybePolicyId && (ids.has(directMessageEvent.pubkey) || ids.has(getTagValues(directMessageEvent, TagType.PubKey)[0]))) continue
       if (maybePolicyId && ids.has(maybePolicyId!)) continue
 
-      const isGroupMessage = maybePolicyId !== undefined && await this.isValidPolicyId(maybePolicyId)
+      const isGroupMessage = maybePolicyId !== undefined && policiesIds.has(maybePolicyId!)
       const isValidOneToOneMessage = !isGroupMessage && getTagValues(directMessageEvent, TagType.PubKey).length === 1
       const isOwnMessage = directMessageEvent.pubkey === this.authenticator.getPublicKey()
 
@@ -2772,7 +2772,6 @@ export class SmartVaults {
         ids.add(conversationId)
       }
     }
-
     return conversations
 
   }
