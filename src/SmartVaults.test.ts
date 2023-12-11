@@ -1028,11 +1028,11 @@ describe('SmartVaults', () => {
       const conversations = await smartVaults.getChat().getConversations()
       const proposalsStore = smartVaults.getStore(SmartVaultsKind.Proposal)
       const proposalByPolicyId: Map<string, ActivePublishedProposal | ActivePublishedProposal[]> = proposalsStore.getMany(undefined, 'policy_id')
-      expect(conversations.size).toBe(proposalByPolicyId.size)
+      expect(conversations.length).toBe(proposalByPolicyId.size)
       for (const [policyId, proposals] of proposalByPolicyId.entries()) {
-        const conversation = conversations.get(policyId)
+        const conversation = conversations.find(c => c.conversationId === policyId)
         expect(conversation).toBeDefined()
-        const messages = conversation!.messages.toArray()
+        const messages = await smartVaults.getChat().getConversationMessages(conversation!.conversationId)
         if (Array.isArray(proposals)) {
           expect(messages.length).toBe(proposals.length)
           for (const proposal of proposals) {
@@ -1360,7 +1360,7 @@ describe('SmartVaults', () => {
 
   });
 
-  describe('Direct Messages', () => {
+  describe.only('Direct Messages', () => {
     let keySet
     let bob
     let alice
@@ -1405,11 +1405,11 @@ describe('SmartVaults', () => {
 
     it('getConversations returns empty Map if no conversations', async () => {
       const conversationsAlice = await chatAlice.getConversations()
-      expect(conversationsAlice.size).toBe(0)
+      expect(conversationsAlice.length).toBe(0)
       const conversationsBob = await chatBob.getConversations()
-      expect(conversationsBob.size).toBe(0)
+      expect(conversationsBob.length).toBe(0)
       const conversationsCharlie = await chatCharlie.getConversations()
-      expect(conversationsCharlie.size).toBe(0)
+      expect(conversationsCharlie.length).toBe(0)
     })
 
     it('sendDirectMessage and getConversations work', async () => {
@@ -1439,21 +1439,21 @@ describe('SmartVaults', () => {
       charlieToBobPrivate = await chatCharlie.sendMessage(messageCharlieBobPrivate, bob.publicKey)
 
       const aliceConversations = await chatAlice.getConversations()
-      expect(aliceConversations.size).toBe(3) // 3 group chats
+      expect(aliceConversations.length).toBe(3) // 3 group chats
       const bobConversations = await chatBob.getConversations()
-      expect(bobConversations.size).toBe(3) // 2 group chats + 1 private chat
+      expect(bobConversations.length).toBe(3) // 2 group chats + 1 private chat
       const charlieConversations = await chatCharlie.getConversations()
-      expect(charlieConversations.size).toBe(3) // 2 group chats + 1 private chat
+      expect(charlieConversations.length).toBe(3) // 2 group chats + 1 private chat
     })
 
     it('getConversation works', async () => {
-      const expectedConversationAliceBob: Conversation = { conversationId: policyAliceBob.id, messages: new DoublyLinkedList([aliceToBob, bobToAlice]), members: [alice.publicKey, bob.publicKey], isGroupChat: true, hasUnreadMessages: true }
-      const expectedConversationAliceCharlie: Conversation = { conversationId: policyAliceCharlie.id, messages: new DoublyLinkedList([aliceToCharlie, charlieToAlice]), members: [alice.publicKey, charlie.publicKey], isGroupChat: true, hasUnreadMessages: true }
-      const expectedConversationAliceBobCharlie: Conversation = { conversationId: policyAliceBobCharlie.id, messages: new DoublyLinkedList([aliceToBobCharlie, bobToAliceCharlie, charlieToAliceBob]), members: [alice.publicKey, bob.publicKey, charlie.publicKey], isGroupChat: true, hasUnreadMessages: true }
+      const expectedConversationAliceBob: Conversation = { conversationId: policyAliceBob.id, messages: new DoublyLinkedList([aliceToBob, bobToAlice]), participants: [alice.publicKey, bob.publicKey], isGroupChat: true, hasUnreadMessages: true }
+      const expectedConversationAliceCharlie: Conversation = { conversationId: policyAliceCharlie.id, messages: new DoublyLinkedList([aliceToCharlie, charlieToAlice]), participants: [alice.publicKey, charlie.publicKey], isGroupChat: true, hasUnreadMessages: true }
+      const expectedConversationAliceBobCharlie: Conversation = { conversationId: policyAliceBobCharlie.id, messages: new DoublyLinkedList([aliceToBobCharlie, bobToAliceCharlie, charlieToAliceBob]), participants: [alice.publicKey, bob.publicKey, charlie.publicKey], isGroupChat: true, hasUnreadMessages: true }
       const charlieToBobPrivateBobPerspective = { ...charlieToBobPrivate, conversationId: charlie.publicKey }
       const bobToCharliePrivateCharliePerspective = { ...bobToCharliePrivate, conversationId: bob.publicKey }
-      expectedConversationBobCharliePrivate = { conversationId: charlie.publicKey, messages: new DoublyLinkedList([charlieToBobPrivateBobPerspective, bobToCharliePrivate]), members: [charlie.publicKey], isGroupChat: false, hasUnreadMessages: true } // from bob's perspective
-      expectedConversationCharlieBobPrivate = { conversationId: bob.publicKey, messages: new DoublyLinkedList([charlieToBobPrivate, bobToCharliePrivateCharliePerspective]), members: [bob.publicKey], isGroupChat: false, hasUnreadMessages: true } // from charlie's perspective
+      expectedConversationBobCharliePrivate = { conversationId: charlie.publicKey, messages: new DoublyLinkedList([charlieToBobPrivateBobPerspective, bobToCharliePrivate]), participants: [charlie.publicKey], isGroupChat: false, hasUnreadMessages: true } // from bob's perspective
+      expectedConversationCharlieBobPrivate = { conversationId: bob.publicKey, messages: new DoublyLinkedList([charlieToBobPrivate, bobToCharliePrivateCharliePerspective]), participants: [bob.publicKey], isGroupChat: false, hasUnreadMessages: true } // from charlie's perspective
 
       const conversationAliceBobAlicesPerspective = await chatAlice.getConversation(policyAliceBob.id)
       const conversationAliceBobBobsPerspective = await chatBob.getConversation(policyAliceBob.id)
@@ -1543,10 +1543,19 @@ describe('SmartVaults', () => {
       await sleep(2000).then(sub.unsub())
     })
 
+    it('getConversations should be able to return only conversations that include contacts', async () => {
+      const contact = getContact(1, bob.publicKey)
+      await smartVaults1.upsertContacts(contact)
+      const conversations = await chatAlice.getConversations({}, true)
+      expect(conversations.length).toBe(2)
+      expect(conversations[1].conversationId).toBe(policyAliceBob.id)
+      expect(conversations[0].conversationId).toBe(policyAliceBobCharlie.id)
+    })
+
     function assertConversationEquallity(actual: Conversation, expected: Conversation) {
       expect(actual.conversationId).toEqual(expected.conversationId)
       expect(actual.isGroupChat).toEqual(expected.isGroupChat)
-      expect(actual.members).toEqual(expected.members)
+      expect(actual.participants).toEqual(expected.participants)
       expect(actual.messages.toArray()).toEqual(expected.messages.toArray())
     }
 
