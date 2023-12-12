@@ -51,6 +51,8 @@ export class EventKindHandlerFactory {
       const getSharedSignersByOfferingIdentifiers = this.smartVaults.getSharedSignersByOfferingIdentifiers
       const isValidPolicyId = this.smartVaults.isValidPolicyId
       const getChat = this.smartVaults.getChat
+      const getOwnedSignerOfferingsBySignerDescriptor = this.smartVaults.getOwnedSignerOfferingsBySignerDescriptor
+      const deleteSignerOfferings = this.smartVaults.deleteSignerOfferings
       const eventsStore = stores.get(StoreKind.Events)!
       const completedProposalsStore = stores.get(SmartVaultsKind.CompletedProposal)!
       const proposalsStore = stores.get(SmartVaultsKind.Proposal)!
@@ -79,7 +81,7 @@ export class EventKindHandlerFactory {
           this.handlers.set(eventKind, new SharedSignerHandler(authenticator, stores.get(eventKind)!, eventsStore, network, extractKey))
           break
         case SmartVaultsKind.Signers:
-          this.handlers.set(eventKind, new OwnedSignerHandler(authenticator, nostrClient, stores.get(eventKind)!, eventsStore, network, extractKey))
+          this.handlers.set(eventKind, new OwnedSignerHandler(authenticator, nostrClient, stores.get(eventKind)!, eventsStore, network, extractKey, getOwnedSignerOfferingsBySignerDescriptor, deleteSignerOfferings))
           break
         case Kind.Metadata:
           this.handlers.set(eventKind, new MetadataHandler(stores.get(eventKind)!))
@@ -100,7 +102,7 @@ export class EventKindHandlerFactory {
           this.handlers.set(eventKind, new UnverifiedKeyAgentsHandler(stores.get(eventKind)!, getContacts, getProfiles, getVerifiedKeyAgentsPubKeys))
           break
         case SmartVaultsKind.SignerOffering:
-          this.handlers.set(eventKind, new SignerOfferingsHandler(authenticator, stores.get(eventKind)!, eventsStore, getOwnedSignersByOfferingIdentifiers, getSharedSignersByOfferingIdentifiers, getContacts))
+          this.handlers.set(eventKind, new SignerOfferingsHandler(authenticator, nostrClient, stores.get(eventKind)!, eventsStore, getOwnedSignersByOfferingIdentifiers, getSharedSignersByOfferingIdentifiers, getContacts))
           break
         case Kind.EncryptedDirectMessage:
           this.handlers.set(eventKind, new DirecMessagesHandler(authenticator, nostrClient, stores.get(eventKind)!, eventsStore, getSharedKeysById, isValidPolicyId, getChat))

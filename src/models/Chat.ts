@@ -32,7 +32,7 @@ export class Chat {
         this.getConversationsWithoutMessages = helpers.getConversations;
     }
 
-    private async addMessagesToConversation(conversationId: string, messages: PublishedDirectMessage | PublishedDirectMessage[]): Promise<void> {
+    private async _addMessagesToConversation(conversationId: string, messages: PublishedDirectMessage | PublishedDirectMessage[]): Promise<void> {
         const conversation = this.conversations.get(conversationId);
         if (conversation) {
             conversation.messages.insertSorted(messages);
@@ -59,7 +59,7 @@ export class Chat {
     public async sendMessage(message: string, conversationId: string): Promise<PublishedDirectMessage> {
         const [pub, publishedDirectMessage] = await this.sendMsg(message, conversationId);
         await pub.onFirstOkOrCompleteFailure()
-        await this.addMessagesToConversation(conversationId, publishedDirectMessage);
+        await this._addMessagesToConversation(conversationId, publishedDirectMessage);
         return publishedDirectMessage;
     }
 
@@ -102,9 +102,15 @@ export class Chat {
         return this.conversations.get(conversationId)!;
     }
 
-    public _getConversation(conversationId: string): Conversation {
-        if (!this.conversations.has(conversationId)) throw new Error('Conversation not found');
-        return this.conversations.get(conversationId)!;
+    public _getConversation(conversationId: string): Conversation | undefined {
+        return this.conversations.get(conversationId);
+    }
+
+    public addConversation(conversation: Conversation): void {
+        const conversationId = conversation.conversationId;
+        if (!this.conversations.has(conversationId)) {
+            this.conversations.set(conversationId, conversation);
+        }
     }
 
     public getConversationParticipants(conversationId: string): string[] {
