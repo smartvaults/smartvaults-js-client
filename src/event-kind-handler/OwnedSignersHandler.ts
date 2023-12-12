@@ -1,6 +1,6 @@
 import { Kind, type Event } from 'nostr-tools'
 import { type BaseOwnedSigner } from '../models'
-import { type PublishedOwnedSigner } from '../types'
+import { PublishedSignerOffering, type PublishedOwnedSigner } from '../types'
 import { type Store, type NostrClient } from '../service'
 import { buildEvent, fromNostrDate } from '../util'
 import { EventKindHandler } from './EventKindHandler'
@@ -14,7 +14,9 @@ export class OwnedSignerHandler extends EventKindHandler {
   private readonly nostrClient: NostrClient
   private readonly network: NetworkType
   private readonly extractKey: (descriptor: string) => string
-  constructor(authenticator: Authenticator, nostrClient: NostrClient, store: Store, eventsStore: Store, network: NetworkType, extractKey: (descriptor: string) => string) {
+  private readonly getOwnedSignerOfferingsBySignerDescriptors: (signerDescriptors: string[]) => Promise<Map<string, PublishedSignerOffering>>
+  private readonly deleteSignerOfferings: (signerOfferingsIds: string[]) => Promise<void>
+  constructor(authenticator: Authenticator, nostrClient: NostrClient, store: Store, eventsStore: Store, network: NetworkType, extractKey: (descriptor: string) => string, getOwnedSignerOfferingsBySignerDescriptors: (signerDescriptors: string[]) => Promise<Map<string, PublishedSignerOffering>>, deleteSignerOfferings: (signerOfferingsIds: string[]) => Promise<void>) {
     super()
     this.store = store
     this.eventsStore = eventsStore
@@ -22,6 +24,8 @@ export class OwnedSignerHandler extends EventKindHandler {
     this.nostrClient = nostrClient
     this.network = network
     this.extractKey = extractKey
+    this.getOwnedSignerOfferingsBySignerDescriptors = getOwnedSignerOfferingsBySignerDescriptors
+    this.deleteSignerOfferings = deleteSignerOfferings
   }
 
   protected async _handle<K extends number>(ownedSignersEvents: Array<Event<K>>): Promise<PublishedOwnedSigner[]> {
@@ -102,22 +106,30 @@ export class OwnedSignerHandler extends EventKindHandler {
     const pubKey = this.authenticator.getPublicKey()
     const tags: [TagType.Event, string][] = []
     const rawEventsToDelete: Array<Event<K>> = []
-    const signers: Array<Event<K>> = []
+    const signers: PublishedOwnedSigner[] = []
+
     for (const signerId of signersIds) {
       const signerEvent: Event<K> = this.eventsStore.get(signerId)
       if (!signerEvent || signerEvent.pubkey !== pubKey) continue
-      const publishedSigner = this.store.get(signerId)
+      const publishedSigner: PublishedOwnedSigner = this.store.get(signerId)
       tags.push([TagType.Event, signerEvent.id])
       signers.push(publishedSigner)
       rawEventsToDelete.push(signerEvent)
     }
+
     const deleteEvent = await buildEvent({
       kind: Kind.EventDeletion,
       content: '',
       tags,
     }, this.authenticator)
+
     const pub = this.nostrClient.publish(deleteEvent);
-    await pub.onFirstOkOrCompleteFailure();
+    const signerDescriptors = signers.map(signer => signer.descriptor)
+    const maybeSignerOfferings = await this.getOwnedSignerOfferingsBySignerDescriptors(signerDescriptors)
+    const signerOfferingsIds = Array.from(maybeSignerOfferings.values()).map(signerOffering => signerOffering.offeringId)
+
+    await Promise.all([pub.onFirstOkOrCompleteFailure, this.deleteSignerOfferings(signerOfferingsIds)])
+
     this.store.delete(signers)
     this.eventsStore.delete(rawEventsToDelete)
   }

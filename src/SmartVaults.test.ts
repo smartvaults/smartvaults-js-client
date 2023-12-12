@@ -1358,6 +1358,14 @@ describe('SmartVaults', () => {
       expect(suggestedPaymentAmount).toEqual(signerOffering1.yearly_cost!.amount)
     });
 
+    it('deleteSignerOfferings works', async () => {
+      const signerOfferings = await smartVaults.getOwnedSignerOfferingsBySignerFingerprint([ownedSigner1.fingerprint])
+      expect(signerOfferings.size).toBe(1)
+      await smartVaults.deleteSignerOfferings([signerOfferings.values().next().value.offeringId])
+      const signerOfferings2 = await smartVaults.getOwnedSignerOfferingsBySignerFingerprint([ownedSigner1.fingerprint])
+      expect(signerOfferings2.size).toBe(0)
+    })
+
   });
 
   describe('Direct Messages', () => {

@@ -1812,6 +1812,11 @@ export class SmartVaults {
     await this.eventKindHandlerFactor.getHandler(SmartVaultsKind.Signers).delete(signerIds)
   }
 
+  deleteSignerOfferings = async (signerOfferingsIds: string[]): Promise<void> => {
+    await this.eventKindHandlerFactor.getHandler(SmartVaultsKind.SignerOffering).delete(signerOfferingsIds)
+
+  }
+
   /**
    * Asynchronously deletes policies with the given IDs.
    *
@@ -2504,7 +2509,7 @@ export class SmartVaults {
     return store.getMany(signerDescriptors, "signerDescriptor");
   }
 
-  async getOwnedSignerOfferingsBySignerDescriptor(signerDescriptors?: string[]): Promise<Map<string, SmartVaultsTypes.PublishedSignerOffering>> {
+  getOwnedSignerOfferingsBySignerDescriptor = async (signerDescriptors?: string[]): Promise<Map<string, SmartVaultsTypes.PublishedSignerOffering>> => {
     const signerOfferingsFilter = this.getFilter(SmartVaultsKind.SignerOffering, { authors: this.authenticator.getPublicKey() })
     await this._getSignerOfferings(signerOfferingsFilter)
     const store = this.getStore(SmartVaultsKind.SignerOffering);

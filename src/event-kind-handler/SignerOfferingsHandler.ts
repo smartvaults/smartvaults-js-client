@@ -1,21 +1,23 @@
-import { type Event } from 'nostr-tools'
-import { fromNostrDate, getTagValue } from '../util'
-import { TagType } from '../enum'
+import { Kind, type Event } from 'nostr-tools'
+import { buildEvent, fromNostrDate, getTagValue } from '../util'
+import { SmartVaultsKind, TagType } from '../enum'
 import { EventKindHandler } from './EventKindHandler'
 import { SignerOffering, PublishedSignerOffering, PublishedOwnedSigner, PublishedSharedSigner } from '../types'
-import { type Store } from '../service'
+import { type NostrClient, type Store } from '../service'
 import { type Authenticator } from '@smontero/nostr-ual'
 import { type Contact } from '../models'
 export class SignerOfferingsHandler extends EventKindHandler {
     private readonly authenticator: Authenticator
+    private readonly nostrClient: NostrClient
     private readonly store: Store
     private readonly eventsStore: Store
     private readonly getOwnedSignersByOfferingIdentifiers: () => Promise<Map<string, PublishedOwnedSigner>>
     private readonly getSharedSignersByOfferingIdentifiers: (pubkeys?: string | string[]) => Promise<Map<string, PublishedSharedSigner>>
     private readonly getContacs: () => Promise<Array<Contact>>
-    constructor(authenticator: Authenticator, store: Store, eventsStore: Store, getOwnedSignersByOfferingIdentifiers: () => Promise<Map<string, PublishedOwnedSigner>>, getSharedSignersByOfferingIdentifiers: (pubkeys?: string | string[]) => Promise<Map<string, PublishedSharedSigner>>, getContacs: () => Promise<Array<Contact>>) {
+    constructor(authenticator: Authenticator, nostrClient: NostrClient, store: Store, eventsStore: Store, getOwnedSignersByOfferingIdentifiers: () => Promise<Map<string, PublishedOwnedSigner>>, getSharedSignersByOfferingIdentifiers: (pubkeys?: string | string[]) => Promise<Map<string, PublishedSharedSigner>>, getContacs: () => Promise<Array<Contact>>) {
         super()
         this.authenticator = authenticator
+        this.nostrClient = nostrClient
         this.store = store
         this.eventsStore = eventsStore
         this.getOwnedSignersByOfferingIdentifiers = getOwnedSignersByOfferingIdentifiers
@@ -97,4 +99,40 @@ export class SignerOfferingsHandler extends EventKindHandler {
         return this.store.getManyAsArray(signerOfferingEventsIds, indexKey)
 
     }
+
+    public async delete(signerOfferingIds: string[]): Promise<void> {
+        const pubkey = this.authenticator.getPublicKey()
+        const indexKey = "offeringId"
+        const signerOfferings: PublishedSignerOffering[] = this.store.getManyAsArray(signerOfferingIds, indexKey)
+        const signerOfferingsIds = signerOfferings.map(signerOffering => signerOffering.id)
+        const rawSignerOfferings = this.eventsStore.getMany(signerOfferingsIds)
+        const tags: Array<[TagType.Event, string]> = []
+        const offeringsToDelete: PublishedSignerOffering[] = []
+        const rawEventsToDelete: Array<Event<SmartVaultsKind.SignerOffering>> = []
+
+        for (const signerOffering of signerOfferings) {
+            const {
+                id,
+                keyAgentPubKey
+            } = signerOffering
+            if (keyAgentPubKey === pubkey) {
+                offeringsToDelete.push(signerOffering)
+                rawEventsToDelete.push(rawSignerOfferings.get(id))
+                tags.push([TagType.Event, id])
+            }
+        }
+
+        const deleteEvent = await buildEvent({
+            kind: Kind.EventDeletion,
+            content: '',
+            tags,
+        }, this.authenticator)
+
+
+        const pub = this.nostrClient.publish(deleteEvent)
+        await pub.onFirstOkOrCompleteFailure()
+        this.store.delete(offeringsToDelete)
+        this.eventsStore.delete(rawEventsToDelete)
+    }
+
 }
