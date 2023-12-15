@@ -1,7 +1,7 @@
 import { Kind, type Event } from 'nostr-tools'
-import { PublishedDirectMessage, SharedKeyAuthenticator } from '../types'
+import { Conversation, PublishedDirectMessage, SharedKeyAuthenticator } from '../types'
 import { type Store, type NostrClient } from '../service'
-import { buildEvent, fromNostrDate, getTagValue, getTagValues } from '../util'
+import { DoublyLinkedList, buildEvent, fromNostrDate, getTagValue, getTagValues } from '../util'
 import { EventKindHandler } from './EventKindHandler'
 import { type Authenticator } from '@smontero/nostr-ual'
 import { TagType, AuthenticatorType } from '../enum'
@@ -14,7 +14,8 @@ export class DirecMessagesHandler extends EventKindHandler {
     private readonly getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>
     private readonly isValidPolicyId: (id: string) => Promise<boolean>
     private readonly getChat: () => Chat
-    constructor(authenticator: Authenticator, nostrClient: NostrClient, store: Store, eventsStore: Store, getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>, isValidPolicyId: (id: string) => Promise<boolean>, getChat: () => Chat) {
+    private readonly getPolicyMembers: (policyId: string) => Promise<string[]>
+    constructor(authenticator: Authenticator, nostrClient: NostrClient, store: Store, eventsStore: Store, getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>, isValidPolicyId: (id: string) => Promise<boolean>, getPolicyMembers: (id: string) => Promise<string[]>, getChat: () => Chat) {
         super()
         this.store = store
         this.eventsStore = eventsStore
@@ -22,6 +23,7 @@ export class DirecMessagesHandler extends EventKindHandler {
         this.nostrClient = nostrClient
         this.getSharedKeysById = getSharedKeysById
         this.isValidPolicyId = isValidPolicyId
+        this.getPolicyMembers = getPolicyMembers
         this.getChat = getChat
     }
 
@@ -58,7 +60,18 @@ export class DirecMessagesHandler extends EventKindHandler {
                 }
                 const decryptPromise = sharedKeyAuthenticator.decrypt(directMessageEvent.content)
                 const conversationId = maybePolicyId!
-                const conversation = chat._getConversation(conversationId)!
+                let conversation: Conversation | undefined = chat._getConversation(conversationId)
+                if (!conversation) {
+                    const participants = await this.getPolicyMembers(conversationId)
+                    conversation = {
+                        conversationId,
+                        messages: new DoublyLinkedList<PublishedDirectMessage>(),
+                        participants,
+                        hasUnreadMessages: conversationId !== chat.getActiveConversationId(),
+                        isGroupChat: true,
+                    }
+                    chat.addConversation(conversation)
+                }
                 return decryptPromise
                     .then(decryptedDirectMessage => {
                         const conversationId = maybePolicyId!
@@ -69,7 +82,7 @@ export class DirecMessagesHandler extends EventKindHandler {
                             id: directMessageEvent.id,
                             createdAt: fromNostrDate(directMessageEvent.created_at)
                         }
-                        conversation.messages.insertSorted(publishedDirectMessage)
+                        conversation!.messages.insertSorted(publishedDirectMessage)
                         return { publishedDirectMessage, rawEvent: directMessageEvent };
                     })
                     .catch(
@@ -80,7 +93,17 @@ export class DirecMessagesHandler extends EventKindHandler {
             } else if (isValidOneToOneMessage) {
                 const decryptPromise = isOwnMessage ? this.authenticator.decrypt(directMessageEvent.content, getTagValue(directMessageEvent, TagType.PubKey)) : this.authenticator.decrypt(directMessageEvent.content, directMessageEvent.pubkey)
                 const conversationId = this.getConversationId(directMessageEvent.pubkey, getTagValue(directMessageEvent, TagType.PubKey))
-                const conversation = chat._getConversation(conversationId)!
+                let conversation: Conversation | undefined = chat._getConversation(conversationId)
+                if (!conversation) {
+                    conversation = {
+                        conversationId,
+                        messages: new DoublyLinkedList<PublishedDirectMessage>(),
+                        participants: [conversationId],
+                        hasUnreadMessages: conversationId !== chat.getActiveConversationId(),
+                        isGroupChat: false,
+                    }
+                    chat.addConversation(conversation)
+                }
                 return decryptPromise
                     .then(decryptedDirectMessage => {
                         const publishedDirectMessage: PublishedDirectMessage = {
@@ -90,7 +113,7 @@ export class DirecMessagesHandler extends EventKindHandler {
                             createdAt: fromNostrDate(directMessageEvent.created_at),
                             conversationId
                         }
-                        conversation.messages.insertSorted(publishedDirectMessage)
+                        conversation!.messages.insertSorted(publishedDirectMessage)
                         return { publishedDirectMessage, rawEvent: directMessageEvent };
                     })
                     .catch(
@@ -154,7 +177,18 @@ export class DirecMessagesHandler extends EventKindHandler {
                     const publishedDirectMessage: PublishedDirectMessage = { message, conversationId, id: directMessageEvent.id, author: directMessageEvent.pubkey, createdAt: fromNostrDate(directMessageEvent.created_at) }
                     publishedDirectMessages.push(publishedDirectMessage)
                     rawDirectMessageEvents.push(directMessageEvent)
-                    const conversation = chat._getConversation(conversationId)!
+                    let conversation = chat._getConversation(conversationId)
+                    if (!conversation) {
+                        const participants = await this.getPolicyMembers(conversationId)
+                        conversation = {
+                            conversationId,
+                            messages: new DoublyLinkedList<PublishedDirectMessage>(),
+                            participants,
+                            hasUnreadMessages: conversationId !== chat.getActiveConversationId(),
+                            isGroupChat: true,
+                        }
+                        chat.addConversation(conversation)
+                    }
                     conversation.messages.insertSorted(publishedDirectMessage)
                 } catch (e) {
                     console.error(`Error decrypting message  with id ${directMessageEvent.id}: ${e}`)
@@ -166,7 +200,17 @@ export class DirecMessagesHandler extends EventKindHandler {
                     const publishedDirectMessage: PublishedDirectMessage = { message, conversationId, id: directMessageEvent.id, author: directMessageEvent.pubkey, createdAt: fromNostrDate(directMessageEvent.created_at) }
                     publishedDirectMessages.push(publishedDirectMessage)
                     rawDirectMessageEvents.push(directMessageEvent)
-                    const conversation = chat._getConversation(conversationId)!
+                    let conversation = chat._getConversation(conversationId)
+                    if (!conversation) {
+                        conversation = {
+                            conversationId,
+                            messages: new DoublyLinkedList<PublishedDirectMessage>(),
+                            participants: [conversationId],
+                            hasUnreadMessages: conversationId !== chat.getActiveConversationId(),
+                            isGroupChat: false,
+                        }
+                        chat.addConversation(conversation)
+                    }
                     conversation.messages.insertSorted(publishedDirectMessage)
                 } catch (e) {
                     console.error(`Error decrypting message with id ${directMessageEvent.id}: ${e}`)
