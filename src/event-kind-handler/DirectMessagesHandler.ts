@@ -1,5 +1,5 @@
 import { Kind, type Event } from 'nostr-tools'
-import { Conversation, PublishedDirectMessage, SharedKeyAuthenticator } from '../types'
+import { Conversation, PublishedDirectMessage, SharedKeyAuthenticator, DirectMessagesPayload } from '../types'
 import { type Store, type NostrClient } from '../service'
 import { DoublyLinkedList, buildEvent, fromNostrDate, getTagValue, getTagValues } from '../util'
 import { EventKindHandler } from './EventKindHandler'
@@ -27,8 +27,8 @@ export class DirecMessagesHandler extends EventKindHandler {
         this.getChat = getChat
     }
 
-    protected async _handle<K extends number>(directMessageEvents: Array<Event<K>>): Promise<PublishedDirectMessage[]> {
-        if (!directMessageEvents.length) return []
+    protected async _handle<K extends number>(directMessageEvents: Array<Event<K>>): Promise<DirectMessagesPayload> {
+        if (!directMessageEvents.length) return {} as DirectMessagesPayload
         if (this.authenticator.getName() === AuthenticatorType.WebExtension) {
             return this.getDirectMessagesSync(directMessageEvents)
         } else {
@@ -36,9 +36,10 @@ export class DirecMessagesHandler extends EventKindHandler {
         }
     }
 
-    private async getDirectMessagesAsync<K extends number>(directMessageEvents: Array<Event<K>>): Promise<PublishedDirectMessage[]> {
+    private async getDirectMessagesAsync<K extends number>(directMessageEvents: Array<Event<K>>): Promise<DirectMessagesPayload> {
         const currentAuthPubKey = this.authenticator.getPublicKey()
         const chat = this.getChat()
+        let newConversationsIds: string[] = []
         const messagesPromises = directMessageEvents.map(async directMessageEvent => {
             const storeValue = this.store.get(directMessageEvent.id, 'id')
             if (storeValue) {
@@ -71,6 +72,7 @@ export class DirecMessagesHandler extends EventKindHandler {
                         isGroupChat: true,
                     }
                     chat.addConversation(conversation)
+                    newConversationsIds.push(conversationId)
                 }
                 return decryptPromise
                     .then(decryptedDirectMessage => {
@@ -103,6 +105,7 @@ export class DirecMessagesHandler extends EventKindHandler {
                         isGroupChat: false,
                     }
                     chat.addConversation(conversation)
+                    newConversationsIds.push(conversationId)
                 }
                 return decryptPromise
                     .then(decryptedDirectMessage => {
@@ -142,15 +145,16 @@ export class DirecMessagesHandler extends EventKindHandler {
         this.store.store(publishedDirectMessages);
         this.eventsStore.store(rawSignersEvents);
 
-        return publishedDirectMessages;
+        return { messages: publishedDirectMessages, newConversationsIds: newConversationsIds };
     }
 
 
-    private async getDirectMessagesSync<K extends number>(directMessageEvents: Array<Event<K>>): Promise<PublishedDirectMessage[]> {
-        if (!directMessageEvents.length) return []
+    private async getDirectMessagesSync<K extends number>(directMessageEvents: Array<Event<K>>): Promise<DirectMessagesPayload> {
+        if (!directMessageEvents.length) return {} as DirectMessagesPayload
         const publishedDirectMessages: PublishedDirectMessage[] = []
         const rawDirectMessageEvents: Array<Event<K>> = []
         const chat = this.getChat()
+        let newConversationsIds: string[] = []
         for (const directMessageEvent of directMessageEvents) {
             const storeValue = this.store.get(directMessageEvent.id)
             if (storeValue) {
@@ -188,6 +192,7 @@ export class DirecMessagesHandler extends EventKindHandler {
                             isGroupChat: true,
                         }
                         chat.addConversation(conversation)
+                        newConversationsIds.push(conversationId)
                     }
                     conversation.messages.insertSorted(publishedDirectMessage)
                 } catch (e) {
@@ -210,6 +215,7 @@ export class DirecMessagesHandler extends EventKindHandler {
                             isGroupChat: false,
                         }
                         chat.addConversation(conversation)
+                        newConversationsIds.push(conversationId)
                     }
                     conversation.messages.insertSorted(publishedDirectMessage)
                 } catch (e) {
@@ -220,7 +226,7 @@ export class DirecMessagesHandler extends EventKindHandler {
 
         this.store.store(publishedDirectMessages)
         this.eventsStore.store(rawDirectMessageEvents)
-        return publishedDirectMessages
+        return { messages: publishedDirectMessages, newConversationsIds: newConversationsIds }
     }
 
     private getConversationId(author: string, receiver: string): string {
