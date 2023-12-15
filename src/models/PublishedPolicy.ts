@@ -213,6 +213,10 @@ export class PublishedPolicy {
     return decoratedTrx
   }
 
+  async getFee(txid: string): Promise<number> {
+    return await (await this.synced()).get_fee(txid)
+  }
+
   async getUtxos(): Promise<Array<Utxo>> {
     return (await this.synced()).get_utxos()
   }
@@ -380,7 +384,13 @@ export class PublishedPolicy {
     }
 
     if (trxDetails.confirmation_time) {
-      decoratedTrxDetails.confirmation_time.confirmedAt = fromNostrDate(trxDetails.confirmation_time.timestamp);
+      const date = fromNostrDate(trxDetails.confirmation_time.timestamp);
+      const datedExchangeRate = await this.bitcoinExchangeRate.getDatedBitcoinExchangeRate(date);
+      decoratedTrxDetails.confirmation_time.confirmedAt = date;
+      const netFiatAtConfirmation = await this.bitcoinExchangeRate.convertToFiat([decoratedTrxDetails.net], datedExchangeRate.rate);
+      const feeFiatAtConfirmation = await this.bitcoinExchangeRate.convertToFiat([decoratedTrxDetails.fee], datedExchangeRate.rate);
+      decoratedTrxDetails.netFiatAtConfirmation = netFiatAtConfirmation[0];
+      decoratedTrxDetails.feeFiatAtConfirmation = feeFiatAtConfirmation[0];
     }
 
     if (trxDetails.unconfirmed_last_seen != null) {

@@ -55,6 +55,8 @@ export interface Wallet {
 
   has_timelock(): boolean
 
+  get_fee(txid: string): Promise<number>;
+
 }
 
 

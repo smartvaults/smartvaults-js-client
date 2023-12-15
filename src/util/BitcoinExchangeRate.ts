@@ -4,9 +4,32 @@ import { TimeUtil } from "./TimeUtil";
 import { BitcoinUnit, DatedRate } from "./types";
 import { Price } from "../types";
 
+type CurrenciesValues = {
+    [key in FiatCurrency]: number
+}
+
+type MarketData = {
+    current_price: CurrenciesValues
+    market_cap: CurrenciesValues
+    total_volume: CurrenciesValues
+}
+
+type ExchangeRatesData = {
+    id: string
+    symbol: string
+    name: string
+    localization: any
+    image: any
+    market_data: MarketData
+    community_data: any
+    developer_data: any
+    public_interest_stats: any
+}
+
 export class BitcoinExchangeRate {
     private static instance: BitcoinExchangeRate;
     private bitcoinExchangeRates: Map<FiatCurrency, DatedRate> = new Map<FiatCurrency, DatedRate>();
+    private datedBitcoinExchangeRates: Map<FiatCurrency, Map<string, number>> = new Map<FiatCurrency, Map<string, number>>();
     private activeFiatCurrency: FiatCurrency;
     private updateInterval: number; // in minutes
 
@@ -25,11 +48,12 @@ export class BitcoinExchangeRate {
 
     public async getExchangeRate(forcedUpdate?: boolean): Promise<number | undefined> {
         const datedRate: DatedRate | undefined = this.bitcoinExchangeRates.get(this.activeFiatCurrency);
+
         if (forcedUpdate || this.shouldUpdateExchangeRate(datedRate)) {
             try {
                 await this.updateExchangeRate();
             } catch (error) {
-                console.warn(`Failed to update BTC exchange rate: ${error}`);
+                console.warn(`Failed to update BTC exchange rate: ${error}`); datedRate
             }
         }
         return this.bitcoinExchangeRates.get(this.activeFiatCurrency)?.rate;
@@ -73,9 +97,17 @@ export class BitcoinExchangeRate {
             throw new Error(`Failed to fetch BTC price: ${error}`);
         }
         const datedRate: DatedRate = { date: now, rate: exchangeRate };
-        this.bitcoinExchangeRates.set(this.activeFiatCurrency, datedRate);
-    }
 
+        this.bitcoinExchangeRates.set(this.activeFiatCurrency, datedRate);
+        const datedRates: Map<string, number> | undefined = this.datedBitcoinExchangeRates.get(this.activeFiatCurrency);
+        const dateString = TimeUtil.toDashedDayFirstDateString(now);
+
+        if (datedRates) {
+            datedRates.set(dateString, exchangeRate);
+        } else {
+            this.datedBitcoinExchangeRates.set(this.activeFiatCurrency, new Map<string, number>([[dateString, exchangeRate]]));
+        }
+    }
 
     private shouldUpdateExchangeRate(datedRate?: DatedRate): boolean {
         const now = new Date();
@@ -107,6 +139,49 @@ export class BitcoinExchangeRate {
             const rate: number = data.bitcoin[currency.toLowerCase()];
 
             return rate;
+
+        } catch (error) {
+            throw new Error(`An error occurred while fetching BTC price: ${error}`);
+        }
+    }
+
+    public async getDatedBitcoinExchangeRate(date: Date, currency?: FiatCurrency): Promise<DatedRate> {
+
+        if (!currency) {
+            currency = this.activeFiatCurrency;
+        }
+
+        const datedRates = this.datedBitcoinExchangeRates.get(currency);
+        const dateString: string = TimeUtil.toDashedDayFirstDateString(date);
+
+        if (datedRates && datedRates.has(dateString)) {
+            const rate: number = datedRates.get(dateString) as number;
+            return { date, rate };
+        }
+
+        try {
+            const response = await fetch(`https://api.coingecko.com/api/v3/coins/bitcoin/history?date=${dateString}`);
+
+            if (!response.ok) {
+                throw new Error(`Failed to BTC price data: ${response.status}`);
+            }
+
+            const data: ExchangeRatesData = await response.json();
+            const marketData: MarketData = data.market_data;
+
+            if (!marketData || !marketData.current_price[currency.toLowerCase()]) {
+                throw new Error("Invalid or unsupported currency.");
+            }
+
+            const rate: number = marketData.current_price[currency.toLowerCase()];
+            const datedRate: DatedRate = { date, rate };
+
+            if (datedRates) {
+                datedRates.set(dateString, rate);
+            } else {
+                this.datedBitcoinExchangeRates.set(currency, new Map<string, number>([[dateString, rate]]));
+            }
+            return datedRate;
 
         } catch (error) {
             throw new Error(`An error occurred while fetching BTC price: ${error}`);

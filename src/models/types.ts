@@ -46,6 +46,8 @@ export type BasicTrxDetails = UndecoratedBasicTrxDetails & {
   receivedFiat?: number
   sentFiat?: number
   feeFiat?: number
+  netFiatAtConfirmation?: number
+  feeFiatAtConfirmation?: number
 }
 
 export type LabeledTrxDetails = BasicTrxDetails & {

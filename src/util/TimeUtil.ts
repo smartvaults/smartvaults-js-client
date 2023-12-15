@@ -37,4 +37,14 @@ export class TimeUtil {
     return Math.floor(Date.now() / 1000)
   }
 
+  static toDashedDayFirstDateString(date: Date): string {
+
+    const day = date.getDate()
+    const month = date.getMonth() + 1 // months are zero indexed
+    const year = date.getFullYear()
+    const dateString = `${day}-${month}-${year}`
+
+    return dateString
+  }
+
 }
