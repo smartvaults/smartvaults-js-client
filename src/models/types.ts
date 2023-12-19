@@ -52,6 +52,11 @@ export type BasicTrxDetails = UndecoratedBasicTrxDetails & {
 
 export type LabeledTrxDetails = BasicTrxDetails & {
   label?: string
+  date?: Date
+  costBasis?: number
+  proceeds?: number
+  type?: string
+  cumulativeCapitalGains?: number
 }
 
 export type TrxInput = {

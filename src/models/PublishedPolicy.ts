@@ -9,6 +9,7 @@ import { LabeledUtxo, PublishedLabel, PublishedOwnedSigner, PublishedSharedSigne
 import { type Store } from '../service'
 import { StringUtil } from '../util'
 import { BitcoinExchangeRate } from '../util'
+import { generateCsv, saveFile } from '../util'
 export class PublishedPolicy {
   id: string
   name: string
@@ -213,7 +214,7 @@ export class PublishedPolicy {
     return decoratedTrx
   }
 
-  async getFee(txid: string): Promise<number> {
+  async getFee(txid: string): Promise<{ fee: number }> {
     return await (await this.synced()).get_fee(txid)
   }
 
@@ -426,4 +427,81 @@ export class PublishedPolicy {
     }, []);
   }
 
+
+  public async downloadTransactions(): Promise<void> {
+    const confirmedTrxs = (await this.getLabeledTransactions()).filter(trx => trx.confirmation_time);
+    const trxs = confirmedTrxs.sort((a, b) => a.confirmation_time!.timestamp - b.confirmation_time!.timestamp);
+    let acc = 0;
+    for (const trx of trxs) {
+      const date = fromNostrDate(trx.confirmation_time!.timestamp);
+      const datedExchangeRate = await this.bitcoinExchangeRate.getDatedBitcoinExchangeRate(date);
+
+      trx.date = date;
+      const netFiatAtConfirmation = await this.bitcoinExchangeRate.convertToFiat([trx.net], datedExchangeRate.rate);
+      if (!trx.fee) {
+        trx.fee = (await this.getFee(trx.txid)).fee;
+        trx.feeFiat = (await this.bitcoinExchangeRate.convertToFiat([trx.fee]))[0];
+      }
+      const feeFiatAtConfirmation = await this.bitcoinExchangeRate.convertToFiat([trx.fee], datedExchangeRate.rate);
+      trx.netFiatAtConfirmation = netFiatAtConfirmation[0];
+      trx.feeFiatAtConfirmation = feeFiatAtConfirmation[0];
+      const type = trx.net > 0 ? 'RECEIVE' : 'SEND';
+      trx.type = type;
+      if (trx.net > 0) {
+        trx.costBasis = trx.netFiatAtConfirmation + trx.feeFiatAtConfirmation;
+        trx.proceeds = 0
+        trx.cumulativeCapitalGains = acc + trx.costBasis * -1;
+        acc = trx.cumulativeCapitalGains;
+      } else if (trx.net < 0) {
+        trx.proceeds = (trx.netFiatAtConfirmation + trx.feeFiatAtConfirmation) * -1;
+        trx.costBasis = 0
+        trx.cumulativeCapitalGains = acc + trx.proceeds;
+        acc = trx.cumulativeCapitalGains;
+      } else {
+        trx.costBasis = 0
+        trx.proceeds = 0
+      }
+    }
+
+    const headers = [
+      'date',
+      'type',
+      'txid',
+      'costBasis',
+      'proceeds',
+      'cumulativeCapitalGains',
+      'sent',
+      'received',
+      'net',
+      'netFiat',
+      'netFiatAtConfirmation',
+      'fee',
+      'feeFiat',
+      'feeFiatAtConfirmation',
+      'label'
+    ];
+
+    let csv = generateCsv(trxs, headers);
+    const currentFiat = this.bitcoinExchangeRate.getActiveFiatCurrency().toLocaleUpperCase();
+
+    const columnReplacements = {
+      'txid': 'Transaction ID',
+      'type': 'Type',
+      'date': 'Date',
+      'net': `Net (SATS)`,
+      'netFiat': `Net (${currentFiat})`,
+      'feeFiat': `Fee (${currentFiat})`,
+      'netFiatAtConfirmation': `Net at confirmation (${currentFiat})`,
+      'feeFiatAtConfirmation': `Fee at confirmation (${currentFiat})`,
+      'costBasis': `Cost Basis (${currentFiat})`,
+      'proceeds': `Proceeds (${currentFiat})`,
+      'cumulativeCapitalGains': `Cumulative Capital Gains (${currentFiat})`
+    };
+
+    for (const [key, value] of Object.entries(columnReplacements)) {
+      csv = csv.replace(new RegExp(key, 'g'), value);
+    }
+
+    saveFile('transactions', csv, 'Text', '.csv');
+  }
 }

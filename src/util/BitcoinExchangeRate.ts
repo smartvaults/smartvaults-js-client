@@ -32,6 +32,8 @@ export class BitcoinExchangeRate {
     private datedBitcoinExchangeRates: Map<FiatCurrency, Map<string, number>> = new Map<FiatCurrency, Map<string, number>>();
     private activeFiatCurrency: FiatCurrency;
     private updateInterval: number; // in minutes
+    private latestFetch: Date | undefined;
+    private maxFetchInterval: number = 13000; // in milliseconds
 
     private constructor(defaultFiatCurrency: FiatCurrency, updateInterval: number) {
         this.activeFiatCurrency = defaultFiatCurrency;
@@ -83,7 +85,13 @@ export class BitcoinExchangeRate {
     }
 
     public async fromPriceToSats(price: Price): Promise<number> {
-        const exchangeRate = await this.fetchBitcoinExchangeRate(price.currency.toLowerCase() as FiatCurrency);
+        const currency = price.currency.toLowerCase() as FiatCurrency;
+        let exchangeRate: number
+        if (this.bitcoinExchangeRates.has(currency)) {
+            exchangeRate = this.bitcoinExchangeRates.get(currency)!.rate;
+        } else {
+            exchangeRate = await this.fetchBitcoinExchangeRate(currency);
+        }
         const amount = await this.convertToFiat([price.amount], exchangeRate);
         return amount[0];
     }
@@ -120,6 +128,13 @@ export class BitcoinExchangeRate {
 
     private async fetchBitcoinExchangeRate(currency: FiatCurrency): Promise<number> {
 
+        const now: Date = new Date();
+
+        if (this.latestFetch && this.latestFetch.getTime() + this.maxFetchInterval > now.getTime()) {
+            const sleepTime = this.latestFetch.getTime() + this.maxFetchInterval - now.getTime();
+            await new Promise(resolve => setTimeout(resolve, sleepTime));
+        }
+
         if (typeof currency !== "string" || currency.trim() === "") {
             throw new Error("Invalid currency provided.")
         }
@@ -137,7 +152,7 @@ export class BitcoinExchangeRate {
             }
 
             const rate: number = data.bitcoin[currency.toLowerCase()];
-
+            this.latestFetch = now
             return rate;
 
         } catch (error) {
@@ -157,6 +172,13 @@ export class BitcoinExchangeRate {
         if (datedRates && datedRates.has(dateString)) {
             const rate: number = datedRates.get(dateString) as number;
             return { date, rate };
+        }
+
+        const now: Date = new Date();
+
+        if (this.latestFetch && this.latestFetch.getTime() + this.maxFetchInterval > now.getTime()) {
+            const sleepTime = this.latestFetch.getTime() + this.maxFetchInterval - now.getTime();
+            await new Promise(resolve => setTimeout(resolve, sleepTime));
         }
 
         try {
@@ -181,6 +203,7 @@ export class BitcoinExchangeRate {
             } else {
                 this.datedBitcoinExchangeRates.set(currency, new Map<string, number>([[dateString, rate]]));
             }
+            this.latestFetch = now
             return datedRate;
 
         } catch (error) {

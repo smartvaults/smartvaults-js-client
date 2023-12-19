@@ -41,23 +41,38 @@ export function saveFile(
     fileName: string,
     fileContent: ArrayBuffer | string,
     saveAs: 'ArrayBuffer' | 'Text' = 'ArrayBuffer',
-    fileExtensions: string[] = ['.psbt']
+    fileExtension: string = '.psbt'
 ): void {
     let blob: Blob;
 
     if (saveAs === 'ArrayBuffer' && fileContent instanceof ArrayBuffer) {
         blob = new Blob([fileContent], { type: 'application/octet-stream' });
     } else if (typeof fileContent === 'string') {
-        blob = new Blob([fileContent], { type: 'text/plain' });
+        blob = new Blob([fileContent], { type: 'text/csv;charset=utf-8,' });
     } else {
         throw new Error('Invalid fileContent type. Expected ArrayBuffer or string.');
     }
 
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = fileName + fileExtensions.join('');
+    a.download = fileName + fileExtension;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(a.href);
+}
+
+export function generateCsv(
+    data: any[],
+    headers: string[],
+    delimiter: string = ','
+): string {
+    const headerRow = headers.join(delimiter) + '\n';
+    const dataRows = data.map(row => {
+        return headers.map(header => {
+            return row[header];
+        }).join(delimiter);
+    }).join('\n');
+
+    return headerRow + dataRows;
 }
