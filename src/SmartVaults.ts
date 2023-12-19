@@ -858,7 +858,7 @@ export class SmartVaults {
       try {
         if (kindsHaveHandler.has(kind)) {
           const handler = this.eventKindHandlerFactor.getHandler(kind)
-          const payload = (await handler.handle(event))[0]
+          const payload = kind === Kind.EncryptedDirectMessage ? await handler.handle(event) : (await handler.handle(event))[0]
           callback(kind, payload)
         } else {
           callback(kind, event)
@@ -1239,7 +1239,7 @@ export class SmartVaults {
     const directMessagesFilters = await this.buildDirectMessagesFilters(paginationOpts, conversationId)
     const directMessageEvents = await this.nostrClient.list(directMessagesFilters)
     const directMessageHandler = this.eventKindHandlerFactor.getHandler(Kind.EncryptedDirectMessage)
-    const directMessages = await directMessageHandler.handle(directMessageEvents)
+    const directMessages = (await directMessageHandler.handle(directMessageEvents)).messages
     return directMessages
   }
 
