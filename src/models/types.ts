@@ -56,7 +56,8 @@ export type LabeledTrxDetails = BasicTrxDetails & {
   costBasis?: number
   proceeds?: number
   type?: string
-  cumulativeCapitalGains?: number
+  capitalGainsLoses?: number
+  associatedCostBasis?: string
 }
 
 export type TrxInput = {

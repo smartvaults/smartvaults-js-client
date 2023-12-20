@@ -431,7 +431,7 @@ export class PublishedPolicy {
   public async downloadTransactions(): Promise<void> {
     const confirmedTrxs = (await this.getLabeledTransactions()).filter(trx => trx.confirmation_time);
     const trxs = confirmedTrxs.sort((a, b) => a.confirmation_time!.timestamp - b.confirmation_time!.timestamp);
-    let acc = 0;
+    let costBasisiBitcoinQuantityMap = new Map<string, Map<number, number>>();
     for (const trx of trxs) {
       const date = fromNostrDate(trx.confirmation_time!.timestamp);
       const datedExchangeRate = await this.bitcoinExchangeRate.getDatedBitcoinExchangeRate(date);
@@ -450,13 +450,38 @@ export class PublishedPolicy {
       if (trx.net > 0) {
         trx.costBasis = trx.netFiatAtConfirmation + trx.feeFiatAtConfirmation;
         trx.proceeds = 0
-        trx.cumulativeCapitalGains = acc + trx.costBasis * -1;
-        acc = trx.cumulativeCapitalGains;
+        costBasisiBitcoinQuantityMap.set(trx.txid, new Map([[trx.costBasis, trx.net]]));
       } else if (trx.net < 0) {
         trx.proceeds = (trx.netFiatAtConfirmation + trx.feeFiatAtConfirmation) * -1;
         trx.costBasis = 0
-        trx.cumulativeCapitalGains = acc + trx.proceeds;
-        acc = trx.cumulativeCapitalGains;
+        const trxDetails = await this.getTrx(trx.txid);
+        const inputs = trxDetails.inputs;
+        let capitalGainsLoses = 0;
+        let accBitcoinSold = 0;
+        trx.associatedCostBasis = '';
+        for (const input of inputs) {
+          const inputTrxId = input.txid;
+          if (costBasisiBitcoinQuantityMap.has(inputTrxId)) {
+            const costBasisBitcoinQuantityMap = costBasisiBitcoinQuantityMap.get(inputTrxId)!;
+            const currentCostBasis = costBasisBitcoinQuantityMap.keys().next().value;
+            let bitcoinAmountBought = costBasisBitcoinQuantityMap.get(currentCostBasis)!;
+            const inputTrx = await this.getTrx(inputTrxId);
+            const inputChangeOuputAmount = inputTrx.received
+            let bitcoinSold = Math.min(Math.abs(trx.net), inputChangeOuputAmount); // we either sold the entire change output or a portion of it
+            accBitcoinSold += bitcoinSold;
+            if (accBitcoinSold > Math.abs(trx.net)) {
+              bitcoinSold = bitcoinSold - (accBitcoinSold - Math.abs(trx.net));
+            }
+            capitalGainsLoses += capitalGainsLoses + (bitcoinAmountBought / bitcoinSold) * currentCostBasis
+            const associatedCostBasisString = currentCostBasis + `(${bitcoinSold})`;
+            if (!trx.associatedCostBasis.includes(associatedCostBasisString)) trx.associatedCostBasis = trx.associatedCostBasis + ' ' + associatedCostBasisString;
+            if (!costBasisiBitcoinQuantityMap.has(trx.txid)) costBasisiBitcoinQuantityMap.set(trx.txid, new Map([[currentCostBasis, bitcoinAmountBought]]));
+            if (accBitcoinSold === Math.abs(trx.net)) break; // otherwise the next input divides by zero!
+          } else {
+            console.log('No cost basis found for input transaction: ', inputTrxId);
+          }
+        }
+        trx.capitalGainsLoses = trx.proceeds - capitalGainsLoses;
       } else {
         trx.costBasis = 0
         trx.proceeds = 0
@@ -469,7 +494,8 @@ export class PublishedPolicy {
       'txid',
       'costBasis',
       'proceeds',
-      'cumulativeCapitalGains',
+      'capitalGainsLoses',
+      'associatedCostBasis',
       'sent',
       'received',
       'net',
@@ -495,11 +521,11 @@ export class PublishedPolicy {
       'feeFiatAtConfirmation': `Fee at confirmation (${currentFiat})`,
       'costBasis': `Cost Basis (${currentFiat})`,
       'proceeds': `Proceeds (${currentFiat})`,
-      'cumulativeCapitalGains': `Cumulative Capital Gains (${currentFiat})`
+      'capitalGainsLoses': `Capital Gains / Loses (${currentFiat})`
     };
 
     for (const [key, value] of Object.entries(columnReplacements)) {
-      csv = csv.replace(new RegExp(key, 'g'), value);
+      csv = csv.replace(key, value);
     }
 
     saveFile('transactions', csv, 'Text', '.csv');
