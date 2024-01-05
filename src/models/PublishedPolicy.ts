@@ -1,7 +1,7 @@
 import { Authenticator } from '@smontero/nostr-ual'
 import { Event } from 'nostr-tools'
 import { Balance } from './Balance'
-import { BaseOwnedSigner, PolicyPathSelector, Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails, Utxo, PolicyPathsResult, LabeledTrxDetails, UndecoratedBasicTrxDetails, UndecoratedTrxDetails } from './types'
+import { BaseOwnedSigner, PolicyPathSelector, Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails, Utxo, PolicyPathsResult, LabeledTrxDetails, UndecoratedBasicTrxDetails, UndecoratedTrxDetails, Period } from './types'
 import { BitcoinUtil, Wallet } from './interfaces'
 import { CurrencyUtil, PaginationOpts, TimeUtil, fromNostrDate, toPublished } from '../util'
 import { generateUiMetadata, UIMetadata, Key } from '../util/GenerateUiMetadata'
@@ -423,9 +423,20 @@ export class PublishedPolicy {
   }
 
 
-  async getAugmentedTrxs(): Promise<Array<LabeledTrxDetails>> {
 
-    const confirmedTrxs = (await this.getLabeledTransactions()).filter(trx => trx.confirmation_time);
+  async getAugmentedTrxs(period?: Period): Promise<Array<LabeledTrxDetails>> {
+
+    if (!period) {
+      const startOfCurrentYear = new Date(new Date().getFullYear(), 0, 1);
+      const endOfCurrentYear = new Date(new Date().getFullYear(), 11, 31);
+      period = {
+        start: startOfCurrentYear,
+        end: endOfCurrentYear
+      }
+    }
+
+
+    const confirmedTrxs = (await this.getLabeledTransactions()).filter(trx => trx.confirmation_time && trx.confirmation_time.timestamp >= TimeUtil.toSeconds(period!.start.getTime()) && trx.confirmation_time.timestamp <= TimeUtil.toSeconds(period!.end.getTime()));
     const trxs = confirmedTrxs.sort((a, b) => a.confirmation_time!.timestamp - b.confirmation_time!.timestamp);
     let txidCostBasisMap = new Map<string, Map<number, number>>();
     for (const trx of trxs) {
@@ -504,9 +515,9 @@ export class PublishedPolicy {
     return trxs
   }
 
-  async generateTxsCsv(): Promise<string> {
+  async generateTxsCsv(period?: Period): Promise<string> {
 
-    const trxs = await this.getAugmentedTrxs();
+    const trxs = await this.getAugmentedTrxs(period);
 
     const headers = [
       'date',
@@ -559,9 +570,9 @@ export class PublishedPolicy {
     return csv;
   }
 
-  public async downloadTransactions(): Promise<void> {
+  public async downloadTransactions(period?: Period): Promise<void> {
 
-    const csv = await this.generateTxsCsv();
+    const csv = await this.generateTxsCsv(period);
     const vaultName = this.name.replace(/\s/g, '-');
     const date = new Date().toISOString().slice(0, 10);
     const fileName = `TXS-${vaultName}-${date}`;
