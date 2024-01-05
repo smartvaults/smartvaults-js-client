@@ -48,10 +48,12 @@ export type BasicTrxDetails = UndecoratedBasicTrxDetails & {
   feeFiat?: number
   netFiatAtConfirmation?: number
   feeFiatAtConfirmation?: number
+  btcExchangeRateAtConfirmation?: number
 }
 
 export type LabeledTrxDetails = BasicTrxDetails & {
-  label?: string
+  labelText?: string
+  labelId?: string
   date?: Date
   costBasis?: number
   proceeds?: number

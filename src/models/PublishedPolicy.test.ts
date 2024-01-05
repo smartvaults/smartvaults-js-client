@@ -3,7 +3,7 @@ import { Event } from 'nostr-tools'
 import { mock, MockProxy } from 'jest-mock-extended'
 import { BitcoinUtil, Wallet } from './interfaces'
 import { PublishedPolicy } from './PublishedPolicy'
-import { Policy } from './types'
+import { LabeledTrxDetails, Policy, TrxInput } from './types'
 import { SmartVaultsKind } from '../enum'
 import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { Keys } from '../service'
@@ -18,6 +18,7 @@ describe('PublishedPolicy', () => {
   let nostrPublicKeys: string[]
   let sharedKeyAuth: DirectPrivateKeyAuthenticator
   let policy: PublishedPolicy
+  let policy2: PublishedPolicy
   let smartVaults: MockProxy<SmartVaults>
 
   beforeAll(() => {
@@ -36,6 +37,12 @@ describe('PublishedPolicy', () => {
       name: "name1",
     }
 
+    const policyContent2 = {
+      description: "Vault with transactions",
+      descriptor: "tr([7c997e72/86'/1'/784923']tpubDDTGvzeqbVUeCApGdB84rXDoQeqvZWmeLyNcUVHs34e913aCNBmj3tsGdXTt5Sn3o7RWcBsRsjUyoSB2ih2krVxe64FjX3C52yzEh7U5Qoh/0/*,pk([b150be21/86'/1'/784923']tpubDD1ia3f2aAzNkLAWSu59muoayHdoqycw3A1YDrSY77VDRbDi7SjBRvm2aNDrrmFz9SMsPCXGB5WPMwJ9K5XduvzBvnSXHYi8BgVvE59N4Bc/0/*))#t6rh87kk",
+      name: "Vault with txs",
+    }
+
     policyEvent = {
       id: 'id1',
       content: 'content',
@@ -52,6 +59,19 @@ describe('PublishedPolicy', () => {
     sharedKeyAuth = new DirectPrivateKeyAuthenticator(new Keys().privateKey)
     policy = PublishedPolicy.fromPolicyAndEvent({
       policyContent,
+      policyEvent,
+      bitcoinUtil,
+      nostrPublicKeys,
+      sharedKeyAuth,
+    },
+      smartVaults.getSharedSigners,
+      smartVaults.getOwnedSigners,
+      smartVaults.getProposalsByPolicyId,
+      smartVaults.getLabelsByPolicyId,
+      smartVaults.getStore(SmartVaultsKind.Labels),
+    )
+    policy2 = PublishedPolicy.fromPolicyAndEvent({
+      policyContent: policyContent2,
       policyEvent,
       bitcoinUtil,
       nostrPublicKeys,
@@ -487,5 +507,52 @@ describe('PublishedPolicy', () => {
       expect(wallet.has_timelock).toHaveBeenCalledTimes(1)
     })
   })
+
+  describe('Transaction details', () => {
+
+    it('getAugmentedTransactions should generate correct details', async () => {
+
+      const datedBitcoinExchangeRateSpyon = jest.spyOn(policy2.bitcoinExchangeRate, 'getDatedBitcoinExchangeRate')
+      wallet.sync.mockResolvedValue()
+      const date1 = new Date("2023-07-13T20:11:49.000Z")
+      const date2 = new Date("2023-07-14T20:11:50.000Z")
+      const date3 = new Date("2023-07-15T20:11:50.000Z")
+      datedBitcoinExchangeRateSpyon
+        .mockResolvedValueOnce({ rate: 40000, date: date1 })
+        .mockResolvedValueOnce({ rate: 60000, date: date2 })
+        .mockResolvedValueOnce({ rate: 50000, date: date3 })
+
+      const getLabeledTransactions = jest.spyOn(policy2, 'getLabeledTransactions')
+      getLabeledTransactions.mockResolvedValueOnce([
+        { txid: "txid1", date: date1, type: "RECEIVE", costBasis: 22, proceeds: 0, sent: 0, received: 50000, net: 50000, netFiatAtConfirmation: 20, fee: 5000, feeFiatAtConfirmation: 2, btcExchangeRateAtConfirmation: 40000, labelText: "label1", confirmation_time: { height: 2441712, timestamp: 1689279109, confirmedAt: date1 } },
+        { txid: "txid2", date: date2, type: "RECEIVE", costBasis: 61.2, proceeds: 0, sent: 0, received: 100000, net: 100000, netFiatAtConfirmation: 60, fee: 2000, feeFiatAtConfirmation: 1.2, btcExchangeRateAtConfirmation: 60000, labelText: "label2", confirmation_time: { height: 2441712, timestamp: 1689365510, confirmedAt: date2 } },
+        { txid: "txid3", date: date3, type: "SEND", costBasis: 0, proceeds: 72, sent: 140000, received: 0, net: -150000, netFiatAtConfirmation: -75, fee: 6000, feeFiatAtConfirmation: 3, btcExchangeRateAtConfirmation: 50000, labelText: "label3", confirmation_time: { height: 2441712, timestamp: 1689451910, confirmedAt: date3 } },
+      ]
+      )
+
+      const expected: LabeledTrxDetails[] = [
+        { txid: "txid1", date: date1, type: "RECEIVE", costBasis: 22, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, sent: 0, received: 50000, net: 50000, netFiatAtConfirmation: 20, fee: 5000, feeFiatAtConfirmation: 2, btcExchangeRateAtConfirmation: 40000, labelText: "label1", confirmation_time: { height: 2441712, timestamp: 1689279109, confirmedAt: date1 } },
+        { txid: "txid2", date: date2, type: "RECEIVE", costBasis: 61.2, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, sent: 0, received: 100000, net: 100000, netFiatAtConfirmation: 60, fee: 2000, feeFiatAtConfirmation: 1.2, btcExchangeRateAtConfirmation: 60000, labelText: "label2", confirmation_time: { height: 2441712, timestamp: 1689365510, confirmedAt: date2 } },
+        { txid: "txid3", date: date3, type: "SEND", costBasis: 0, associatedCostBasis: "50000@22  100000@61.2", proceeds: 72, capitalGainsLoses: -11.2, sent: 140000, received: 0, net: -150000, netFiatAtConfirmation: -75, fee: 6000, feeFiatAtConfirmation: 3, btcExchangeRateAtConfirmation: 50000, labelText: "label3", confirmation_time: { height: 2441712, timestamp: 1689451910, confirmedAt: date3 } },
+      ]
+
+      const trx1 = { txid: "txid1", received: 50000, sent: 0, fee: 5000, net: 50000, outputs: [], inputs: [], lock_time: 1, confirmation_time: { height: 2441712, timestamp: 1689279109, confirmedAt: date1, confirmations: 1 } }
+      const trx2 = { txid: "txid2", received: 100000, sent: 0, fee: 2000, net: 100000, outputs: [], inputs: [], lock_time: 1, confirmation_time: { height: 2441712, timestamp: 1689365510, confirmedAt: date2, confirmations: 1 } }
+      const trx3 = { txid: "txid3", received: 0, sent: 140000, fee: 6000, net: -150000, outputs: [], inputs: [{ txid: "txid1" } as TrxInput, { txid: "txid2" } as TrxInput], lock_time: 1, confirmation_time: { height: 2441712, timestamp: 1689451910, confirmedAt: date3, confirmations: 1 } }
+      const getTrxSpyon = jest.spyOn(policy2, 'getTrx')
+      getTrxSpyon
+        .mockResolvedValueOnce(trx3)
+        .mockResolvedValueOnce(trx1)
+        .mockResolvedValueOnce(trx2)
+        .mockResolvedValueOnce(trx1)
+        .mockResolvedValueOnce(trx2)
+
+      const actual = await policy2.getAugmentedTrxs()
+      expect(actual).toEqual(expected)
+
+    })
+
+  }
+  )
 })
 

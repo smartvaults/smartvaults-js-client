@@ -3,7 +3,7 @@ import { Event } from 'nostr-tools'
 import { Balance } from './Balance'
 import { BaseOwnedSigner, PolicyPathSelector, Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails, Utxo, PolicyPathsResult, LabeledTrxDetails, UndecoratedBasicTrxDetails, UndecoratedTrxDetails } from './types'
 import { BitcoinUtil, Wallet } from './interfaces'
-import { PaginationOpts, TimeUtil, fromNostrDate, toPublished } from '../util'
+import { CurrencyUtil, PaginationOpts, TimeUtil, fromNostrDate, toPublished } from '../util'
 import { generateUiMetadata, UIMetadata, Key } from '../util/GenerateUiMetadata'
 import { LabeledUtxo, PublishedLabel, PublishedOwnedSigner, PublishedSharedSigner, PublishedSpendingProposal, ActivePublishedProposal } from '../types'
 import { type Store } from '../service'
@@ -21,7 +21,7 @@ export class PublishedPolicy {
   lastSyncTime?: Date
   generatedUiMetadata?: UIMetadata
   vaultData?: string
-  private readonly bitcoinExchangeRate: BitcoinExchangeRate = BitcoinExchangeRate.getInstance();
+  bitcoinExchangeRate: BitcoinExchangeRate = BitcoinExchangeRate.getInstance();
   private wallet: Wallet
   private syncTimeGap: number
   private syncPromise?: Promise<void>
@@ -386,12 +386,7 @@ export class PublishedPolicy {
 
     if (trxDetails.confirmation_time) {
       const date = fromNostrDate(trxDetails.confirmation_time.timestamp);
-      const datedExchangeRate = await this.bitcoinExchangeRate.getDatedBitcoinExchangeRate(date);
       decoratedTrxDetails.confirmation_time.confirmedAt = date;
-      const netFiatAtConfirmation = await this.bitcoinExchangeRate.convertToFiat([decoratedTrxDetails.net], datedExchangeRate.rate);
-      const feeFiatAtConfirmation = await this.bitcoinExchangeRate.convertToFiat([decoratedTrxDetails.fee], datedExchangeRate.rate);
-      decoratedTrxDetails.netFiatAtConfirmation = netFiatAtConfirmation[0];
-      decoratedTrxDetails.feeFiatAtConfirmation = feeFiatAtConfirmation[0];
     }
 
     if (trxDetails.unconfirmed_last_seen != null) {
@@ -428,10 +423,11 @@ export class PublishedPolicy {
   }
 
 
-  public async downloadTransactions(): Promise<void> {
+  async getAugmentedTrxs(): Promise<Array<LabeledTrxDetails>> {
+
     const confirmedTrxs = (await this.getLabeledTransactions()).filter(trx => trx.confirmation_time);
     const trxs = confirmedTrxs.sort((a, b) => a.confirmation_time!.timestamp - b.confirmation_time!.timestamp);
-    let costBasisiBitcoinQuantityMap = new Map<string, Map<number, number>>();
+    let txidCostBasisMap = new Map<string, Map<number, number>>();
     for (const trx of trxs) {
       const date = fromNostrDate(trx.confirmation_time!.timestamp);
       const datedExchangeRate = await this.bitcoinExchangeRate.getDatedBitcoinExchangeRate(date);
@@ -445,48 +441,72 @@ export class PublishedPolicy {
       const feeFiatAtConfirmation = await this.bitcoinExchangeRate.convertToFiat([trx.fee], datedExchangeRate.rate);
       trx.netFiatAtConfirmation = netFiatAtConfirmation[0];
       trx.feeFiatAtConfirmation = feeFiatAtConfirmation[0];
+      trx.btcExchangeRateAtConfirmation = CurrencyUtil.toRoundedFloat(datedExchangeRate.rate);
       const type = trx.net > 0 ? 'RECEIVE' : 'SEND';
       trx.type = type;
       if (trx.net > 0) {
-        trx.costBasis = trx.netFiatAtConfirmation + trx.feeFiatAtConfirmation;
+        trx.costBasis = CurrencyUtil.toRoundedFloat(trx.netFiatAtConfirmation + trx.feeFiatAtConfirmation);
         trx.proceeds = 0
-        costBasisiBitcoinQuantityMap.set(trx.txid, new Map([[trx.costBasis, trx.net]]));
+        trx.capitalGainsLoses = 0
+        trx.associatedCostBasis = 'N/A';
+        txidCostBasisMap.set(trx.txid, new Map([[trx.costBasis, trx.net]]));
       } else if (trx.net < 0) {
-        trx.proceeds = (trx.netFiatAtConfirmation + trx.feeFiatAtConfirmation) * -1;
+        trx.proceeds = CurrencyUtil.toRoundedFloat((trx.netFiatAtConfirmation + trx.feeFiatAtConfirmation) * -1);
         trx.costBasis = 0
         const trxDetails = await this.getTrx(trx.txid);
-        const inputs = trxDetails.inputs;
+        let inputs = trxDetails.inputs
+
+        for (const input of inputs) {
+          const txid = input.txid;
+          const inputTrx = await this.getTrx(txid);
+          input.amount = inputTrx.received;
+        }
+
+        inputs = inputs.sort((a, b) => a.amount - b.amount); // the actual order depends on the coin selection algorithm used by the wallet (defaults to the Branch and Bound algorithm)
+
         let capitalGainsLoses = 0;
         let accBitcoinSold = 0;
         trx.associatedCostBasis = '';
+        let count = 0;
         for (const input of inputs) {
           const inputTrxId = input.txid;
-          if (costBasisiBitcoinQuantityMap.has(inputTrxId)) {
-            const costBasisBitcoinQuantityMap = costBasisiBitcoinQuantityMap.get(inputTrxId)!;
+          if (txidCostBasisMap.has(inputTrxId)) {
+            const costBasisBitcoinQuantityMap = txidCostBasisMap.get(inputTrxId)!;
             const currentCostBasis = costBasisBitcoinQuantityMap.keys().next().value;
             let bitcoinAmountBought = costBasisBitcoinQuantityMap.get(currentCostBasis)!;
             const inputTrx = await this.getTrx(inputTrxId);
             const inputChangeOuputAmount = inputTrx.received
-            let bitcoinSold = Math.min(Math.abs(trx.net), inputChangeOuputAmount); // we either sold the entire change output or a portion of it
+            let bitcoinSold = Math.min(Math.abs(trx.net), inputChangeOuputAmount); // we either used the entire change output or a portion of it
             accBitcoinSold += bitcoinSold;
             if (accBitcoinSold > Math.abs(trx.net)) {
               bitcoinSold = bitcoinSold - (accBitcoinSold - Math.abs(trx.net));
             }
-            capitalGainsLoses += capitalGainsLoses + (bitcoinAmountBought / bitcoinSold) * currentCostBasis
-            const associatedCostBasisString = currentCostBasis + `(${bitcoinSold})`;
-            if (!trx.associatedCostBasis.includes(associatedCostBasisString)) trx.associatedCostBasis = trx.associatedCostBasis + ' ' + associatedCostBasisString;
-            if (!costBasisiBitcoinQuantityMap.has(trx.txid)) costBasisiBitcoinQuantityMap.set(trx.txid, new Map([[currentCostBasis, bitcoinAmountBought]]));
-            if (accBitcoinSold === Math.abs(trx.net)) break; // otherwise the next input divides by zero!
+            capitalGainsLoses += ((bitcoinSold / bitcoinAmountBought) * currentCostBasis)
+            const associatedCostBasisString = `${bitcoinSold}` + '@' + currentCostBasis;
+            if (!trx.associatedCostBasis.includes(associatedCostBasisString)) trx.associatedCostBasis = trx.associatedCostBasis + '  ' + associatedCostBasisString;
+            trx.associatedCostBasis = trx.associatedCostBasis.trim();
+            if (count === inputs.length - 1) txidCostBasisMap.set(trx.txid, new Map([[currentCostBasis, bitcoinAmountBought]]));
+            if (accBitcoinSold === Math.abs(trx.net)) {
+              txidCostBasisMap.set(trx.txid, new Map([[currentCostBasis, bitcoinAmountBought]]));
+              break; // otherwise the next input could divide by zero
+            }
+            count++;
           } else {
             console.log('No cost basis found for input transaction: ', inputTrxId);
           }
         }
-        trx.capitalGainsLoses = trx.proceeds - capitalGainsLoses;
+        trx.capitalGainsLoses = CurrencyUtil.toRoundedFloat(trx.proceeds - capitalGainsLoses);
       } else {
         trx.costBasis = 0
         trx.proceeds = 0
       }
     }
+    return trxs
+  }
+
+  async generateTxsCsv(): Promise<string> {
+
+    const trxs = await this.getAugmentedTrxs();
 
     const headers = [
       'date',
@@ -494,40 +514,58 @@ export class PublishedPolicy {
       'txid',
       'costBasis',
       'proceeds',
-      'capitalGainsLoses',
       'associatedCostBasis',
+      'capitalGainsLoses',
       'sent',
       'received',
       'net',
-      'netFiat',
       'netFiatAtConfirmation',
       'fee',
-      'feeFiat',
       'feeFiatAtConfirmation',
-      'label'
+      'btcExchangeRateAtConfirmation',
+      'labelText'
     ];
 
-    let csv = generateCsv(trxs, headers);
+    const vaultData = JSON.parse(this.getVaultData());
+    const vaultDataHeaders = ['Vault name:,' + vaultData.name, 'Vault description:,' + vaultData.description, 'Vault members:,' + vaultData.publicKeys];
+
+    let csv = generateCsv(trxs, headers, vaultDataHeaders);
+
     const currentFiat = this.bitcoinExchangeRate.getActiveFiatCurrency().toLocaleUpperCase();
 
     const columnReplacements = {
       'txid': 'Transaction ID',
       'type': 'Type',
       'date': 'Date',
-      'net': `Net (SATS)`,
+      'netFiatAtConfirmation': `Net at Confirmation Time (${currentFiat})`,
+      'feeFiatAtConfirmation': `Fee at Confirmation Time (${currentFiat})`,
       'netFiat': `Net (${currentFiat})`,
       'feeFiat': `Fee (${currentFiat})`,
-      'netFiatAtConfirmation': `Net at confirmation (${currentFiat})`,
-      'feeFiatAtConfirmation': `Fee at confirmation (${currentFiat})`,
+      'net': `Net (SATS)`,
+      'fee': `Fee (SATS)`,
       'costBasis': `Cost Basis (${currentFiat})`,
       'proceeds': `Proceeds (${currentFiat})`,
-      'capitalGainsLoses': `Capital Gains / Loses (${currentFiat})`
+      'capitalGainsLoses': `Capital Gains / Loses (${currentFiat})`,
+      'associatedCostBasis': `Sold (SATS) @ Associated Cost Basis (${currentFiat})`,
+      'labelText': 'Label',
+      'received': 'Received (SATS)',
+      'sent': 'Sent (SATS)',
+      'btcExchangeRateAtConfirmation': `BTC Exchange Rate at Confirmation Time (${currentFiat})`
     };
 
     for (const [key, value] of Object.entries(columnReplacements)) {
       csv = csv.replace(key, value);
     }
+    return csv;
+  }
 
-    saveFile('transactions', csv, 'Text', '.csv');
+  public async downloadTransactions(): Promise<void> {
+
+    const csv = await this.generateTxsCsv();
+    const vaultName = this.name.replace(/\s/g, '-');
+    const date = new Date().toISOString().slice(0, 10);
+    const fileName = `TXS-${vaultName}-${date}`;
+
+    saveFile(fileName, csv, 'Text', '.csv');
   }
 }

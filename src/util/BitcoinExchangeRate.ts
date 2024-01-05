@@ -33,7 +33,7 @@ export class BitcoinExchangeRate {
     private activeFiatCurrency: FiatCurrency;
     private updateInterval: number; // in minutes
     private latestFetch: Date | undefined;
-    private maxFetchInterval: number = 13000; // in milliseconds
+    private maxFetchInterval: number = 12000; // Coingecko's public api limit is 5 requests per minute
 
     private constructor(defaultFiatCurrency: FiatCurrency, updateInterval: number) {
         this.activeFiatCurrency = defaultFiatCurrency;
@@ -153,6 +153,15 @@ export class BitcoinExchangeRate {
 
             const rate: number = data.bitcoin[currency.toLowerCase()];
             this.latestFetch = now
+
+            const dateString = TimeUtil.toDashedDayFirstDateString(now);
+            const datedRates: Map<string, number> | undefined = this.datedBitcoinExchangeRates.get(currency);
+            if (datedRates) {
+                datedRates.set(dateString, rate);
+            } else {
+                this.datedBitcoinExchangeRates.set(currency, new Map<string, number>([[dateString, rate]]));
+            }
+
             return rate;
 
         } catch (error) {

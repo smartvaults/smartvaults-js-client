@@ -65,8 +65,10 @@ export function saveFile(
 export function generateCsv(
     data: any[],
     headers: string[],
+    vaultDataHeaders: string[],
     delimiter: string = ','
 ): string {
+    const vaultDataHeaderRow = vaultDataHeaders.join('\n') + '\n' + '\n';
     const headerRow = headers.join(delimiter) + '\n';
     const dataRows = data.map(row => {
         return headers.map(header => {
@@ -74,5 +76,5 @@ export function generateCsv(
         }).join(delimiter);
     }).join('\n');
 
-    return headerRow + dataRows;
+    return vaultDataHeaderRow + headerRow + dataRows;
 }
