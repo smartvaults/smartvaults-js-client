@@ -5,7 +5,7 @@ import { SmartVaults } from './SmartVaults'
 import { NostrClient, Keys, Store } from './service'
 import { DoublyLinkedList, TimeUtil, buildEvent } from './util'
 import { BaseOwnedSigner, Contact, PublishedPolicy, BitcoinUtil, Wallet, type FinalizeTrxResponse } from './models'
-import { Metadata, Profile, SavePolicyPayload, SpendProposalPayload, PublishedDirectMessage, PublishedApprovedProposal, PublishedSharedSigner, PublishedOwnedSigner, MySharedSigner, KeyAgentMetadata, SignerOffering, KeyAgent, PublishedSignerOffering, PublishedKeyAgentPaymentProposal, PublishedCompletedKeyAgentPaymentProposal, Conversation, ActivePublishedProposal } from './types'
+import { Metadata, Profile, SavePolicyPayload, SpendProposalPayload, PublishedDirectMessage, PublishedApprovedProposal, PublishedSharedSigner, PublishedOwnedSigner, MySharedSigner, KeyAgentMetadata, SignerOffering, KeyAgent, PublishedSignerOffering, PublishedKeyAgentPaymentProposal, PublishedCompletedKeyAgentPaymentProposal, Conversation, ActivePublishedProposal, DirectMessagesPayload } from './types'
 import { SmartVaultsKind, ProposalStatus, NetworkType, PaymentType, Magic } from './enum'
 import { Kind } from 'nostr-tools'
 import { Chat } from './models/Chat'
@@ -1368,7 +1368,7 @@ describe('SmartVaults', () => {
 
   });
 
-  describe('Direct Messages', () => {
+  describe.only('Direct Messages', () => {
     let keySet
     let bob
     let alice
@@ -1531,7 +1531,8 @@ describe('SmartVaults', () => {
       expect.assertions(6)
       let expectedPayloadsMap: Map<string, PublishedDirectMessage> = new Map()
 
-      const sub = smartVaults3.subscribe(Kind.EncryptedDirectMessage, async (kind: Kind, payload: PublishedDirectMessage) => {
+      const sub = smartVaults3.subscribe(Kind.EncryptedDirectMessage, async (kind: Kind, completePayload: DirectMessagesPayload) => {
+        const payload = completePayload.messages[0]
         await Promise.all(promises)
         let latestMessage: PublishedDirectMessage = (await chatCharlie.getConversationMessages(payload.conversationId))[0]
         expect(kind).toBe(Kind.EncryptedDirectMessage)

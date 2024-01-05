@@ -372,3 +372,8 @@ export type PsbtObject = {
   version: number
   xpub: any
 }
+
+export type DirectMessagesPayload = {
+  messages: PublishedDirectMessage[]
+  newConversationsIds: string[]
+}

@@ -128,5 +128,9 @@ export class Chat {
         }
     }
 
+    public hasConversation(conversationId: string): boolean {
+        return this.conversations.has(conversationId);
+    }
+
 
 }
