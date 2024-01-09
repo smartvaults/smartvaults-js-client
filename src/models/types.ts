@@ -142,7 +142,7 @@ export type PolicyPathsResult = {
   none?: boolean,
 }
 
-export type Period = {
+export type DatePeriod = {
   start: Date,
   end: Date,
 }
