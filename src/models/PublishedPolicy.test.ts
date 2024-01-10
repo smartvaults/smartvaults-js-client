@@ -517,7 +517,7 @@ describe('PublishedPolicy', () => {
     let trx2 = { txid: "txid2", date: date2, sent: 0, received: 100000, net: 100000, fee: 2000, labelText: "label2", confirmation_time: { height: 2441712, timestamp: 1689365510, confirmedAt: date2 } }
     let trx3 = { txid: "txid3", date: date3, sent: 140000, received: 0, net: -150000, fee: 6000, labelText: "label3", confirmation_time: { height: 2441712, timestamp: 1689451910, confirmedAt: date3 } }
 
-    it('getAugmentedTransactions using ACTUAL should generate correct details', async () => {
+    it('getAugmentedTransactions using SpecID should generate correct details', async () => {
 
       const datedBitcoinExchangeRateSpyon = jest.spyOn(policy2.bitcoinExchangeRate, 'getDatedBitcoinExchangeRate')
       const getLabeledTransactionsSpyon = jest.spyOn(policy2, 'getLabeledTransactions')
@@ -546,7 +546,7 @@ describe('PublishedPolicy', () => {
         .mockResolvedValueOnce(getTrx1)
         .mockResolvedValueOnce(getTrx2)
 
-      const actual = await policy2.getAugmentedTransactions(AccountingMethod.ACTUAL)
+      const actual = await policy2.getAugmentedTransactions(AccountingMethod.SpecID)
       expect(actual).toEqual(expected)
 
     })

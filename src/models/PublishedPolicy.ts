@@ -426,8 +426,8 @@ export class PublishedPolicy {
 
   async getAugmentedTransactions(method: AccountingMethod, period?: DatePeriod, costBasisProceedsMap?: Map<string, number>): Promise<Array<LabeledTrxDetails>> {
 
-    if (method === AccountingMethod.ACTUAL) {
-      return await this.getActualAugmentedTransactions(period, costBasisProceedsMap);
+    if (method === AccountingMethod.SpecID) {
+      return await this.getSpecIDAugmentedTransactions(period, costBasisProceedsMap);
     }
 
     let confirmedTrxs = (await this.getLabeledTransactions()).filter(trx => trx.confirmation_time);
@@ -531,7 +531,7 @@ export class PublishedPolicy {
 
 
 
-  private async getActualAugmentedTransactions(period?: DatePeriod, costBasisProceedsMap?: Map<string, number>): Promise<Array<LabeledTrxDetails>> {
+  private async getSpecIDAugmentedTransactions(period?: DatePeriod, costBasisProceedsMap?: Map<string, number>): Promise<Array<LabeledTrxDetails>> {
 
     let confirmedTrxs = (await this.getLabeledTransactions()).filter(trx => trx.confirmation_time);
     if (period) confirmedTrxs = confirmedTrxs.filter(trx => trx.confirmation_time!.timestamp >= TimeUtil.toSeconds(period!.start.getTime()) && trx.confirmation_time!.timestamp <= TimeUtil.toSeconds(period!.end.getTime()));
