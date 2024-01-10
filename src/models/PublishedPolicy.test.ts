@@ -4,7 +4,7 @@ import { mock, MockProxy } from 'jest-mock-extended'
 import { BitcoinUtil, Wallet } from './interfaces'
 import { PublishedPolicy } from './PublishedPolicy'
 import { LabeledTrxDetails, Policy, TrxInput } from './types'
-import { SmartVaultsKind } from '../enum'
+import { AccountingMethod, SmartVaultsKind } from '../enum'
 import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { Keys } from '../service'
 import { fromNostrDate } from '../util'
@@ -508,49 +508,146 @@ describe('PublishedPolicy', () => {
     })
   })
 
-  describe('Transaction details', () => {
+  describe('Augmented transaction details', () => {
 
-    it('getAugmentedTransactions should generate correct details', async () => {
+    let date1 = new Date("2023-07-13T20:11:49.000Z")
+    let date2 = new Date("2023-07-14T20:11:50.000Z")
+    let date3 = new Date("2023-07-15T20:11:50.000Z")
+    let trx1 = { txid: "txid1", date: date1, sent: 0, received: 50000, net: 50000, fee: 5000, labelText: "label1", confirmation_time: { height: 2441712, timestamp: 1689279109, confirmedAt: date1 } }
+    let trx2 = { txid: "txid2", date: date2, sent: 0, received: 100000, net: 100000, fee: 2000, labelText: "label2", confirmation_time: { height: 2441712, timestamp: 1689365510, confirmedAt: date2 } }
+    let trx3 = { txid: "txid3", date: date3, sent: 140000, received: 0, net: -150000, fee: 6000, labelText: "label3", confirmation_time: { height: 2441712, timestamp: 1689451910, confirmedAt: date3 } }
+
+    it('getAugmentedTransactions using SpecID should generate correct details', async () => {
 
       const datedBitcoinExchangeRateSpyon = jest.spyOn(policy2.bitcoinExchangeRate, 'getDatedBitcoinExchangeRate')
-      wallet.sync.mockResolvedValue()
-      const date1 = new Date("2023-07-13T20:11:49.000Z")
-      const date2 = new Date("2023-07-14T20:11:50.000Z")
-      const date3 = new Date("2023-07-15T20:11:50.000Z")
+      const getLabeledTransactionsSpyon = jest.spyOn(policy2, 'getLabeledTransactions')
+
       datedBitcoinExchangeRateSpyon
         .mockResolvedValueOnce({ rate: 40000, date: date1 })
         .mockResolvedValueOnce({ rate: 60000, date: date2 })
         .mockResolvedValueOnce({ rate: 50000, date: date3 })
 
-      const getLabeledTransactions = jest.spyOn(policy2, 'getLabeledTransactions')
-      getLabeledTransactions.mockResolvedValueOnce([
-        { txid: "txid1", date: date1, type: "RECEIVE", costBasis: 22, proceeds: 0, sent: 0, received: 50000, net: 50000, netFiatAtConfirmation: 20, fee: 5000, feeFiatAtConfirmation: 2, btcExchangeRateAtConfirmation: 40000, labelText: "label1", confirmation_time: { height: 2441712, timestamp: 1689279109, confirmedAt: date1 } },
-        { txid: "txid2", date: date2, type: "RECEIVE", costBasis: 61.2, proceeds: 0, sent: 0, received: 100000, net: 100000, netFiatAtConfirmation: 60, fee: 2000, feeFiatAtConfirmation: 1.2, btcExchangeRateAtConfirmation: 60000, labelText: "label2", confirmation_time: { height: 2441712, timestamp: 1689365510, confirmedAt: date2 } },
-        { txid: "txid3", date: date3, type: "SEND", costBasis: 0, proceeds: 72, sent: 140000, received: 0, net: -150000, netFiatAtConfirmation: -75, fee: 6000, feeFiatAtConfirmation: 3, btcExchangeRateAtConfirmation: 50000, labelText: "label3", confirmation_time: { height: 2441712, timestamp: 1689451910, confirmedAt: date3 } },
-      ]
-      )
+      getLabeledTransactionsSpyon.mockResolvedValueOnce(([trx1, trx2, trx3]))
 
       const expected: LabeledTrxDetails[] = [
-        { txid: "txid1", date: date1, type: "RECEIVE", costBasis: 22, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, sent: 0, received: 50000, net: 50000, netFiatAtConfirmation: 20, fee: 5000, feeFiatAtConfirmation: 2, btcExchangeRateAtConfirmation: 40000, labelText: "label1", confirmation_time: { height: 2441712, timestamp: 1689279109, confirmedAt: date1 } },
-        { txid: "txid2", date: date2, type: "RECEIVE", costBasis: 61.2, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, sent: 0, received: 100000, net: 100000, netFiatAtConfirmation: 60, fee: 2000, feeFiatAtConfirmation: 1.2, btcExchangeRateAtConfirmation: 60000, labelText: "label2", confirmation_time: { height: 2441712, timestamp: 1689365510, confirmedAt: date2 } },
-        { txid: "txid3", date: date3, type: "SEND", costBasis: 0, associatedCostBasis: "50000@22  100000@61.2", proceeds: 72, capitalGainsLoses: -11.2, sent: 140000, received: 0, net: -150000, netFiatAtConfirmation: -75, fee: 6000, feeFiatAtConfirmation: 3, btcExchangeRateAtConfirmation: 50000, labelText: "label3", confirmation_time: { height: 2441712, timestamp: 1689451910, confirmedAt: date3 } },
+        { ...trx1, type: "RECEIVE", costBasis: 22, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 20, feeFiatAtConfirmation: 2, btcExchangeRateAtConfirmation: 40000 },
+        { ...trx2, type: "RECEIVE", costBasis: 61.2, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 60, feeFiatAtConfirmation: 1.2, btcExchangeRateAtConfirmation: 60000 },
+        { ...trx3, type: "SEND", costBasis: 0, associatedCostBasis: "50000@22  100000@61.2", proceeds: 72, capitalGainsLoses: -11.2, netFiatAtConfirmation: -75, feeFiatAtConfirmation: 3, btcExchangeRateAtConfirmation: 50000 }
       ]
 
-      const trx1 = { txid: "txid1", received: 50000, sent: 0, fee: 5000, net: 50000, outputs: [], inputs: [], lock_time: 1, confirmation_time: { height: 2441712, timestamp: 1689279109, confirmedAt: date1, confirmations: 1 } }
-      const trx2 = { txid: "txid2", received: 100000, sent: 0, fee: 2000, net: 100000, outputs: [], inputs: [], lock_time: 1, confirmation_time: { height: 2441712, timestamp: 1689365510, confirmedAt: date2, confirmations: 1 } }
-      const trx3 = { txid: "txid3", received: 0, sent: 140000, fee: 6000, net: -150000, outputs: [], inputs: [{ txid: "txid1" } as TrxInput, { txid: "txid2" } as TrxInput], lock_time: 1, confirmation_time: { height: 2441712, timestamp: 1689451910, confirmedAt: date3, confirmations: 1 } }
+      const getTrx1 = { ...trx1, outputs: [], inputs: [], lock_time: 1, confirmation_time: { height: 2441712, timestamp: 1689279109, confirmedAt: date1, confirmations: 1 } }
+      const getTrx2 = { ...trx2, outputs: [], inputs: [], lock_time: 1, confirmation_time: { height: 2441712, timestamp: 1689365510, confirmedAt: date2, confirmations: 1 } }
+      const getTrx3 = { ...trx3, outputs: [], inputs: [{ txid: "txid1" } as TrxInput, { txid: "txid2" } as TrxInput], lock_time: 1, confirmation_time: { height: 2441712, timestamp: 1689451910, confirmedAt: date3, confirmations: 1 } }
       const getTrxSpyon = jest.spyOn(policy2, 'getTrx')
       getTrxSpyon
-        .mockResolvedValueOnce(trx3)
-        .mockResolvedValueOnce(trx1)
-        .mockResolvedValueOnce(trx2)
-        .mockResolvedValueOnce(trx1)
-        .mockResolvedValueOnce(trx2)
+        .mockResolvedValueOnce(getTrx3)
+        .mockResolvedValueOnce(getTrx1)
+        .mockResolvedValueOnce(getTrx2)
+        .mockResolvedValueOnce(getTrx1)
+        .mockResolvedValueOnce(getTrx2)
 
-      const actual = await policy2.getAugmentedTrxs()
+      const actual = await policy2.getAugmentedTransactions(AccountingMethod.SpecID)
       expect(actual).toEqual(expected)
 
     })
+
+    it('getAugmentedTransactions using FIFO should generate correct details', async () => {
+
+      const datedBitcoinExchangeRateSpyon = jest.spyOn(policy2.bitcoinExchangeRate, 'getDatedBitcoinExchangeRate')
+      const getLabeledTransactionsSpyon = jest.spyOn(policy2, 'getLabeledTransactions')
+
+      datedBitcoinExchangeRateSpyon
+        .mockResolvedValueOnce({ rate: 40000, date: date1 })
+        .mockResolvedValueOnce({ rate: 60000, date: date2 })
+        .mockResolvedValueOnce({ rate: 50000, date: date3 })
+
+      getLabeledTransactionsSpyon.mockResolvedValueOnce(([trx1, trx2, trx3]))
+
+      const expected: LabeledTrxDetails[] = [
+        { ...trx1, type: "RECEIVE", costBasis: 22, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 20, feeFiatAtConfirmation: 2, btcExchangeRateAtConfirmation: 40000 },
+        { ...trx2, type: "RECEIVE", costBasis: 61.2, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 60, feeFiatAtConfirmation: 1.2, btcExchangeRateAtConfirmation: 60000 },
+        { ...trx3, type: "SEND", costBasis: 0, associatedCostBasis: "50000@22  100000@61.2", proceeds: 72, capitalGainsLoses: -11.2, netFiatAtConfirmation: -75, feeFiatAtConfirmation: 3, btcExchangeRateAtConfirmation: 50000 }
+      ]
+
+      const actual = await policy2.getAugmentedTransactions(AccountingMethod.FIFO)
+      expect(actual).toEqual(expected)
+
+    })
+
+    it('getAugmentedTransactions using LIFO should generate correct details', async () => {
+
+
+      const datedBitcoinExchangeRateSpyon = jest.spyOn(policy2.bitcoinExchangeRate, 'getDatedBitcoinExchangeRate')
+      const getLabeledTransactionsSpyon = jest.spyOn(policy2, 'getLabeledTransactions')
+
+      datedBitcoinExchangeRateSpyon
+        .mockResolvedValueOnce({ rate: 40000, date: date1 })
+        .mockResolvedValueOnce({ rate: 60000, date: date2 })
+        .mockResolvedValueOnce({ rate: 50000, date: date3 })
+
+      getLabeledTransactionsSpyon.mockResolvedValueOnce(([trx1, trx2, trx3]))
+
+      const expected: LabeledTrxDetails[] = [
+        { ...trx1, type: "RECEIVE", costBasis: 22, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 20, feeFiatAtConfirmation: 2, btcExchangeRateAtConfirmation: 40000 },
+        { ...trx2, type: "RECEIVE", costBasis: 61.2, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 60, feeFiatAtConfirmation: 1.2, btcExchangeRateAtConfirmation: 60000 },
+        { ...trx3, type: "SEND", costBasis: 0, associatedCostBasis: "100000@61.2  50000@22", proceeds: 72, capitalGainsLoses: -11.2, netFiatAtConfirmation: -75, feeFiatAtConfirmation: 3, btcExchangeRateAtConfirmation: 50000 }
+      ]
+
+      const actual = await policy2.getAugmentedTransactions(AccountingMethod.LIFO)
+      expect(actual).toEqual(expected)
+
+    })
+
+    it('getAugmentedTransactions using HIFO should generate correct details', async () => {
+
+      const datedBitcoinExchangeRateSpyon = jest.spyOn(policy2.bitcoinExchangeRate, 'getDatedBitcoinExchangeRate')
+      const getLabeledTransactionsSpyon = jest.spyOn(policy2, 'getLabeledTransactions')
+
+      datedBitcoinExchangeRateSpyon
+        .mockResolvedValueOnce({ rate: 40000, date: date1 })
+        .mockResolvedValueOnce({ rate: 60000, date: date2 })
+        .mockResolvedValueOnce({ rate: 50000, date: date3 })
+
+      getLabeledTransactionsSpyon.mockResolvedValueOnce(([trx1, trx2, trx3]))
+
+      const expected: LabeledTrxDetails[] = [
+        { ...trx1, type: "RECEIVE", costBasis: 22, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 20, feeFiatAtConfirmation: 2, btcExchangeRateAtConfirmation: 40000 },
+        { ...trx2, type: "RECEIVE", costBasis: 61.2, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 60, feeFiatAtConfirmation: 1.2, btcExchangeRateAtConfirmation: 60000 },
+        { ...trx3, type: "SEND", costBasis: 0, associatedCostBasis: "100000@61.2  50000@22", proceeds: 72, capitalGainsLoses: -11.2, netFiatAtConfirmation: -75, feeFiatAtConfirmation: 3, btcExchangeRateAtConfirmation: 50000 }
+      ]
+
+      const actual = await policy2.getAugmentedTransactions(AccountingMethod.HIFO)
+      expect(actual).toEqual(expected)
+
+    })
+
+    it('using provided cost basis and proceeds should generate correct details', async () => {
+
+      const datedBitcoinExchangeRateSpyon = jest.spyOn(policy2.bitcoinExchangeRate, 'getDatedBitcoinExchangeRate')
+      const getLabeledTransactionsSpyon = jest.spyOn(policy2, 'getLabeledTransactions')
+
+      datedBitcoinExchangeRateSpyon
+        .mockResolvedValueOnce({ rate: 40000, date: date1 })
+        .mockResolvedValueOnce({ rate: 60000, date: date2 })
+        .mockResolvedValueOnce({ rate: 50000, date: date3 })
+
+      getLabeledTransactionsSpyon.mockResolvedValueOnce(([trx1, trx2, trx3]))
+
+      const expected: LabeledTrxDetails[] = [
+        { ...trx1, type: "RECEIVE", costBasis: 50, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 20, feeFiatAtConfirmation: 2, btcExchangeRateAtConfirmation: 40000 },
+        { ...trx2, type: "RECEIVE", costBasis: 100, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 60, feeFiatAtConfirmation: 1.2, btcExchangeRateAtConfirmation: 60000 },
+        { ...trx3, type: "SEND", costBasis: 0, associatedCostBasis: "100000@100  50000@50", proceeds: 150, capitalGainsLoses: 0, netFiatAtConfirmation: -75, feeFiatAtConfirmation: 3, btcExchangeRateAtConfirmation: 50000 }
+      ]
+      const costBasisProceedsMap = new Map<string, number>(([[trx1.txid, 50], [trx2.txid, 100], [trx3.txid, 150]]))
+      const actual = await policy2.getAugmentedTransactions(AccountingMethod.HIFO, undefined, costBasisProceedsMap)
+      expect(actual).toEqual(expected)
+
+    }
+    )
+
+
+
+
 
   }
   )

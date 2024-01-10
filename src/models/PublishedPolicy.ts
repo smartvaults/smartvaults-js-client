@@ -1,7 +1,7 @@
 import { Authenticator } from '@smontero/nostr-ual'
 import { Event } from 'nostr-tools'
 import { Balance } from './Balance'
-import { BaseOwnedSigner, PolicyPathSelector, Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails, Utxo, PolicyPathsResult, LabeledTrxDetails, UndecoratedBasicTrxDetails, UndecoratedTrxDetails } from './types'
+import { BaseOwnedSigner, PolicyPathSelector, Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails, Utxo, PolicyPathsResult, LabeledTrxDetails, UndecoratedBasicTrxDetails, UndecoratedTrxDetails, DatePeriod } from './types'
 import { BitcoinUtil, Wallet } from './interfaces'
 import { CurrencyUtil, PaginationOpts, TimeUtil, fromNostrDate, toPublished } from '../util'
 import { generateUiMetadata, UIMetadata, Key } from '../util/GenerateUiMetadata'
@@ -10,6 +10,7 @@ import { type Store } from '../service'
 import { StringUtil } from '../util'
 import { BitcoinExchangeRate } from '../util'
 import { generateCsv, saveFile } from '../util'
+import { AccountingMethod } from '../enum'
 export class PublishedPolicy {
   id: string
   name: string
@@ -423,9 +424,117 @@ export class PublishedPolicy {
   }
 
 
-  async getAugmentedTrxs(): Promise<Array<LabeledTrxDetails>> {
+  async getAugmentedTransactions(method: AccountingMethod, period?: DatePeriod, costBasisProceedsMap?: Map<string, number>): Promise<Array<LabeledTrxDetails>> {
 
-    const confirmedTrxs = (await this.getLabeledTransactions()).filter(trx => trx.confirmation_time);
+    if (method === AccountingMethod.SpecID) {
+      return await this.getSpecIDAugmentedTransactions(period, costBasisProceedsMap);
+    }
+
+    let confirmedTrxs = (await this.getLabeledTransactions()).filter(trx => trx.confirmation_time);
+    if (period) confirmedTrxs = confirmedTrxs.filter(trx => trx.confirmation_time!.timestamp >= TimeUtil.toSeconds(period!.start.getTime()) && trx.confirmation_time!.timestamp <= TimeUtil.toSeconds(period!.end.getTime()));
+    const trxs = confirmedTrxs.sort((a, b) => a.confirmation_time!.timestamp - b.confirmation_time!.timestamp);
+    const receivedTrxs = trxs.filter(trx => trx.net > 0);
+    const spendTrxs = trxs.filter(trx => trx.net < 0);
+
+    for (const trx of receivedTrxs) {
+      const date = fromNostrDate(trx.confirmation_time!.timestamp);
+      const datedExchangeRate = await this.bitcoinExchangeRate.getDatedBitcoinExchangeRate(date);
+      const netFiatAtConfirmation = await this.bitcoinExchangeRate.convertToFiat([trx.net], datedExchangeRate.rate);
+      if (!trx.fee) {
+        trx.fee = (await this.getFee(trx.txid)).fee;
+        trx.feeFiat = (await this.bitcoinExchangeRate.convertToFiat([trx.fee]))[0];
+      }
+      const feeFiatAtConfirmation = await this.bitcoinExchangeRate.convertToFiat([trx.fee], datedExchangeRate.rate);
+      trx.netFiatAtConfirmation = netFiatAtConfirmation[0];
+      trx.feeFiatAtConfirmation = feeFiatAtConfirmation[0];
+      trx.btcExchangeRateAtConfirmation = CurrencyUtil.toRoundedFloat(datedExchangeRate.rate);
+      trx.costBasis = costBasisProceedsMap?.has(trx.txid) ? costBasisProceedsMap.get(trx.txid)! : CurrencyUtil.toRoundedFloat(trx.netFiatAtConfirmation + trx.feeFiatAtConfirmation);
+      trx.proceeds = 0
+      trx.capitalGainsLoses = 0
+      trx.associatedCostBasis = 'N/A';
+      trx.type = 'RECEIVE'
+      trx.date = date;
+    }
+
+
+    switch (method) {
+      case AccountingMethod.HIFO:
+        receivedTrxs.sort((a, b) => b.btcExchangeRateAtConfirmation! - a.btcExchangeRateAtConfirmation!);
+        break;
+      case AccountingMethod.FIFO:
+        break; // already sorted
+      case AccountingMethod.LIFO:
+        receivedTrxs.sort((a, b) => b.confirmation_time!.timestamp - a.confirmation_time!.timestamp);
+        break;
+      default:
+        throw new Error(`Accounting method ${method} not supported`);
+    }
+
+    const costBasisArr = receivedTrxs.map(trx => trx.costBasis!);
+
+    // idx -> [original amount, remaining amount]
+    let costBasisMap = new Map<number, number[]>();
+    receivedTrxs.forEach((_, idx) => {
+      const receivedTrx = receivedTrxs[idx];
+      const amount = receivedTrx.net;
+      costBasisMap.set(idx, [amount, amount]);
+    });
+
+    let currentCostBasisIdx = 0;
+    for (const trx of spendTrxs) {
+      const date = fromNostrDate(trx.confirmation_time!.timestamp);
+      const datedExchangeRate = await this.bitcoinExchangeRate.getDatedBitcoinExchangeRate(date);
+
+      trx.date = date;
+      const netFiatAtConfirmation = await this.bitcoinExchangeRate.convertToFiat([trx.net], datedExchangeRate.rate);
+      if (!trx.fee) {
+        trx.fee = (await this.getFee(trx.txid)).fee;
+        trx.feeFiat = (await this.bitcoinExchangeRate.convertToFiat([trx.fee]))[0];
+      }
+      const feeFiatAtConfirmation = await this.bitcoinExchangeRate.convertToFiat([trx.fee], datedExchangeRate.rate);
+      trx.netFiatAtConfirmation = netFiatAtConfirmation[0];
+      trx.feeFiatAtConfirmation = feeFiatAtConfirmation[0];
+      trx.btcExchangeRateAtConfirmation = CurrencyUtil.toRoundedFloat(datedExchangeRate.rate);
+      if (trx.net < 0) {
+        trx.type = 'SEND'
+        trx.proceeds = costBasisProceedsMap?.has(trx.txid) ? costBasisProceedsMap.get(trx.txid)! : CurrencyUtil.toRoundedFloat((trx.netFiatAtConfirmation + trx.feeFiatAtConfirmation) * -1);
+        trx.costBasis = 0
+        let associatedCostBasis = '';
+        const currentCostBasis = costBasisArr[currentCostBasisIdx];
+        const [costBasisOrginalAmount, costBasisRemainingAmount] = costBasisMap.get(currentCostBasisIdx)!;
+        let bitcoinSold = Math.min(Math.abs(trx.net), costBasisRemainingAmount);
+        let accBitcoinSold = bitcoinSold;
+        let costBasis = CurrencyUtil.toRoundedFloat(((bitcoinSold / costBasisOrginalAmount) * currentCostBasis))
+        associatedCostBasis = `${bitcoinSold}` + '@' + currentCostBasis;
+        if (accBitcoinSold === costBasisRemainingAmount) {
+          costBasisMap.set(currentCostBasisIdx, [costBasisOrginalAmount, 0]);
+          while (accBitcoinSold < Math.abs(trx.net) && currentCostBasisIdx < costBasisArr.length - 1) {
+            currentCostBasisIdx++;
+            const currentCostBasis = costBasisArr[currentCostBasisIdx];
+            const [costBasisOrginalAmount, costBasisRemainingAmount] = costBasisMap.get(currentCostBasisIdx)!;
+            bitcoinSold = costBasisRemainingAmount + accBitcoinSold > Math.abs(trx.net) ? Math.abs(trx.net) - accBitcoinSold : costBasisRemainingAmount;
+            costBasis += CurrencyUtil.toRoundedFloat(((bitcoinSold / costBasisOrginalAmount) * currentCostBasis))
+            associatedCostBasis += '  ' + `${bitcoinSold}` + '@' + currentCostBasis;
+            const newCostBasisRemainingAmount = costBasisRemainingAmount - bitcoinSold;
+            costBasisMap.set(currentCostBasisIdx, [costBasisOrginalAmount, newCostBasisRemainingAmount]);
+            accBitcoinSold += bitcoinSold;
+          }
+        } else {
+          costBasisMap.set(currentCostBasisIdx, [costBasisOrginalAmount, costBasisRemainingAmount - bitcoinSold]);
+        }
+        trx.capitalGainsLoses = CurrencyUtil.toRoundedFloat(trx.proceeds - costBasis);
+        trx.associatedCostBasis = associatedCostBasis;
+      }
+    }
+    return trxs
+  }
+
+
+
+  private async getSpecIDAugmentedTransactions(period?: DatePeriod, costBasisProceedsMap?: Map<string, number>): Promise<Array<LabeledTrxDetails>> {
+
+    let confirmedTrxs = (await this.getLabeledTransactions()).filter(trx => trx.confirmation_time);
+    if (period) confirmedTrxs = confirmedTrxs.filter(trx => trx.confirmation_time!.timestamp >= TimeUtil.toSeconds(period!.start.getTime()) && trx.confirmation_time!.timestamp <= TimeUtil.toSeconds(period!.end.getTime()));
     const trxs = confirmedTrxs.sort((a, b) => a.confirmation_time!.timestamp - b.confirmation_time!.timestamp);
     let txidCostBasisMap = new Map<string, Map<number, number>>();
     for (const trx of trxs) {
@@ -445,13 +554,13 @@ export class PublishedPolicy {
       const type = trx.net > 0 ? 'RECEIVE' : 'SEND';
       trx.type = type;
       if (trx.net > 0) {
-        trx.costBasis = CurrencyUtil.toRoundedFloat(trx.netFiatAtConfirmation + trx.feeFiatAtConfirmation);
+        trx.costBasis = costBasisProceedsMap?.has(trx.txid) ? costBasisProceedsMap.get(trx.txid)! : CurrencyUtil.toRoundedFloat(trx.netFiatAtConfirmation + trx.feeFiatAtConfirmation);
         trx.proceeds = 0
         trx.capitalGainsLoses = 0
         trx.associatedCostBasis = 'N/A';
         txidCostBasisMap.set(trx.txid, new Map([[trx.costBasis, trx.net]]));
       } else if (trx.net < 0) {
-        trx.proceeds = CurrencyUtil.toRoundedFloat((trx.netFiatAtConfirmation + trx.feeFiatAtConfirmation) * -1);
+        trx.proceeds = costBasisProceedsMap?.has(trx.txid) ? costBasisProceedsMap.get(trx.txid)! : CurrencyUtil.toRoundedFloat((trx.netFiatAtConfirmation + trx.feeFiatAtConfirmation) * -1);
         trx.costBasis = 0
         const trxDetails = await this.getTrx(trx.txid);
         let inputs = trxDetails.inputs
@@ -504,9 +613,9 @@ export class PublishedPolicy {
     return trxs
   }
 
-  async generateTxsCsv(): Promise<string> {
+  async generateTxsCsv(method: AccountingMethod, period?: DatePeriod, costBasisProceedsMap?: Map<string, number>): Promise<string> {
 
-    const trxs = await this.getAugmentedTrxs();
+    const trxs = await this.getAugmentedTransactions(method, period, costBasisProceedsMap);
 
     const headers = [
       'date',
@@ -559,12 +668,12 @@ export class PublishedPolicy {
     return csv;
   }
 
-  public async downloadTransactions(): Promise<void> {
+  public async downloadTransactions(method: AccountingMethod, period?: DatePeriod, costBasisProceedsMap?: Map<string, number>): Promise<void> {
 
-    const csv = await this.generateTxsCsv();
+    const csv = await this.generateTxsCsv(method, period, costBasisProceedsMap);
     const vaultName = this.name.replace(/\s/g, '-');
     const date = new Date().toISOString().slice(0, 10);
-    const fileName = `TXS-${vaultName}-${date}`;
+    const fileName = `TXS-${vaultName}-${date}-${method}`;
 
     saveFile(fileName, csv, 'Text', '.csv');
   }
