@@ -2098,7 +2098,6 @@ export class SmartVaults {
       }
       publishedLabels.push(publishedLabel)
 
-      console.log(`Saving label ${label} for policy ${policyId}`)
       return pub.onFirstOkOrCompleteFailure()
 
     })
