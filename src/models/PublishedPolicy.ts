@@ -1,7 +1,7 @@
 import { Authenticator } from '@smontero/nostr-ual'
 import { Event } from 'nostr-tools'
 import { Balance } from './Balance'
-import { BaseOwnedSigner, PolicyPathSelector, Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails, Utxo, PolicyPathsResult, AugmentedTransactionDetails, UndecoratedBasicTrxDetails, UndecoratedTrxDetails, DatePeriod } from './types'
+import { BaseOwnedSigner, PolicyPathSelector, Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails, Utxo, PolicyPathsResult, AugmentedTransactionDetails, UndecoratedBasicTrxDetails, UndecoratedTrxDetails, DatePeriod, IncludeFiatAccountingValuesPayload } from './types'
 import { BitcoinUtil, Wallet } from './interfaces'
 import { CurrencyUtil, PaginationOpts, TimeUtil, fromNostrDate, toPublished } from '../util'
 import { generateUiMetadata, UIMetadata, Key } from '../util/GenerateUiMetadata'
@@ -22,7 +22,8 @@ export class PublishedPolicy {
   lastSyncTime?: Date
   generatedUiMetadata?: UIMetadata
   vaultData?: string
-  bitcoinExchangeRate: BitcoinExchangeRate = BitcoinExchangeRate.getInstance();
+  readonly bitcoinExchangeRate: BitcoinExchangeRate = BitcoinExchangeRate.getInstance();
+  readonly transactionMetadataStore: Store
   private wallet: Wallet
   private syncTimeGap: number
   private syncPromise?: Promise<void>
@@ -30,9 +31,8 @@ export class PublishedPolicy {
   private getOwnedSigners: () => Promise<PublishedOwnedSigner[]>
   private toMiniscript: (descriptor: string) => string
   private getProposalsByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, ActivePublishedProposal | Array<ActivePublishedProposal>>>
-  private getLabelsByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, PublishedTransactionMetadata | Array<PublishedTransactionMetadata>>>
-  private saveLabel: (policyId: string, label: TransactionMetadata | Array<TransactionMetadata>) => Promise<Array<PublishedTransactionMetadata>>
-  private labelStore: Store
+  private getTransactionMetadataByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, PublishedTransactionMetadata | Array<PublishedTransactionMetadata>>>
+  private saveTransactionMetadata: (policyId: string, transactionMetadata: TransactionMetadata | Array<TransactionMetadata>) => Promise<Array<PublishedTransactionMetadata>>
 
   static fromPolicyAndEvent<K extends number>({
     policyContent,
@@ -51,9 +51,9 @@ export class PublishedPolicy {
     getSharedSigners: (publicKeys?: string | string[]) => Promise<PublishedSharedSigner[]>,
     getOwnedSigners: () => Promise<PublishedOwnedSigner[]>,
     getProposalsByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, ActivePublishedProposal | Array<ActivePublishedProposal>>>,
-    getLabelsByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, PublishedTransactionMetadata | Array<PublishedTransactionMetadata>>>,
-    saveLabel: (policyId: string, label: TransactionMetadata | Array<TransactionMetadata>) => Promise<Array<PublishedTransactionMetadata>>,
-    labelStore: Store
+    getTransactionMetadataByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, PublishedTransactionMetadata | Array<PublishedTransactionMetadata>>>,
+    saveTransactionMetadata: (policyId: string, transactionMetadata: TransactionMetadata | Array<TransactionMetadata>) => Promise<Array<PublishedTransactionMetadata>>,
+    transactionMetadataStore: Store
   )
 
     : PublishedPolicy {
@@ -65,9 +65,9 @@ export class PublishedPolicy {
       getSharedSigners,
       getOwnedSigners,
       getProposalsByPolicyId,
-      getLabelsByPolicyId,
-      saveLabel,
-      labelStore
+      getTransactionMetadataByPolicyId,
+      saveTransactionMetadata,
+      transactionMetadataStore
     )
   }
 
@@ -90,9 +90,9 @@ export class PublishedPolicy {
     getSharedSigners: (publicKeys?: string | string[]) => Promise<PublishedSharedSigner[]>,
     getOwnedSigners: () => Promise<PublishedOwnedSigner[]>,
     getProposalsByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, ActivePublishedProposal | Array<ActivePublishedProposal>>>,
-    getLabelsByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, PublishedTransactionMetadata | Array<PublishedTransactionMetadata>>>,
-    saveLabel: (policyId: string, label: TransactionMetadata | Array<TransactionMetadata>) => Promise<Array<PublishedTransactionMetadata>>,
-    labelStore: Store,
+    getTransactionMetadataByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, PublishedTransactionMetadata | Array<PublishedTransactionMetadata>>>,
+    saveTransactionMetadata: (policyId: string, transactionMetadata: TransactionMetadata | Array<TransactionMetadata>) => Promise<Array<PublishedTransactionMetadata>>,
+    transactionMetadataStore: Store,
 
   ) {
     this.id = id
@@ -108,9 +108,9 @@ export class PublishedPolicy {
     this.getOwnedSigners = getOwnedSigners
     this.toMiniscript = bitcoinUtil.toMiniscript
     this.getProposalsByPolicyId = getProposalsByPolicyId
-    this.getLabelsByPolicyId = getLabelsByPolicyId
-    this.saveLabel = saveLabel
-    this.labelStore = labelStore
+    this.getTransactionMetadataByPolicyId = getTransactionMetadataByPolicyId
+    this.saveTransactionMetadata = saveTransactionMetadata
+    this.transactionMetadataStore = transactionMetadataStore
   }
 
   async getUiMetadata(): Promise<UIMetadata> {
@@ -254,13 +254,13 @@ export class PublishedPolicy {
     try {
       [utxos] = await Promise.all([
         this.getUtxos(),
-        this.getLabelsByPolicyId(this.id, {})
+        this.getTransactionMetadataByPolicyId(this.id, {})
       ]);
     } catch (error) {
-      console.error("An error occurred while getting labeled utxos:", error);
+      console.error("An error occurred while getting transactionMetadataed utxos:", error);
       return [];
     }
-    const indexKey = "labelData";
+    const indexKey = "transactionMetadataData";
     const frozenUtxos = await this.getFrozenUtxosOutpoints();
     const exchangeRate = await this.bitcoinExchangeRate.getExchangeRate();
     if (exchangeRate) {
@@ -271,10 +271,10 @@ export class PublishedPolicy {
       });
     }
     const maybeLabeledUtxos: Array<LabeledUtxo> = utxos.map(utxo => {
-      const label: PublishedTransactionMetadata | undefined = this.labelStore.get(utxo.address, indexKey) || this.labelStore.get(utxo.utxo.outpoint, indexKey);
+      const transactionMetadata: PublishedTransactionMetadata | undefined = this.transactionMetadataStore.get(utxo.address, indexKey) || this.transactionMetadataStore.get(utxo.utxo.outpoint, indexKey);
       const frozen = frozenUtxos.includes(utxo.utxo.outpoint) ? true : false;
-      if (label) {
-        return { ...utxo, labelText: label.label.text, labelId: label.label_id, frozen };
+      if (transactionMetadata) {
+        return { ...utxo, transactionMetadataText: transactionMetadata.transactionMetadata.text, transactionMetadataId: transactionMetadata.transactionMetadataId, frozen };
       }
       return { ...utxo, frozen };
     });
@@ -329,29 +329,37 @@ export class PublishedPolicy {
     }
   }
 
-  async getLabeledTransactions(): Promise<Array<AugmentedTransactionDetails>> {
+
+
+  async getAugmentedTransactions(includeFiatAccountingValues?: IncludeFiatAccountingValuesPayload): Promise<Array<AugmentedTransactionDetails>> {
     let trxs: Array<BasicTrxDetails> = [];
     try {
       [trxs] = await Promise.all([
         this.getTrxs(),
-        this.getLabelsByPolicyId(this.id, {})
+        this.getTransactionMetadataByPolicyId(this.id, {})
       ]);
     } catch (error) {
-      console.error("Error while fetching labeled transactions:", error);
+      console.error("Error while fetching transactionMetadataed transactions:", error);
       return [];
     }
-    const indexKey = "labelData";
+    const indexKey = "transactionMetadataData";
 
-    const maybeLabeledTrxs: Array<AugmentedTransactionDetails> = trxs.map(trx => {
-      const label: PublishedTransactionMetadata | undefined = this.labelStore.get(trx.txid, indexKey);
-      if (label) {
-        const labeledTrxDetails: AugmentedTransactionDetails = { ...trx, label: label.label, labelId: label.label_id };
-        return labeledTrxDetails;
+    const maybeAugmentedTrxs: Array<AugmentedTransactionDetails> = trxs.map(trx => {
+      const transactionMetadata: PublishedTransactionMetadata | undefined = this.transactionMetadataStore.get(trx.txid, indexKey);
+      if (transactionMetadata) {
+        const AugmentedTrxDetails: AugmentedTransactionDetails = { ...trx, transactionMetadata: transactionMetadata.transactionMetadata, transactionMetadataId: transactionMetadata.transactionMetadataId };
+        return AugmentedTrxDetails;
       }
       return trx;
     });
 
-    return maybeLabeledTrxs;
+
+    if (includeFiatAccountingValues) {
+      const augementedTrxs = await this.getAccountingTransactionDetails(maybeAugmentedTrxs, includeFiatAccountingValues);
+      return augementedTrxs;
+    }
+
+    return maybeAugmentedTrxs;
   }
 
   private decorateTrxDetails = async (trxDetails: UndecoratedBasicTrxDetails | UndecoratedTrxDetails, exchangeRate?: number): Promise<BasicTrxDetails | TrxDetails> => {
@@ -429,22 +437,22 @@ export class PublishedPolicy {
     }, []);
   }
 
-  private addCostBasisProceeds(trx: AugmentedTransactionDetails, labelsToUpdateMap: Map<string, TransactionMetadata>, costBasisProceedsMap?: Map<string, number>): void {
+  private addCostBasisProceeds(trx: AugmentedTransactionDetails, transactionMetadataToUpdateMap: Map<string, TransactionMetadata>, costBasisProceedsMap?: Map<string, number>): void {
 
     const currentFiat = this.bitcoinExchangeRate.getActiveFiatCurrency();
     const type = trx.net > 0 ? 'costBasis' : 'proceeds';
 
-    const maybeStoredCostBasisProceeds = trx.label?.[type]?.[currentFiat];
+    const maybeStoredCostBasisProceeds = trx.transactionMetadata?.[type]?.[currentFiat];
     const maybeProvidedCostBasisProceeds = costBasisProceedsMap?.get(trx.txid);
 
     if (maybeProvidedCostBasisProceeds) {
       if (maybeStoredCostBasisProceeds && maybeStoredCostBasisProceeds !== maybeProvidedCostBasisProceeds) {
-        const newLabel: TransactionMetadata = { ...trx.label!, [type]: { [currentFiat]: maybeProvidedCostBasisProceeds } };
-        const maybeLabelToUpdate = labelsToUpdateMap.get(trx.txid);
-        if (maybeLabelToUpdate) {
-          labelsToUpdateMap.set(trx.txid, { ...maybeLabelToUpdate, ...newLabel });
+        const newTransactionMetadata: TransactionMetadata = { ...trx.transactionMetadata!, [type]: { [currentFiat]: maybeProvidedCostBasisProceeds } };
+        const maybeTransactionMetadataToUpdate = transactionMetadataToUpdateMap.get(trx.txid);
+        if (maybeTransactionMetadataToUpdate) {
+          transactionMetadataToUpdateMap.set(trx.txid, { ...maybeTransactionMetadataToUpdate, ...newTransactionMetadata });
         } else {
-          labelsToUpdateMap.set(trx.txid, newLabel);
+          transactionMetadataToUpdateMap.set(trx.txid, newTransactionMetadata);
         }
       }
       trx[type] = maybeProvidedCostBasisProceeds;
@@ -452,13 +460,13 @@ export class PublishedPolicy {
       trx[type] = maybeStoredCostBasisProceeds;
     } else {
       trx[type] = Math.abs(CurrencyUtil.toRoundedFloat(trx.netFiatAtConfirmation! + trx.feeFiatAtConfirmation!));
-      const maybeLabel = trx.label;
-      const newLabel: TransactionMetadata = maybeLabel ? { ...maybeLabel, [type]: { [currentFiat]: trx[type] } } : { data: { 'txid': trx.txid }, [type]: { [currentFiat]: trx[type] } };
-      const maybeLabelToUpdate = labelsToUpdateMap.get(trx.txid);
-      if (maybeLabelToUpdate) {
-        labelsToUpdateMap.set(trx.txid, { ...maybeLabelToUpdate, ...newLabel });
+      const maybeTransactionMetadata = trx.transactionMetadata;
+      const newTransactionMetadata: TransactionMetadata = maybeTransactionMetadata ? { ...maybeTransactionMetadata, [type]: { [currentFiat]: trx[type] } } : { data: { 'txid': trx.txid }, [type]: { [currentFiat]: trx[type] } };
+      const maybeTransactionMetadataToUpdate = transactionMetadataToUpdateMap.get(trx.txid);
+      if (maybeTransactionMetadataToUpdate) {
+        transactionMetadataToUpdateMap.set(trx.txid, { ...maybeTransactionMetadataToUpdate, ...newTransactionMetadata });
       } else {
-        labelsToUpdateMap.set(trx.txid, newLabel);
+        transactionMetadataToUpdateMap.set(trx.txid, newTransactionMetadata);
       }
     }
 
@@ -479,27 +487,27 @@ export class PublishedPolicy {
 
   }
 
-  private async addBasicMetadata(trx: AugmentedTransactionDetails, labelsToUpdateMap: Map<string, TransactionMetadata> = new Map<string, TransactionMetadata>(), costBasisProceedsMap?: Map<string, number>, bitcoinExchangeRatesMap?: Map<string, number>): Promise<void> {
+  private async addBasicMetadata(trx: AugmentedTransactionDetails, transactionMetadataToUpdateMap: Map<string, TransactionMetadata> = new Map<string, TransactionMetadata>(), costBasisProceedsMap?: Map<string, number>, btcExchangeRatesMap?: Map<string, number>): Promise<void> {
 
     const currentFiat = this.bitcoinExchangeRate.getActiveFiatCurrency();
     const date = fromNostrDate(trx.confirmation_time!.timestamp);
     let btcExchangeRate: number;
 
     if (!trx.btcExchangeRateAtConfirmation) {
-      const maybeStoredBtcExchangeRate = trx.label?.btcExchangeRate?.[currentFiat]
-      const maybeProvidedBtcExchangeRate = bitcoinExchangeRatesMap?.get(trx.txid);
+      const maybeStoredBtcExchangeRate = trx.transactionMetadata?.btcExchangeRate?.[currentFiat]
+      const maybeProvidedBtcExchangeRate = btcExchangeRatesMap?.get(trx.txid);
       if (maybeProvidedBtcExchangeRate) {
         if (maybeStoredBtcExchangeRate && maybeStoredBtcExchangeRate !== maybeProvidedBtcExchangeRate) {
-          labelsToUpdateMap.set(trx.txid, { ...trx.label!, btcExchangeRate: { [currentFiat]: maybeProvidedBtcExchangeRate } });
+          transactionMetadataToUpdateMap.set(trx.txid, { ...trx.transactionMetadata!, btcExchangeRate: { [currentFiat]: maybeProvidedBtcExchangeRate } });
         }
         btcExchangeRate = maybeProvidedBtcExchangeRate;
       } else if (maybeStoredBtcExchangeRate) {
         btcExchangeRate = maybeStoredBtcExchangeRate;
       } else {
         btcExchangeRate = (await this.bitcoinExchangeRate.getDatedBitcoinExchangeRate(date)).rate;
-        const maybeLabel = trx.label;
-        const newLabel: TransactionMetadata = maybeLabel ? { ...maybeLabel, btcExchangeRate: { [currentFiat]: btcExchangeRate } } : { data: { 'txid': trx.txid }, btcExchangeRate: { [currentFiat]: btcExchangeRate } };
-        labelsToUpdateMap.set(trx.txid, newLabel);
+        const maybeTransactionMetadata = trx.transactionMetadata;
+        const newTransactionMetadata: TransactionMetadata = maybeTransactionMetadata ? { ...maybeTransactionMetadata, btcExchangeRate: { [currentFiat]: btcExchangeRate } } : { data: { 'txid': trx.txid }, btcExchangeRate: { [currentFiat]: btcExchangeRate } };
+        transactionMetadataToUpdateMap.set(trx.txid, newTransactionMetadata);
       }
       trx.btcExchangeRateAtConfirmation = CurrencyUtil.toRoundedFloat(btcExchangeRate);
     } else {
@@ -517,26 +525,26 @@ export class PublishedPolicy {
     trx.feeFiatAtConfirmation = feeFiatAtConfirmation;
     trx.date = date;
 
-    this.addCostBasisProceeds(trx, labelsToUpdateMap, costBasisProceedsMap);
+    this.addCostBasisProceeds(trx, transactionMetadataToUpdateMap, costBasisProceedsMap);
   }
 
+  private async getAccountingTransactionDetails(transactions: AugmentedTransactionDetails[], IncludeFiatAccountingValuesPayload: IncludeFiatAccountingValuesPayload): Promise<Array<AugmentedTransactionDetails>> {
 
-
-  async getAugmentedTransactions(method: AccountingMethod, period?: DatePeriod, costBasisProceedsMap?: Map<string, number>, bitcoinExchangeRatesMap?: Map<string, number>): Promise<Array<AugmentedTransactionDetails>> {
+    const { method, period, costBasisProceedsMap, btcExchangeRatesMap } = IncludeFiatAccountingValuesPayload;
 
     if (method === AccountingMethod.SpecID) {
-      return await this.getSpecIDAugmentedTransactions(period, costBasisProceedsMap);
+      return await this.getSpecIDAccountingTransactionDetails(transactions, period, costBasisProceedsMap);
     }
 
-    let confirmedTrxs = (await this.getLabeledTransactions()).filter(trx => trx.confirmation_time);
+    let confirmedTrxs = transactions.filter(trx => trx.confirmation_time);
     if (period) confirmedTrxs = confirmedTrxs.filter(trx => trx.confirmation_time!.timestamp >= TimeUtil.toSeconds(period!.start.getTime()) && trx.confirmation_time!.timestamp <= TimeUtil.toSeconds(period!.end.getTime()));
     const trxs = confirmedTrxs.sort((a, b) => a.confirmation_time!.timestamp - b.confirmation_time!.timestamp);
     const receivedTrxs = trxs.filter(trx => trx.net > 0);
     const spendTrxs = trxs.filter(trx => trx.net < 0);
-    const labelsToUpdateMap = new Map<string, TransactionMetadata>();
+    const transactionMetadataToUpdateMap = new Map<string, TransactionMetadata>();
 
     for (const trx of trxs) {
-      await this.addBasicMetadata(trx, labelsToUpdateMap, costBasisProceedsMap, bitcoinExchangeRatesMap);
+      await this.addBasicMetadata(trx, transactionMetadataToUpdateMap, costBasisProceedsMap, btcExchangeRatesMap);
     }
 
     switch (method) {
@@ -590,25 +598,23 @@ export class PublishedPolicy {
       trx.capitalGainsLoses = CurrencyUtil.toRoundedFloat(trx.proceeds! - costBasis);
       trx.associatedCostBasis = associatedCostBasis;
     }
-    const labelsToUpdate = Array.from(labelsToUpdateMap.values());
+    const transactionMetadataToUpdate = Array.from(transactionMetadataToUpdateMap.values());
 
-    if (labelsToUpdate.length > 0) {
-      await this.saveLabel(this.id, labelsToUpdate);
+    if (transactionMetadataToUpdate.length > 0) {
+      await this.saveTransactionMetadata(this.id, transactionMetadataToUpdate);
     }
-    return trxs
+    return transactions
   }
 
+  private async getSpecIDAccountingTransactionDetails(transactions: AugmentedTransactionDetails[], period?: DatePeriod, costBasisProceedsMap?: Map<string, number>, btcExchangeRatesMap?: Map<string, number>): Promise<Array<AugmentedTransactionDetails>> {
 
-
-  private async getSpecIDAugmentedTransactions(period?: DatePeriod, costBasisProceedsMap?: Map<string, number>, bitcoinExchangeRatesMap?: Map<string, number>): Promise<Array<AugmentedTransactionDetails>> {
-
-    let confirmedTrxs = (await this.getLabeledTransactions()).filter(trx => trx.confirmation_time);
+    let confirmedTrxs = transactions.filter(trx => trx.confirmation_time);
     if (period) confirmedTrxs = confirmedTrxs.filter(trx => trx.confirmation_time!.timestamp >= TimeUtil.toSeconds(period!.start.getTime()) && trx.confirmation_time!.timestamp <= TimeUtil.toSeconds(period!.end.getTime()));
     const trxs = confirmedTrxs.sort((a, b) => a.confirmation_time!.timestamp - b.confirmation_time!.timestamp);
     const txidCostBasisMap = new Map<string, Map<number, number>>();
-    const labelsToUpdateMap = new Map<string, TransactionMetadata>();
+    const transactionMetadataToUpdateMap = new Map<string, TransactionMetadata>();
     for (const trx of trxs) {
-      await this.addBasicMetadata(trx, labelsToUpdateMap, costBasisProceedsMap, bitcoinExchangeRatesMap);
+      await this.addBasicMetadata(trx, transactionMetadataToUpdateMap, costBasisProceedsMap, btcExchangeRatesMap);
       if (trx.net > 0) {
         txidCostBasisMap.set(trx.txid, new Map([[trx.costBasis!, trx.net]]));
       } else if (trx.net < 0) {
@@ -657,18 +663,19 @@ export class PublishedPolicy {
         trx.capitalGainsLoses = CurrencyUtil.toRoundedFloat(trx.proceeds! - capitalGainsLoses);
       }
     }
-    const labelsToUpdate = Array.from(labelsToUpdateMap.values());
+    const transactionMetadataToUpdate = Array.from(transactionMetadataToUpdateMap.values());
 
-    if (labelsToUpdate.length > 0) {
-      await this.saveLabel(this.id, labelsToUpdate);
+    if (transactionMetadataToUpdate.length > 0) {
+      await this.saveTransactionMetadata(this.id, transactionMetadataToUpdate);
     }
 
-    return trxs
+    return transactions
   }
 
-  async generateTxsCsv(method: AccountingMethod, period?: DatePeriod, costBasisProceedsMap?: Map<string, number>, bitcoinExchangeRatesMap?: Map<string, number>): Promise<string> {
+  private async generateTxsCsv(includeFiatAccountingValuesPayload: IncludeFiatAccountingValuesPayload): Promise<string> {
 
-    const trxs = await this.getAugmentedTransactions(method, period, costBasisProceedsMap, bitcoinExchangeRatesMap);
+    const trxs = await this.getAugmentedTransactions(includeFiatAccountingValuesPayload);
+    const confirmedTrxs = trxs.filter(trx => trx.confirmation_time);
 
     const headers = [
       'date',
@@ -685,13 +692,13 @@ export class PublishedPolicy {
       'fee',
       'feeFiatAtConfirmation',
       'btcExchangeRateAtConfirmation',
-      'labelText'
+      'transactionMetadataText'
     ];
 
     const vaultData = JSON.parse(this.getVaultData());
     const vaultDataHeaders = ['Vault name:,' + vaultData.name, 'Vault description:,' + vaultData.description, 'Vault members:,' + vaultData.publicKeys];
 
-    let csv = generateCsv(trxs, headers, vaultDataHeaders);
+    let csv = generateCsv(confirmedTrxs, headers, vaultDataHeaders);
 
     const currentFiat = this.bitcoinExchangeRate.getActiveFiatCurrency().toLocaleUpperCase();
 
@@ -709,7 +716,7 @@ export class PublishedPolicy {
       'proceeds': `Proceeds (${currentFiat})`,
       'capitalGainsLoses': `Capital Gains / Loses (${currentFiat})`,
       'associatedCostBasis': `Sold (SATS) @ Associated Cost Basis (${currentFiat})`,
-      'labelText': 'TransactionMetadata',
+      'transactionMetadataText': 'TransactionMetadata',
       'received': 'Received (SATS)',
       'sent': 'Sent (SATS)',
       'btcExchangeRateAtConfirmation': `BTC Exchange Rate at Confirmation Time (${currentFiat})`
@@ -721,12 +728,12 @@ export class PublishedPolicy {
     return csv;
   }
 
-  public async downloadTransactions(method: AccountingMethod, period?: DatePeriod, costBasisProceedsMap?: Map<string, number>, bitcoinExchangeRatesMap?: Map<string, number>): Promise<void> {
+  public async downloadTransactions(IncludeFiatAccountingValuesPayload): Promise<void> {
 
-    const csv = await this.generateTxsCsv(method, period, costBasisProceedsMap, bitcoinExchangeRatesMap);
+    const csv = await this.generateTxsCsv(IncludeFiatAccountingValuesPayload);
     const vaultName = this.name.replace(/\s/g, '-');
     const date = new Date().toISOString().slice(0, 10);
-    const fileName = `TXS-${vaultName}-${date}-${method}`;
+    const fileName = `TXS-${vaultName}-${date}-${IncludeFiatAccountingValuesPayload.method}`;
 
     saveFile(fileName, csv, 'Text', '.csv');
   }

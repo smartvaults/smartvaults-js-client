@@ -56,7 +56,7 @@ export class SmartVaults {
     this.stores.set(Kind.Metadata, Store.createSingleIndexStore("id"))
     this.stores.set(StoreKind.Events, Store.createSingleIndexStore("id"))
     this.stores.set(StoreKind.MySharedSigners, Store.createMultiIndexStore(["id", "signerId"], "id"))
-    this.stores.set(SmartVaultsKind.Labels, Store.createMultiIndexStore(["id", "policy_id", "label_id", "labelData"], "id"))
+    this.stores.set(SmartVaultsKind.TransactionMetadata, Store.createMultiIndexStore(["id", "policy_id", "transactionMetadataId", "txId"], "id"))
     this.stores.set(SmartVaultsKind.SignerOffering, Store.createMultiIndexStore(["id", "offeringId", "keyAgentPubKey", "signerDescriptor"], "id"))
     this.stores.set(SmartVaultsKind.VerifiedKeyAgents, Store.createMultiIndexStore(["eventId", "pubkey"], "pubkey"))
     this.stores.set(SmartVaultsKind.KeyAgents, Store.createSingleIndexStore("pubkey"))
@@ -355,9 +355,9 @@ export class SmartVaults {
       this.getSharedSigners,
       this.getOwnedSigners,
       this.getProposalsByPolicyId,
-      this.getLabelsByPolicyId,
-      this.saveLabel,
-      this.getStore(SmartVaultsKind.Labels),
+      this.getTransactionMetadataByPolicyId,
+      this.saveTransactionMetadata,
+      this.getStore(SmartVaultsKind.TransactionMetadata),
     )
 
     const authenticatorName = this.authenticator.getName()
@@ -1665,8 +1665,8 @@ export class SmartVaults {
       sharedKeyAuthenticator)
 
     await this.nostrClient.publish(completedProposalEvent).onFirstOkOrCompleteFailure()
-    const label: SmartVaultsTypes.TransactionMetadata = { data: { 'txid': txId }, text: proposal.description }
-    await this.saveLabel(policyId, label)
+    const transactionMetadata: SmartVaultsTypes.TransactionMetadata = { data: { 'txid': txId }, text: proposal.description }
+    await this.saveTransactionMetadata(policyId, transactionMetadata)
     const proposalsIdsToDelete: string[] = (await this.getProposalsWithCommonUtxos(proposal)).map(({ proposal_id }) => proposal_id);
     await this.deleteProposals(proposalsIdsToDelete)
 
@@ -2036,8 +2036,8 @@ export class SmartVaults {
     return Array.from(new Uint8Array(digest)).map(x => x.toString(16).padStart(2, '0')).join('');
   }
 
-  private async generateIdentifier(labelData: string, sharedKey: string): Promise<string> {
-    const unhashedIdentifier = `${sharedKey}:${labelData}`
+  private async generateIdentifier(sourceId: string, sharedKey: string): Promise<string> {
+    const unhashedIdentifier = `${sharedKey}:${sourceId}`
     const hashedIdentifier = await this.sha256(unhashedIdentifier)
     return hashedIdentifier.substring(0, 32)
   }
@@ -2051,52 +2051,52 @@ export class SmartVaults {
 
 
   /**
-   * Asynchronously saves a label associated with a given policy ID.
+   * Asynchronously saves a transactionMetadata associated with a given policy ID.
    *
-   * The method creates and publishes a Labels event.
+   * The method creates and publishes a TransactionMetadata event.
    *
    * @async
-   * @param {string} policyId - The ID of the policy to which the label is to be associated.
-   * @param {SmartVaultsTypes.TransactionMetadata} label - The label object containing the data to be saved.
-   * @returns {Promise<SmartVaultsTypes.PublishedTransactionMetadata>} - A promise that resolves to the published label.
+   * @param {string} policyId - The ID of the policy to which the transactionMetadata is to be associated.
+   * @param {SmartVaultsTypes.TransactionMetadata} transactionMetadata - The transactionMetadata object containing the data to be saved.
+   * @returns {Promise<SmartVaultsTypes.PublishedTransactionMetadata>} - A promise that resolves to the published transactionMetadata.
    * 
    * @throws {Error} - Throws an error if the policy event retrieval fails, or if shared keys are not found.
    * 
    * @example
-   * const publishedLabel = await saveLabel('some-policy-id', { data: { 'Address': 'some-address' }, text: 'some-label-text' });
+   * const publishedTransactionMetadata = await saveTransactionMetadata('some-policy-id', { data: { 'Address': 'some-address' }, text: 'some-transactionMetadata-text' });
    */
-  saveLabel = async (policyId: string, label: SmartVaultsTypes.TransactionMetadata | Array<SmartVaultsTypes.TransactionMetadata>): Promise<Array<SmartVaultsTypes.PublishedTransactionMetadata>> => {
+  saveTransactionMetadata = async (policyId: string, transactionMetadata: SmartVaultsTypes.TransactionMetadata | Array<SmartVaultsTypes.TransactionMetadata>): Promise<Array<SmartVaultsTypes.PublishedTransactionMetadata>> => {
     const policyEvent = await this.getPolicyEvent(policyId)
     const policyMembers = policyEvent.tags
-    const labels = Array.isArray(label) ? label : [label]
-    const publishedLabels: SmartVaultsTypes.PublishedTransactionMetadata[] = []
+    const transactionMetadataArray = Array.isArray(transactionMetadata) ? transactionMetadata : [transactionMetadata]
+    const publishedtransactionMetadataArray: SmartVaultsTypes.PublishedTransactionMetadata[] = []
 
-    const promises: Promise<void>[] = labels.map(async label => {
+    const promises: Promise<void>[] = transactionMetadataArray.map(async transactionMetadata => {
       const publishedSharedKeyAuthenticator: SmartVaultsTypes.SharedKeyAuthenticator | undefined = (await this.getSharedKeysById([policyId])).get(policyId)
       if (!publishedSharedKeyAuthenticator) throw new Error(`Shared key for policy with id ${policyId} not found`)
       const sharedKeyAuthenticator = publishedSharedKeyAuthenticator.sharedKeyAuthenticator
       const privateKey = publishedSharedKeyAuthenticator.privateKey
-      const labelId = await this.generateIdentifier(Object.values(label.data)[0], privateKey)
-      const content = await sharedKeyAuthenticator.encryptObj(label)
+      const transactionMetadataId = await this.generateIdentifier(Object.values(transactionMetadata.data)[0], privateKey)
+      const content = await sharedKeyAuthenticator.encryptObj(transactionMetadata)
 
-      const labelEvent = await buildEvent({
-        kind: SmartVaultsKind.Labels,
+      const transactionMetadataEvent = await buildEvent({
+        kind: SmartVaultsKind.TransactionMetadata,
         content,
-        tags: [...policyMembers, [TagType.Identifier, labelId], [TagType.Event, policyId]],
+        tags: [...policyMembers, [TagType.Identifier, transactionMetadataId], [TagType.Event, policyId]],
       },
         sharedKeyAuthenticator)
 
-      const pub = this.nostrClient.publish(labelEvent)
+      const pub = this.nostrClient.publish(transactionMetadataEvent)
 
-      const publishedLabel: SmartVaultsTypes.PublishedTransactionMetadata = {
-        label,
-        label_id: labelId,
+      const publishedtransactionMetadata: SmartVaultsTypes.PublishedTransactionMetadata = {
+        transactionMetadata,
+        transactionMetadataId,
         policy_id: policyId,
-        createdAt: fromNostrDate(labelEvent.created_at),
-        id: labelEvent.id,
-        labelData: Object.values(label.data)[0]
+        createdAt: fromNostrDate(transactionMetadataEvent.created_at),
+        id: transactionMetadataEvent.id,
+        txId: Object.values(transactionMetadata.data)[0]
       }
-      publishedLabels.push(publishedLabel)
+      publishedtransactionMetadataArray.push(publishedtransactionMetadata)
 
       return pub.onFirstOkOrCompleteFailure()
 
@@ -2104,97 +2104,97 @@ export class SmartVaults {
 
     await Promise.all(promises)
 
-    return publishedLabels
+    return publishedtransactionMetadataArray
 
   }
 
-  private async _getLabels(filter: Filter<SmartVaultsKind.Labels>[]): Promise<SmartVaultsTypes.PublishedTransactionMetadata[]> {
-    const labelEvents = await this.nostrClient.list(filter)
-    const labelHandler = this.eventKindHandlerFactor.getHandler(SmartVaultsKind.Labels)
-    return labelHandler.handle(labelEvents)
+  private async _getTransactionMetadata(filter: Filter<SmartVaultsKind.TransactionMetadata>[]): Promise<SmartVaultsTypes.PublishedTransactionMetadata[]> {
+    const transactionMetadataEvents = await this.nostrClient.list(filter)
+    const transactionMetadataHandler = this.eventKindHandlerFactor.getHandler(SmartVaultsKind.TransactionMetadata)
+    return transactionMetadataHandler.handle(transactionMetadataEvents)
   }
 
   /**
-   * Asynchronously retrieves labels based on the given pagination options.
+   * Asynchronously retrieves transactionMetadata based on the given pagination options.
    *
    * @async
-   * @param {PaginationOpts} [paginationOpts={}] - Optional pagination options for fetching labels.
-   * @returns {Promise<SmartVaultsTypes.PublishedTransactionMetadata[]>} - A promise that resolves to an array of published labels.
+   * @param {PaginationOpts} [paginationOpts={}] - Optional pagination options for fetching transactionMetadata.
+   * @returns {Promise<SmartVaultsTypes.PublishedTransactionMetadata[]>} - A promise that resolves to an array of published transactionMetadata.
    *
    * @example
-   * const labels = await getLabels();
+   * const transactionMetadata = await getTransactionMetadata();
    */
-  async getLabels(paginationOpts: PaginationOpts = {}): Promise<SmartVaultsTypes.PublishedTransactionMetadata[]> {
-    const labelsFilter = this.getFilter(SmartVaultsKind.Labels, { paginationOpts })
-    const labels = await this._getLabels(labelsFilter)
-    return labels
+  async getTransactionMetadata(paginationOpts: PaginationOpts = {}): Promise<SmartVaultsTypes.PublishedTransactionMetadata[]> {
+    const transactionMetadataFilter = this.getFilter(SmartVaultsKind.TransactionMetadata, { paginationOpts })
+    const transactionMetadata = await this._getTransactionMetadata(transactionMetadataFilter)
+    return transactionMetadata
   }
 
   /**
-   * Asynchronously retrieves labels associated with one or more policy IDs.
+   * Asynchronously retrieves transactionMetadata associated with one or more policy IDs.
    *
    * This method first converts the input into an array of policy IDs (if not already), 
-   * builds the appropriate filter with pagination options, and then fetches the labels.
+   * builds the appropriate filter with pagination options, and then fetches the transactionMetadata.
    *
    * @async
-   * @param {string[] | string} policy_ids - The policy IDs to filter labels by.
+   * @param {string[] | string} policy_ids - The policy IDs to filter transactionMetadata by.
    * @param {PaginationOpts} [paginationOpts={}] - Optional pagination options.
    * @returns {Promise<Map<string, SmartVaultsTypes.PublishedTransactionMetadata | Array<SmartVaultsTypes.PublishedTransactionMetadata>>>} - 
-   * A promise that resolves to a map where the keys are policy IDs and the values are the associated labels.
+   * A promise that resolves to a map where the keys are policy IDs and the values are the associated transactionMetadata.
    *
    * @example
-   * const labelsMap = await getLabelsByPolicyId(['policy1', 'policy2']);
+   * const transactionMetadataMap = await getTransactionMetadataByPolicyId(['policy1', 'policy2']);
    */
-  getLabelsByPolicyId = async (policy_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, SmartVaultsTypes.PublishedTransactionMetadata | Array<SmartVaultsTypes.PublishedTransactionMetadata>>> => {
+  getTransactionMetadataByPolicyId = async (policy_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, SmartVaultsTypes.PublishedTransactionMetadata | Array<SmartVaultsTypes.PublishedTransactionMetadata>>> => {
     const policyIds = Array.isArray(policy_ids) ? policy_ids : [policy_ids]
-    const store = this.getStore(SmartVaultsKind.Labels);
-    const labelsFilter = this.getFilter(SmartVaultsKind.Labels, { events: policyIds, paginationOpts })
-    await this._getLabels(labelsFilter);
+    const store = this.getStore(SmartVaultsKind.TransactionMetadata);
+    const transactionMetadataFilter = this.getFilter(SmartVaultsKind.TransactionMetadata, { events: policyIds, paginationOpts })
+    await this._getTransactionMetadata(transactionMetadataFilter);
     return store.getMany(policyIds, "policy_id");
   }
 
   /**
-   * Asynchronously retrieves one or more labels by their IDs.
+   * Asynchronously retrieves one or more transactionMetadata by their IDs.
    *
    * @async
-   * @param {string[] | string} label_ids - The label IDs to fetch.
+   * @param {string[] | string} transactionMetadataIds - The transactionMetadata IDs to fetch.
    * @param {PaginationOpts} [paginationOpts={}] - Optional pagination options.
    * @returns {Promise<Map<string, SmartVaultsTypes.PublishedTransactionMetadata>>} - 
-   * A promise that resolves to a map where the keys are label IDs and the values are the corresponding labels.
+   * A promise that resolves to a map where the keys are transactionMetadata IDs and the values are the corresponding transactionMetadata.
    *
    * @example
-   * const labelsMap = await getLabelById(['label1', 'label2']);
+   * const transactionMetadataMap = await getTransactionMetadataById(['transactionMetadata1', 'transactionMetadata2']);
    */
-  async getLabelById(label_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, SmartVaultsTypes.PublishedTransactionMetadata>> {
-    const labelIds = Array.isArray(label_ids) ? label_ids : [label_ids]
-    const store = this.getStore(SmartVaultsKind.Labels);
-    const labelsFilter = this.getFilter(SmartVaultsKind.Labels, { identifiers: labelIds, paginationOpts })
-    await this._getLabels(labelsFilter);
-    return store.getMany(labelIds, "label_id");
+  async getTransactionMetadataById(transactionMetadataIds: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, SmartVaultsTypes.PublishedTransactionMetadata>> {
+    transactionMetadataIds = Array.isArray(transactionMetadataIds) ? transactionMetadataIds : [transactionMetadataIds]
+    const store = this.getStore(SmartVaultsKind.TransactionMetadata);
+    const transactionMetadataFilter = this.getFilter(SmartVaultsKind.TransactionMetadata, { identifiers: transactionMetadataIds, paginationOpts })
+    await this._getTransactionMetadata(transactionMetadataFilter);
+    return store.getMany(transactionMetadataIds, "transactionMetadataId");
   }
 
   /**
-   * Asynchronously retrieves a label given its label data.
+   * Asynchronously retrieves a transactionMetadata given its transactionMetadata data.
    *
    * @async
-   * @param {string} policyId - The policy ID associaded with the label.
-   * @param {string} labelData - The label data (could be an address a trxid, etc).
-   * @returns {Promise<SmartVaultsTypes.PublishedTransactionMetadata>} - 
+   * @param {string} policyId - The policy ID associaded with the transactionMetadata.
+   * @param {string} sourceId - The source ID (could be an address a txid, etc).
+   * @returns {Promise<SmartVaultsTypes.PublishedTransactionMetadata>} - ººº
    * A promise that resolves to a PublishedTransactionMetadata.
    *
    * @example
-   * const labels = await getLabelByLabelData("policyId","trxid");
+   * const transactionMetadata = await getTransactionMetadataBySourceId("policyId","trxid");
    */
-  async getLabelByLabelData(policyId: string, labelData: string): Promise<SmartVaultsTypes.PublishedTransactionMetadata> {
+  async getTransactionMetadataBySourceId(policyId: string, sourceId: string): Promise<SmartVaultsTypes.PublishedTransactionMetadata> {
     const publishedSharedKeyAuthenticator: SmartVaultsTypes.SharedKeyAuthenticator | undefined = (await this.getSharedKeysById([policyId])).get(policyId)
     if (!publishedSharedKeyAuthenticator) throw new Error(`Shared key for policy with id ${policyId} not found`)
     const privateKey = publishedSharedKeyAuthenticator.privateKey
-    const labelId = await this.generateIdentifier(labelData, privateKey)
-    const label = (await this.getLabelById(labelId)).get(labelId)
-    if (!label) {
-      throw new Error(`TransactionMetadata with label data ${labelData} not found`)
+    const transactionMetadataId = await this.generateIdentifier(sourceId, privateKey)
+    const transactionMetadata = (await this.getTransactionMetadataById(transactionMetadataId)).get(transactionMetadataId)
+    if (!transactionMetadata) {
+      throw new Error(`Metadata with source ID ${sourceId} not found`)
     }
-    return label
+    return transactionMetadata
   }
 
   /**
