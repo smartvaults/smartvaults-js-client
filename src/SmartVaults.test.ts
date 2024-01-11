@@ -1179,17 +1179,17 @@ describe('SmartVaults', () => {
     );
 
     it('getLabels work', async () => {
-      const label = await smartVaults.saveLabel(spendProposal1.policy_id, { data: { 'address': 'address1' }, text: 'text' })
-      const TrxLabel = await smartVaults.saveLabel(spendProposal1.policy_id, { data: { 'Spend': expectedTrx.txid }, text: spendProposal1.description })
+      const label = (await smartVaults.saveLabel(spendProposal1.policy_id, { data: { 'address': 'address1' }, text: 'text' }))[0]
+      const TrxLabel = (await smartVaults.saveLabel(spendProposal1.policy_id, { data: { 'Spend': expectedTrx.txid }, text: spendProposal1.description }))[0]
       const fetchedLabels = await smartVaults.getLabels()
       expect(fetchedLabels.length).toBe(2)
       expect(new Set(fetchedLabels)).toEqual(new Set([TrxLabel, label]))
-      const label2 = await smartVaults.saveLabel(spendProposal1.policy_id, { data: { 'address': 'address2' }, text: 'text2' })
+      const label2 = (await smartVaults.saveLabel(spendProposal1.policy_id, { data: { 'address': 'address2' }, text: 'text2' }))[0]
       const labelsByPolicyId = await smartVaults.getLabelsByPolicyId([spendProposal1.policy_id])
       expect(labelsByPolicyId.size).toBe(1)
       expect(labelsByPolicyId.get(spendProposal1.policy_id)).toEqual([TrxLabel, label, label2])
       await sleep(300)
-      const label3 = await smartVaults.saveLabel(spendProposal1.policy_id, { data: { 'address': 'address1' }, text: 'text3' })
+      const label3 = (await smartVaults.saveLabel(spendProposal1.policy_id, { data: { 'address': 'address1' }, text: 'text3' }))[0]
       const fetchedLabels2 = await smartVaults.getLabels()
       expect(fetchedLabels2.length).toBe(3)
       expect(new Set(fetchedLabels2)).toEqual(new Set([TrxLabel, label3, label2]))

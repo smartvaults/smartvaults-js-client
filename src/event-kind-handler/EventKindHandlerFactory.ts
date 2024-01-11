@@ -54,6 +54,7 @@ export class EventKindHandlerFactory {
       const getOwnedSignerOfferingsBySignerDescriptor = this.smartVaults.getOwnedSignerOfferingsBySignerDescriptor
       const deleteSignerOfferings = this.smartVaults.deleteSignerOfferings
       const getPolicyMembers = this.smartVaults.getPolicyMembers
+      const saveLabel = this.smartVaults.saveLabel
       const eventsStore = stores.get(StoreKind.Events)!
       const completedProposalsStore = stores.get(SmartVaultsKind.CompletedProposal)!
       const proposalsStore = stores.get(SmartVaultsKind.Proposal)!
@@ -64,7 +65,7 @@ export class EventKindHandlerFactory {
       switch (eventKind) {
         case SmartVaultsKind.Policy:
           this.handlers.set(eventKind, new PolicyHandler(stores.get(eventKind)!, eventsStore, completedProposalsStore, proposalsStore, approvalsStore, sharedKeysStore, labelStore, nostrClient, bitcoinUtil, authenticator,
-            getSharedKeysById, getCompletedProposalsByPolicyId, getProposalsByPolicyId, getApprovalsByPolicyId, getSharedSigners, getOwnedSigners, getLabelsByPolicyId))
+            getSharedKeysById, getCompletedProposalsByPolicyId, getProposalsByPolicyId, getApprovalsByPolicyId, getSharedSigners, getOwnedSigners, getLabelsByPolicyId, saveLabel))
           break
         case SmartVaultsKind.Proposal:
           this.handlers.set(eventKind, new ProposalHandler(stores.get(eventKind)!, eventsStore, approvalsStore, nostrClient, bitcoinUtil, authenticator, getSharedKeysById, checkPsbts, getOwnedSigners, getApprovalsByProposalId))

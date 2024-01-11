@@ -1,3 +1,5 @@
+import { TransactionMetadata } from "../types";
+
 export type BasePolicy = {
   name: string;
   description: string;
@@ -51,8 +53,8 @@ export type BasicTrxDetails = UndecoratedBasicTrxDetails & {
   btcExchangeRateAtConfirmation?: number
 }
 
-export type LabeledTrxDetails = BasicTrxDetails & {
-  labelText?: string
+export type AugmentedTransactionDetails = BasicTrxDetails & {
+  label?: TransactionMetadata
   labelId?: string
   date?: Date
   costBasis?: number

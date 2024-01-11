@@ -8,7 +8,7 @@ import { getTagValues, buildEvent, type PaginationOpts } from '../util'
 import { type NostrClient, type Store } from '../service'
 import { EventKindHandler } from './EventKindHandler'
 import { type BitcoinUtil, PublishedPolicy } from '../models'
-import { type ActivePublishedProposal, type PublishedApprovedProposal, type SharedKeyAuthenticator, type PublishedSharedSigner, type PublishedOwnedSigner, type PublishedLabel, type CompletedPublishedProposal } from '../types'
+import { type ActivePublishedProposal, type PublishedApprovedProposal, type SharedKeyAuthenticator, type PublishedSharedSigner, type PublishedOwnedSigner, type PublishedTransactionMetadata, type CompletedPublishedProposal, TransactionMetadata } from '../types'
 import { type Authenticator } from '@smontero/nostr-ual'
 export class PolicyHandler extends EventKindHandler {
   private readonly store: Store
@@ -31,7 +31,8 @@ export class PolicyHandler extends EventKindHandler {
     | Array<PublishedApprovedProposal>>>
   private readonly getSharedSigners: (publicKeys?: string | string[]) => Promise<PublishedSharedSigner[]>
   private readonly getOwnedSigners: () => Promise<PublishedOwnedSigner[]>
-  private readonly getLabelsByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, PublishedLabel | Array<PublishedLabel>>>
+  private readonly getLabelsByPolicyId: (policy_ids: string[] | string, paginationOpts: PaginationOpts) => Promise<Map<string, PublishedTransactionMetadata | Array<PublishedTransactionMetadata>>>
+  private readonly saveLabel: (policyId: string, label: TransactionMetadata | Array<TransactionMetadata>) => Promise<Array<PublishedTransactionMetadata>>
   constructor(store: Store, eventsStore: Store, completedProposalsStore: Store, proposalsStore: Store, approvalsStore: Store, sharedKeysStore: Store, labelStore: Store, nostrClient: NostrClient, bitcoinUtil: BitcoinUtil, authenticator: Authenticator,
     getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>,
     getCompletedProposalsByPolicyId: (policyId: string) => Promise<Map<string, CompletedPublishedProposal
@@ -42,7 +43,8 @@ export class PolicyHandler extends EventKindHandler {
       | Array<PublishedApprovedProposal>>>,
     getSharedSigners: (publicKeys?: string | string[]) => Promise<Array<PublishedSharedSigner>>,
     getOwnedSigners: () => Promise<PublishedOwnedSigner[]>,
-    getLabelsByPolicyId: (policy_ids: string[] | string, paginationOpts?: PaginationOpts) => Promise<Map<string, PublishedLabel | Array<PublishedLabel>>>,
+    getLabelsByPolicyId: (policy_ids: string[] | string, paginationOpts?: PaginationOpts) => Promise<Map<string, PublishedTransactionMetadata | Array<PublishedTransactionMetadata>>>,
+    saveLabel: (policyId: string, label: TransactionMetadata | Array<TransactionMetadata>) => Promise<Array<PublishedTransactionMetadata>>
   ) {
     super()
     this.store = store
@@ -62,6 +64,7 @@ export class PolicyHandler extends EventKindHandler {
     this.getSharedSigners = getSharedSigners
     this.getOwnedSigners = getOwnedSigners
     this.getLabelsByPolicyId = getLabelsByPolicyId
+    this.saveLabel = saveLabel
   }
 
   protected async _handle<K extends number>(policyEvents: Array<Event<K>>): Promise<Array<PublishedPolicy>> {
@@ -98,6 +101,7 @@ export class PolicyHandler extends EventKindHandler {
           this.getOwnedSigners,
           this.getProposalsByPolicyId,
           this.getLabelsByPolicyId,
+          this.saveLabel,
           this.LabelStore
         )
       } catch (e) {

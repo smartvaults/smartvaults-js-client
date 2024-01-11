@@ -3,7 +3,7 @@ import { Event } from 'nostr-tools'
 import { mock, MockProxy } from 'jest-mock-extended'
 import { BitcoinUtil, Wallet } from './interfaces'
 import { PublishedPolicy } from './PublishedPolicy'
-import { LabeledTrxDetails, Policy, TrxInput } from './types'
+import { AugmentedTransactionDetails, Policy, TrxInput } from './types'
 import { AccountingMethod, SmartVaultsKind } from '../enum'
 import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { Keys } from '../service'
@@ -68,6 +68,7 @@ describe('PublishedPolicy', () => {
       smartVaults.getOwnedSigners,
       smartVaults.getProposalsByPolicyId,
       smartVaults.getLabelsByPolicyId,
+      smartVaults.saveLabel,
       smartVaults.getStore(SmartVaultsKind.Labels),
     )
     policy2 = PublishedPolicy.fromPolicyAndEvent({
@@ -81,6 +82,7 @@ describe('PublishedPolicy', () => {
       smartVaults.getOwnedSigners,
       smartVaults.getProposalsByPolicyId,
       smartVaults.getLabelsByPolicyId,
+      smartVaults.saveLabel,
       smartVaults.getStore(SmartVaultsKind.Labels),
     )
     policy.getVaultData()
@@ -529,7 +531,7 @@ describe('PublishedPolicy', () => {
 
       getLabeledTransactionsSpyon.mockResolvedValueOnce(([trx1, trx2, trx3]))
 
-      const expected: LabeledTrxDetails[] = [
+      const expected: AugmentedTransactionDetails[] = [
         { ...trx1, type: "RECEIVE", costBasis: 22, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 20, feeFiatAtConfirmation: 2, btcExchangeRateAtConfirmation: 40000 },
         { ...trx2, type: "RECEIVE", costBasis: 61.2, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 60, feeFiatAtConfirmation: 1.2, btcExchangeRateAtConfirmation: 60000 },
         { ...trx3, type: "SEND", costBasis: 0, associatedCostBasis: "50000@22  100000@61.2", proceeds: 72, capitalGainsLoses: -11.2, netFiatAtConfirmation: -75, feeFiatAtConfirmation: 3, btcExchangeRateAtConfirmation: 50000 }
@@ -563,7 +565,7 @@ describe('PublishedPolicy', () => {
 
       getLabeledTransactionsSpyon.mockResolvedValueOnce(([trx1, trx2, trx3]))
 
-      const expected: LabeledTrxDetails[] = [
+      const expected: AugmentedTransactionDetails[] = [
         { ...trx1, type: "RECEIVE", costBasis: 22, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 20, feeFiatAtConfirmation: 2, btcExchangeRateAtConfirmation: 40000 },
         { ...trx2, type: "RECEIVE", costBasis: 61.2, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 60, feeFiatAtConfirmation: 1.2, btcExchangeRateAtConfirmation: 60000 },
         { ...trx3, type: "SEND", costBasis: 0, associatedCostBasis: "50000@22  100000@61.2", proceeds: 72, capitalGainsLoses: -11.2, netFiatAtConfirmation: -75, feeFiatAtConfirmation: 3, btcExchangeRateAtConfirmation: 50000 }
@@ -587,7 +589,7 @@ describe('PublishedPolicy', () => {
 
       getLabeledTransactionsSpyon.mockResolvedValueOnce(([trx1, trx2, trx3]))
 
-      const expected: LabeledTrxDetails[] = [
+      const expected: AugmentedTransactionDetails[] = [
         { ...trx1, type: "RECEIVE", costBasis: 22, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 20, feeFiatAtConfirmation: 2, btcExchangeRateAtConfirmation: 40000 },
         { ...trx2, type: "RECEIVE", costBasis: 61.2, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 60, feeFiatAtConfirmation: 1.2, btcExchangeRateAtConfirmation: 60000 },
         { ...trx3, type: "SEND", costBasis: 0, associatedCostBasis: "100000@61.2  50000@22", proceeds: 72, capitalGainsLoses: -11.2, netFiatAtConfirmation: -75, feeFiatAtConfirmation: 3, btcExchangeRateAtConfirmation: 50000 }
@@ -610,7 +612,7 @@ describe('PublishedPolicy', () => {
 
       getLabeledTransactionsSpyon.mockResolvedValueOnce(([trx1, trx2, trx3]))
 
-      const expected: LabeledTrxDetails[] = [
+      const expected: AugmentedTransactionDetails[] = [
         { ...trx1, type: "RECEIVE", costBasis: 22, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 20, feeFiatAtConfirmation: 2, btcExchangeRateAtConfirmation: 40000 },
         { ...trx2, type: "RECEIVE", costBasis: 61.2, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 60, feeFiatAtConfirmation: 1.2, btcExchangeRateAtConfirmation: 60000 },
         { ...trx3, type: "SEND", costBasis: 0, associatedCostBasis: "100000@61.2  50000@22", proceeds: 72, capitalGainsLoses: -11.2, netFiatAtConfirmation: -75, feeFiatAtConfirmation: 3, btcExchangeRateAtConfirmation: 50000 }
@@ -633,7 +635,7 @@ describe('PublishedPolicy', () => {
 
       getLabeledTransactionsSpyon.mockResolvedValueOnce(([trx1, trx2, trx3]))
 
-      const expected: LabeledTrxDetails[] = [
+      const expected: AugmentedTransactionDetails[] = [
         { ...trx1, type: "RECEIVE", costBasis: 50, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 20, feeFiatAtConfirmation: 2, btcExchangeRateAtConfirmation: 40000 },
         { ...trx2, type: "RECEIVE", costBasis: 100, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 60, feeFiatAtConfirmation: 1.2, btcExchangeRateAtConfirmation: 60000 },
         { ...trx3, type: "SEND", costBasis: 0, associatedCostBasis: "100000@100  50000@50", proceeds: 150, capitalGainsLoses: 0, netFiatAtConfirmation: -75, feeFiatAtConfirmation: 3, btcExchangeRateAtConfirmation: 50000 }

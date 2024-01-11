@@ -7,7 +7,7 @@ import { getTagValues, fromNostrDate } from '../util'
 import { type Store } from '../service'
 import { EventKindHandler } from './EventKindHandler'
 import {
-    type Label, type SharedKeyAuthenticator, PublishedLabel
+    type TransactionMetadata, type SharedKeyAuthenticator, PublishedTransactionMetadata
 } from '../types'
 
 export class LabelsHandler extends EventKindHandler {
@@ -23,7 +23,7 @@ export class LabelsHandler extends EventKindHandler {
         this.getSharedKeysById = getSharedKeysById
     }
 
-    protected async _handle<K extends number>(labelEvents: Array<Event<K>>): Promise<Array<PublishedLabel>> {
+    protected async _handle<K extends number>(labelEvents: Array<Event<K>>): Promise<Array<PublishedTransactionMetadata>> {
         let labelIds = labelEvents.map(e => e.id)
         if (!labelIds?.length) return []
         const indexKey = "id"
@@ -47,9 +47,9 @@ export class LabelsHandler extends EventKindHandler {
             const policyId = getTagValues(labelEvent, TagType.Event)[0]
             const sharedKeyAuthenticator = policyIdSharedKeyAuthenticatorMap.get(policyId)?.sharedKeyAuthenticator
             if (!sharedKeyAuthenticator) return null
-            const label: Label = await sharedKeyAuthenticator.decryptObj(labelEvent.content)
+            const label: TransactionMetadata = await sharedKeyAuthenticator.decryptObj(labelEvent.content)
             const labelData = Object.values(label.data)[0]
-            const publishedLabel: PublishedLabel = {
+            const publishedLabel: PublishedTransactionMetadata = {
                 id: labelEventId,
                 label_id: labelId,
                 policy_id: policyId,
@@ -68,7 +68,7 @@ export class LabelsHandler extends EventKindHandler {
                 acc.push(result.value);
             }
             return acc;
-        }, [] as { label: PublishedLabel, rawEvent: Event<K> }[]);
+        }, [] as { label: PublishedTransactionMetadata, rawEvent: Event<K> }[]);
 
         const labels = validResults.map(res => res!.label)
         const rawLabelEvents = validResults.map(res => res!.rawEvent)

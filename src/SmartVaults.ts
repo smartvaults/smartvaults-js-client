@@ -356,6 +356,7 @@ export class SmartVaults {
       this.getOwnedSigners,
       this.getProposalsByPolicyId,
       this.getLabelsByPolicyId,
+      this.saveLabel,
       this.getStore(SmartVaultsKind.Labels),
     )
 
@@ -1664,7 +1665,7 @@ export class SmartVaults {
       sharedKeyAuthenticator)
 
     await this.nostrClient.publish(completedProposalEvent).onFirstOkOrCompleteFailure()
-    const label: SmartVaultsTypes.Label = { data: { 'txid': txId }, text: proposal.description }
+    const label: SmartVaultsTypes.TransactionMetadata = { data: { 'txid': txId }, text: proposal.description }
     await this.saveLabel(policyId, label)
     const proposalsIdsToDelete: string[] = (await this.getProposalsWithCommonUtxos(proposal)).map(({ proposal_id }) => proposal_id);
     await this.deleteProposals(proposalsIdsToDelete)
@@ -2056,48 +2057,59 @@ export class SmartVaults {
    *
    * @async
    * @param {string} policyId - The ID of the policy to which the label is to be associated.
-   * @param {SmartVaultsTypes.Label} label - The label object containing the data to be saved.
-   * @returns {Promise<SmartVaultsTypes.PublishedLabel>} - A promise that resolves to the published label.
+   * @param {SmartVaultsTypes.TransactionMetadata} label - The label object containing the data to be saved.
+   * @returns {Promise<SmartVaultsTypes.PublishedTransactionMetadata>} - A promise that resolves to the published label.
    * 
    * @throws {Error} - Throws an error if the policy event retrieval fails, or if shared keys are not found.
    * 
    * @example
    * const publishedLabel = await saveLabel('some-policy-id', { data: { 'Address': 'some-address' }, text: 'some-label-text' });
    */
-  async saveLabel(policyId: string, label: SmartVaultsTypes.Label): Promise<SmartVaultsTypes.PublishedLabel> {
+  saveLabel = async (policyId: string, label: SmartVaultsTypes.TransactionMetadata | Array<SmartVaultsTypes.TransactionMetadata>): Promise<Array<SmartVaultsTypes.PublishedTransactionMetadata>> => {
     const policyEvent = await this.getPolicyEvent(policyId)
     const policyMembers = policyEvent.tags
+    const labels = Array.isArray(label) ? label : [label]
+    const publishedLabels: SmartVaultsTypes.PublishedTransactionMetadata[] = []
 
-    const publishedSharedKeyAuthenticator: SmartVaultsTypes.SharedKeyAuthenticator | undefined = (await this.getSharedKeysById([policyId])).get(policyId)
-    if (!publishedSharedKeyAuthenticator) throw new Error(`Shared key for policy with id ${policyId} not found`)
-    const sharedKeyAuthenticator = publishedSharedKeyAuthenticator.sharedKeyAuthenticator
-    const privateKey = publishedSharedKeyAuthenticator.privateKey
-    const labelId = await this.generateIdentifier(Object.values(label.data)[0], privateKey)
-    const content = await sharedKeyAuthenticator.encryptObj(label)
+    const promises: Promise<void>[] = labels.map(async label => {
+      const publishedSharedKeyAuthenticator: SmartVaultsTypes.SharedKeyAuthenticator | undefined = (await this.getSharedKeysById([policyId])).get(policyId)
+      if (!publishedSharedKeyAuthenticator) throw new Error(`Shared key for policy with id ${policyId} not found`)
+      const sharedKeyAuthenticator = publishedSharedKeyAuthenticator.sharedKeyAuthenticator
+      const privateKey = publishedSharedKeyAuthenticator.privateKey
+      const labelId = await this.generateIdentifier(Object.values(label.data)[0], privateKey)
+      const content = await sharedKeyAuthenticator.encryptObj(label)
 
-    const labelEvent = await buildEvent({
-      kind: SmartVaultsKind.Labels,
-      content,
-      tags: [...policyMembers, [TagType.Identifier, labelId], [TagType.Event, policyId]],
-    },
-      sharedKeyAuthenticator)
+      const labelEvent = await buildEvent({
+        kind: SmartVaultsKind.Labels,
+        content,
+        tags: [...policyMembers, [TagType.Identifier, labelId], [TagType.Event, policyId]],
+      },
+        sharedKeyAuthenticator)
 
-    const pub = this.nostrClient.publish(labelEvent)
-    await pub.onFirstOkOrCompleteFailure()
+      const pub = this.nostrClient.publish(labelEvent)
 
-    const publishedLabel: SmartVaultsTypes.PublishedLabel = {
-      label,
-      label_id: labelId,
-      policy_id: policyId,
-      createdAt: fromNostrDate(labelEvent.created_at),
-      id: labelEvent.id,
-      labelData: Object.values(label.data)[0]
-    }
+      const publishedLabel: SmartVaultsTypes.PublishedTransactionMetadata = {
+        label,
+        label_id: labelId,
+        policy_id: policyId,
+        createdAt: fromNostrDate(labelEvent.created_at),
+        id: labelEvent.id,
+        labelData: Object.values(label.data)[0]
+      }
+      publishedLabels.push(publishedLabel)
 
-    return publishedLabel
+      console.log(`Saving label ${label} for policy ${policyId}`)
+      return pub.onFirstOkOrCompleteFailure()
+
+    })
+
+    await Promise.all(promises)
+
+    return publishedLabels
+
   }
 
-  private async _getLabels(filter: Filter<SmartVaultsKind.Labels>[]): Promise<SmartVaultsTypes.PublishedLabel[]> {
+  private async _getLabels(filter: Filter<SmartVaultsKind.Labels>[]): Promise<SmartVaultsTypes.PublishedTransactionMetadata[]> {
     const labelEvents = await this.nostrClient.list(filter)
     const labelHandler = this.eventKindHandlerFactor.getHandler(SmartVaultsKind.Labels)
     return labelHandler.handle(labelEvents)
@@ -2108,12 +2120,12 @@ export class SmartVaults {
    *
    * @async
    * @param {PaginationOpts} [paginationOpts={}] - Optional pagination options for fetching labels.
-   * @returns {Promise<SmartVaultsTypes.PublishedLabel[]>} - A promise that resolves to an array of published labels.
+   * @returns {Promise<SmartVaultsTypes.PublishedTransactionMetadata[]>} - A promise that resolves to an array of published labels.
    *
    * @example
    * const labels = await getLabels();
    */
-  async getLabels(paginationOpts: PaginationOpts = {}): Promise<SmartVaultsTypes.PublishedLabel[]> {
+  async getLabels(paginationOpts: PaginationOpts = {}): Promise<SmartVaultsTypes.PublishedTransactionMetadata[]> {
     const labelsFilter = this.getFilter(SmartVaultsKind.Labels, { paginationOpts })
     const labels = await this._getLabels(labelsFilter)
     return labels
@@ -2128,13 +2140,13 @@ export class SmartVaults {
    * @async
    * @param {string[] | string} policy_ids - The policy IDs to filter labels by.
    * @param {PaginationOpts} [paginationOpts={}] - Optional pagination options.
-   * @returns {Promise<Map<string, SmartVaultsTypes.PublishedLabel | Array<SmartVaultsTypes.PublishedLabel>>>} - 
+   * @returns {Promise<Map<string, SmartVaultsTypes.PublishedTransactionMetadata | Array<SmartVaultsTypes.PublishedTransactionMetadata>>>} - 
    * A promise that resolves to a map where the keys are policy IDs and the values are the associated labels.
    *
    * @example
    * const labelsMap = await getLabelsByPolicyId(['policy1', 'policy2']);
    */
-  getLabelsByPolicyId = async (policy_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, SmartVaultsTypes.PublishedLabel | Array<SmartVaultsTypes.PublishedLabel>>> => {
+  getLabelsByPolicyId = async (policy_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, SmartVaultsTypes.PublishedTransactionMetadata | Array<SmartVaultsTypes.PublishedTransactionMetadata>>> => {
     const policyIds = Array.isArray(policy_ids) ? policy_ids : [policy_ids]
     const store = this.getStore(SmartVaultsKind.Labels);
     const labelsFilter = this.getFilter(SmartVaultsKind.Labels, { events: policyIds, paginationOpts })
@@ -2148,13 +2160,13 @@ export class SmartVaults {
    * @async
    * @param {string[] | string} label_ids - The label IDs to fetch.
    * @param {PaginationOpts} [paginationOpts={}] - Optional pagination options.
-   * @returns {Promise<Map<string, SmartVaultsTypes.PublishedLabel>>} - 
+   * @returns {Promise<Map<string, SmartVaultsTypes.PublishedTransactionMetadata>>} - 
    * A promise that resolves to a map where the keys are label IDs and the values are the corresponding labels.
    *
    * @example
    * const labelsMap = await getLabelById(['label1', 'label2']);
    */
-  async getLabelById(label_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, SmartVaultsTypes.PublishedLabel>> {
+  async getLabelById(label_ids: string[] | string, paginationOpts: PaginationOpts = {}): Promise<Map<string, SmartVaultsTypes.PublishedTransactionMetadata>> {
     const labelIds = Array.isArray(label_ids) ? label_ids : [label_ids]
     const store = this.getStore(SmartVaultsKind.Labels);
     const labelsFilter = this.getFilter(SmartVaultsKind.Labels, { identifiers: labelIds, paginationOpts })
@@ -2168,20 +2180,20 @@ export class SmartVaults {
    * @async
    * @param {string} policyId - The policy ID associaded with the label.
    * @param {string} labelData - The label data (could be an address a trxid, etc).
-   * @returns {Promise<SmartVaultsTypes.PublishedLabel>} - 
-   * A promise that resolves to a PublishedLabel.
+   * @returns {Promise<SmartVaultsTypes.PublishedTransactionMetadata>} - 
+   * A promise that resolves to a PublishedTransactionMetadata.
    *
    * @example
    * const labels = await getLabelByLabelData("policyId","trxid");
    */
-  async getLabelByLabelData(policyId: string, labelData: string): Promise<SmartVaultsTypes.PublishedLabel> {
+  async getLabelByLabelData(policyId: string, labelData: string): Promise<SmartVaultsTypes.PublishedTransactionMetadata> {
     const publishedSharedKeyAuthenticator: SmartVaultsTypes.SharedKeyAuthenticator | undefined = (await this.getSharedKeysById([policyId])).get(policyId)
     if (!publishedSharedKeyAuthenticator) throw new Error(`Shared key for policy with id ${policyId} not found`)
     const privateKey = publishedSharedKeyAuthenticator.privateKey
     const labelId = await this.generateIdentifier(labelData, privateKey)
     const label = (await this.getLabelById(labelId)).get(labelId)
     if (!label) {
-      throw new Error(`Label with label data ${labelData} not found`)
+      throw new Error(`TransactionMetadata with label data ${labelData} not found`)
     }
     return label
   }
