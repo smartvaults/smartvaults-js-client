@@ -348,7 +348,7 @@ export class PublishedPolicy {
     const maybeAugmentedTrxs: Array<AugmentedTransactionDetails> = trxs.map(trx => {
       const transactionMetadata: PublishedTransactionMetadata | undefined = this.transactionMetadataStore.get(trx.txid, indexKey);
       if (transactionMetadata) {
-        const AugmentedTrxDetails: AugmentedTransactionDetails = { ...trx, transactionMetadata: transactionMetadata.transactionMetadata, transactionMetadataId: transactionMetadata.transactionMetadataId };
+        const AugmentedTrxDetails: AugmentedTransactionDetails = { ...trx, transactionMetadata: transactionMetadata.transactionMetadata, trasactionMetadataText: transactionMetadata.transactionMetadata.text, transactionMetadataId: transactionMetadata.transactionMetadataId };
         return AugmentedTrxDetails;
       }
       return trx;

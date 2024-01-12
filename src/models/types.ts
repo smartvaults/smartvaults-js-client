@@ -57,6 +57,7 @@ export type BasicTrxDetails = UndecoratedBasicTrxDetails & {
 export type AugmentedTransactionDetails = BasicTrxDetails & {
   transactionMetadata?: TransactionMetadata
   transactionMetadataId?: string
+  trasactionMetadataText?: string
   date?: Date
   costBasis?: number
   proceeds?: number
