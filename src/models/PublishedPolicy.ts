@@ -728,7 +728,7 @@ export class PublishedPolicy {
     return csv;
   }
 
-  public async downloadTransactions(IncludeFiatAccountingValuesPayload): Promise<void> {
+  public async downloadTransactions(IncludeFiatAccountingValuesPayload: IncludeFiatAccountingValuesPayload): Promise<void> {
 
     const csv = await this.generateTxsCsv(IncludeFiatAccountingValuesPayload);
     const vaultName = this.name.replace(/\s/g, '-');
