@@ -206,25 +206,28 @@ export type MySharedSigner = {
   sharedDate: Date
 }
 
-export type Label = {
-  data: LabelData
-  text: string
+export type TransactionMetadata = {
+  data: Data
+  text?: string
+  costBasis?: { [key: string]: number }
+  proceeds?: { [key: string]: number }
+  btcExchangeRate?: { [key: string]: number }
 }
 
-export type LabelData = {
+export type Data = {
   [key: string]: string
 }
 
-export type PublishedLabel = Published & {
-  label: Label
-  label_id: string
+export type PublishedTransactionMetadata = Published & {
+  transactionMetadata: TransactionMetadata
+  transactionMetadataId: string
   policy_id: string
-  labelData: string
+  txId: string
 }
 
 export type LabeledUtxo = Utxo & {
-  labelText?: string
-  labelId?: string
+  label?: string
+  outPoint?: string
   frozen: boolean
 }
 

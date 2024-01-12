@@ -11,7 +11,7 @@ import { OwnedSignerHandler } from "./OwnedSignersHandler";
 import { MetadataHandler } from "./MetadataHandler";
 import { ContactsHandler } from "./ContactsHandler";
 import { EventDeletionHandler } from "./EventDeletionHandler";
-import { LabelsHandler } from "./LabelsHandler";
+import { TransactionMetadataHandler } from "./TransactionMetadataHandler";
 import { SignerOfferingsHandler } from "./SignerOfferingsHandler";
 import { Kind } from "nostr-tools";
 import { VerifiedKeyAgentsHandler } from "./VerifiedKeyAgentsHandler";
@@ -42,7 +42,7 @@ export class EventKindHandlerFactory {
       const getApprovalsByPolicyId = this.smartVaults.getApprovalsByPolicyId
       const getApprovalsByProposalId = this.smartVaults.getApprovals
       const getSharedSigners = this.smartVaults.getSharedSigners
-      const getLabelsByPolicyId = this.smartVaults.getLabelsByPolicyId
+      const getTransactionMetadataByPolicyId = this.smartVaults.getTransactionMetadataByPolicyId
       const extractKey = this.smartVaults.extractKey
       const getProfiles = this.smartVaults.getProfiles
       const getContacts = this.smartVaults.getContacts
@@ -54,17 +54,18 @@ export class EventKindHandlerFactory {
       const getOwnedSignerOfferingsBySignerDescriptor = this.smartVaults.getOwnedSignerOfferingsBySignerDescriptor
       const deleteSignerOfferings = this.smartVaults.deleteSignerOfferings
       const getPolicyMembers = this.smartVaults.getPolicyMembers
+      const saveTransactionMetadata = this.smartVaults.saveTransactionMetadata
       const eventsStore = stores.get(StoreKind.Events)!
       const completedProposalsStore = stores.get(SmartVaultsKind.CompletedProposal)!
       const proposalsStore = stores.get(SmartVaultsKind.Proposal)!
       const approvalsStore = stores.get(SmartVaultsKind.ApprovedProposal)!
       const sharedKeysStore = stores.get(SmartVaultsKind.SharedKey)!
-      const labelStore = stores.get(SmartVaultsKind.Labels)!
+      const transactionMetadataStore = stores.get(SmartVaultsKind.TransactionMetadata)!
       const network = this.smartVaults.network
       switch (eventKind) {
         case SmartVaultsKind.Policy:
-          this.handlers.set(eventKind, new PolicyHandler(stores.get(eventKind)!, eventsStore, completedProposalsStore, proposalsStore, approvalsStore, sharedKeysStore, labelStore, nostrClient, bitcoinUtil, authenticator,
-            getSharedKeysById, getCompletedProposalsByPolicyId, getProposalsByPolicyId, getApprovalsByPolicyId, getSharedSigners, getOwnedSigners, getLabelsByPolicyId))
+          this.handlers.set(eventKind, new PolicyHandler(stores.get(eventKind)!, eventsStore, completedProposalsStore, proposalsStore, approvalsStore, sharedKeysStore, transactionMetadataStore, nostrClient, bitcoinUtil, authenticator,
+            getSharedKeysById, getCompletedProposalsByPolicyId, getProposalsByPolicyId, getApprovalsByPolicyId, getSharedSigners, getOwnedSigners, getTransactionMetadataByPolicyId, saveTransactionMetadata))
           break
         case SmartVaultsKind.Proposal:
           this.handlers.set(eventKind, new ProposalHandler(stores.get(eventKind)!, eventsStore, approvalsStore, nostrClient, bitcoinUtil, authenticator, getSharedKeysById, checkPsbts, getOwnedSigners, getApprovalsByProposalId))
@@ -93,8 +94,8 @@ export class EventKindHandlerFactory {
         case Kind.EventDeletion:
           this.handlers.set(eventKind, new EventDeletionHandler(stores, getChat))
           break
-        case SmartVaultsKind.Labels:
-          this.handlers.set(eventKind, new LabelsHandler(stores.get(eventKind)!, eventsStore, getSharedKeysById))
+        case SmartVaultsKind.TransactionMetadata:
+          this.handlers.set(eventKind, new TransactionMetadataHandler(stores.get(eventKind)!, eventsStore, getSharedKeysById))
           break
         case SmartVaultsKind.VerifiedKeyAgents:
           this.handlers.set(eventKind, new VerifiedKeyAgentsHandler(stores.get(eventKind)!, getContacts, getProfiles))

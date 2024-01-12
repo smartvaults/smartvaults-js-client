@@ -1178,27 +1178,27 @@ describe('SmartVaults', () => {
     }
     );
 
-    it('getLabels work', async () => {
-      const label = await smartVaults.saveLabel(spendProposal1.policy_id, { data: { 'address': 'address1' }, text: 'text' })
-      const TrxLabel = await smartVaults.saveLabel(spendProposal1.policy_id, { data: { 'Spend': expectedTrx.txid }, text: spendProposal1.description })
-      const fetchedLabels = await smartVaults.getLabels()
-      expect(fetchedLabels.length).toBe(2)
-      expect(new Set(fetchedLabels)).toEqual(new Set([TrxLabel, label]))
-      const label2 = await smartVaults.saveLabel(spendProposal1.policy_id, { data: { 'address': 'address2' }, text: 'text2' })
-      const labelsByPolicyId = await smartVaults.getLabelsByPolicyId([spendProposal1.policy_id])
-      expect(labelsByPolicyId.size).toBe(1)
-      expect(labelsByPolicyId.get(spendProposal1.policy_id)).toEqual([TrxLabel, label, label2])
+    it('getTransactionMetadata work', async () => {
+      const transactionMetadata = (await smartVaults.saveTransactionMetadata(spendProposal1.policy_id, { data: { 'address': 'address1' }, text: 'text' }))[0]
+      const TrxTransactionMetadata = (await smartVaults.saveTransactionMetadata(spendProposal1.policy_id, { data: { 'Spend': expectedTrx.txid }, text: spendProposal1.description }))[0]
+      const fetchedTransactionMetadata = await smartVaults.getTransactionMetadata()
+      expect(fetchedTransactionMetadata.length).toBe(2)
+      expect(new Set(fetchedTransactionMetadata)).toEqual(new Set([TrxTransactionMetadata, transactionMetadata]))
+      const transactionMetadata2 = (await smartVaults.saveTransactionMetadata(spendProposal1.policy_id, { data: { 'address': 'address2' }, text: 'text2' }))[0]
+      const transactionMetadataByPolicyId = await smartVaults.getTransactionMetadataByPolicyId([spendProposal1.policy_id])
+      expect(transactionMetadataByPolicyId.size).toBe(1)
+      expect(transactionMetadataByPolicyId.get(spendProposal1.policy_id)).toEqual([TrxTransactionMetadata, transactionMetadata, transactionMetadata2])
       await sleep(300)
-      const label3 = await smartVaults.saveLabel(spendProposal1.policy_id, { data: { 'address': 'address1' }, text: 'text3' })
-      const fetchedLabels2 = await smartVaults.getLabels()
-      expect(fetchedLabels2.length).toBe(3)
-      expect(new Set(fetchedLabels2)).toEqual(new Set([TrxLabel, label3, label2]))
-      const labelByLabelId = await smartVaults.getLabelById(label3.label_id)
-      expect(labelByLabelId.get(label3.label_id)).toEqual(label3)
-      const labelByLabelData = await smartVaults.getLabelByLabelData(spendProposal1.policy_id, label3.label.data.address)
-      const labelByLabelData2 = await smartVaults.getLabelByLabelData(spendProposal1.policy_id, label2.label.data.address)
-      expect(labelByLabelData).toEqual(label3)
-      expect(labelByLabelData2).toEqual(label2)
+      const transactionMetadata3 = (await smartVaults.saveTransactionMetadata(spendProposal1.policy_id, { data: { 'address': 'address1' }, text: 'text3' }))[0]
+      const fetchedTransactionMetadata2 = await smartVaults.getTransactionMetadata()
+      expect(fetchedTransactionMetadata2.length).toBe(3)
+      expect(new Set(fetchedTransactionMetadata2)).toEqual(new Set([TrxTransactionMetadata, transactionMetadata3, transactionMetadata2]))
+      const transactionMetadataByTransactionMetadataId = await smartVaults.getTransactionMetadataById(transactionMetadata3.transactionMetadataId)
+      expect(transactionMetadataByTransactionMetadataId.get(transactionMetadata3.transactionMetadataId)).toEqual(transactionMetadata3)
+      const transactionMetadataByTransactionMetadataData = await smartVaults.getTransactionMetadataBySourceId(spendProposal1.policy_id, transactionMetadata3.transactionMetadata.data.address)
+      const transactionMetadataByTransactionMetadataData2 = await smartVaults.getTransactionMetadataBySourceId(spendProposal1.policy_id, transactionMetadata2.transactionMetadata.data.address)
+      expect(transactionMetadataByTransactionMetadataData).toEqual(transactionMetadata3)
+      expect(transactionMetadataByTransactionMetadataData2).toEqual(transactionMetadata2)
     }
     )
 
@@ -1368,7 +1368,7 @@ describe('SmartVaults', () => {
 
   });
 
-  describe.only('Direct Messages', () => {
+  describe('Direct Messages', () => {
     let keySet
     let bob
     let alice

@@ -1,3 +1,6 @@
+import { AccountingMethod } from "../enum";
+import { TransactionMetadata } from "../types";
+
 export type BasePolicy = {
   name: string;
   description: string;
@@ -51,9 +54,9 @@ export type BasicTrxDetails = UndecoratedBasicTrxDetails & {
   btcExchangeRateAtConfirmation?: number
 }
 
-export type LabeledTrxDetails = BasicTrxDetails & {
-  labelText?: string
-  labelId?: string
+export type AugmentedTransactionDetails = BasicTrxDetails & {
+  transactionMetadata?: TransactionMetadata
+  transactionMetadataId?: string
   date?: Date
   costBasis?: number
   proceeds?: number
@@ -145,4 +148,10 @@ export type PolicyPathsResult = {
 export type DatePeriod = {
   start: Date,
   end: Date,
+}
+export type IncludeFiatAccountingValuesPayload = {
+  method: AccountingMethod
+  period?: DatePeriod
+  costBasisProceedsMap?: Map<string, number>
+  btcExchangeRatesMap?: Map<string, number>
 }
