@@ -728,12 +728,12 @@ export class PublishedPolicy {
     return csv;
   }
 
-  public async downloadTransactions(IncludeFiatAccountingValuesPayload: IncludeFiatAccountingValuesPayload): Promise<void> {
+  public async downloadTransactions(includeFiatAccountingValuesPayload: IncludeFiatAccountingValuesPayload): Promise<void> {
 
-    const csv = await this.generateTxsCsv(IncludeFiatAccountingValuesPayload);
+    const csv = await this.generateTxsCsv(includeFiatAccountingValuesPayload);
     const vaultName = this.name.replace(/\s/g, '-');
     const date = new Date().toISOString().slice(0, 10);
-    const fileName = `TXS-${vaultName}-${date}-${IncludeFiatAccountingValuesPayload.method}`;
+    const fileName = `TXS-${vaultName}-${date}-${includeFiatAccountingValuesPayload.method}`;
 
     saveFile(fileName, csv, 'Text', '.csv');
   }
