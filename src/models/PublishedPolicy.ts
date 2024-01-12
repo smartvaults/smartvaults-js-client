@@ -340,7 +340,7 @@ export class PublishedPolicy {
         this.getTransactionMetadataByPolicyId(this.id, {})
       ]);
     } catch (error) {
-      console.error("Error while fetching Augmented transactions:", error);
+      console.error("Error while fetching augmented transactions:", error);
       return [];
     }
     const indexKey = "txId";
@@ -717,7 +717,7 @@ export class PublishedPolicy {
       'proceeds': `Proceeds (${currentFiat})`,
       'capitalGainsLoses': `Capital Gains / Loses (${currentFiat})`,
       'associatedCostBasis': `Sold (SATS) @ Associated Cost Basis (${currentFiat})`,
-      'transactionMetadataText': 'TransactionMetadata',
+      'transactionMetadataText': 'Label',
       'received': 'Received (SATS)',
       'sent': 'Sent (SATS)',
       'btcExchangeRateAtConfirmation': `BTC Exchange Rate at Confirmation Time (${currentFiat})`
