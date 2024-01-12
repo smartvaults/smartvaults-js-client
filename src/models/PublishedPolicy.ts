@@ -260,7 +260,7 @@ export class PublishedPolicy {
       console.error("An error occurred while getting transactionMetadataed utxos:", error);
       return [];
     }
-    const indexKey = "transactionMetadataData";
+    const indexKey = "txId";
     const frozenUtxos = await this.getFrozenUtxosOutpoints();
     const exchangeRate = await this.bitcoinExchangeRate.getExchangeRate();
     if (exchangeRate) {
@@ -274,7 +274,8 @@ export class PublishedPolicy {
       const transactionMetadata: PublishedTransactionMetadata | undefined = this.transactionMetadataStore.get(utxo.address, indexKey) || this.transactionMetadataStore.get(utxo.utxo.outpoint, indexKey);
       const frozen = frozenUtxos.includes(utxo.utxo.outpoint) ? true : false;
       if (transactionMetadata) {
-        return { ...utxo, transactionMetadataText: transactionMetadata.transactionMetadata.text, transactionMetadataId: transactionMetadata.transactionMetadataId, frozen };
+        const labeledUtxo: LabeledUtxo = { ...utxo, label: transactionMetadata.transactionMetadata.text, labelId: transactionMetadata.transactionMetadataId, frozen };
+        return labeledUtxo;
       }
       return { ...utxo, frozen };
     });
@@ -339,10 +340,10 @@ export class PublishedPolicy {
         this.getTransactionMetadataByPolicyId(this.id, {})
       ]);
     } catch (error) {
-      console.error("Error while fetching transactionMetadataed transactions:", error);
+      console.error("Error while fetching Augmented transactions:", error);
       return [];
     }
-    const indexKey = "transactionMetadataData";
+    const indexKey = "txId";
 
     const maybeAugmentedTrxs: Array<AugmentedTransactionDetails> = trxs.map(trx => {
       const transactionMetadata: PublishedTransactionMetadata | undefined = this.transactionMetadataStore.get(trx.txid, indexKey);
