@@ -257,7 +257,7 @@ export class PublishedPolicy {
         this.getTransactionMetadataByPolicyId(this.id, {})
       ]);
     } catch (error) {
-      console.error("An error occurred while getting transactionMetadataed utxos:", error);
+      console.error("An error occurred while getting labeled utxos:", error);
       return [];
     }
     const indexKey = "txId";
