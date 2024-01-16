@@ -448,7 +448,7 @@ export class PublishedPolicy {
 
     if (maybeProvidedCostBasisProceeds) {
       if (maybeStoredCostBasisProceeds && maybeStoredCostBasisProceeds !== maybeProvidedCostBasisProceeds) {
-        const newTransactionMetadata: TransactionMetadata = { ...trx.transactionMetadata!, [type]: { [currentFiat]: maybeProvidedCostBasisProceeds } };
+        const newTransactionMetadata: TransactionMetadata = { ...trx.transactionMetadata!, [type]: { ...trx.transactionMetadata?.[type], [currentFiat]: maybeProvidedCostBasisProceeds } };
         const maybeTransactionMetadataToUpdate = transactionMetadataToUpdateMap.get(trx.txid);
         if (maybeTransactionMetadataToUpdate) {
           transactionMetadataToUpdateMap.set(trx.txid, { ...maybeTransactionMetadataToUpdate, ...newTransactionMetadata });
@@ -462,7 +462,7 @@ export class PublishedPolicy {
     } else {
       trx[type] = Math.abs(CurrencyUtil.toRoundedFloat(trx.netFiatAtConfirmation! + trx.feeFiatAtConfirmation!));
       const maybeTransactionMetadata = trx.transactionMetadata;
-      const newTransactionMetadata: TransactionMetadata = maybeTransactionMetadata ? { ...maybeTransactionMetadata, [type]: { [currentFiat]: trx[type] } } : { data: { 'txid': trx.txid }, [type]: { [currentFiat]: trx[type] } };
+      const newTransactionMetadata: TransactionMetadata = maybeTransactionMetadata ? { ...maybeTransactionMetadata, [type]: { ...maybeTransactionMetadata[type], [currentFiat]: trx[type] } } : { data: { 'txid': trx.txid }, [type]: { [currentFiat]: trx[type] } };
       const maybeTransactionMetadataToUpdate = transactionMetadataToUpdateMap.get(trx.txid);
       if (maybeTransactionMetadataToUpdate) {
         transactionMetadataToUpdateMap.set(trx.txid, { ...maybeTransactionMetadataToUpdate, ...newTransactionMetadata });
@@ -494,26 +494,22 @@ export class PublishedPolicy {
     const date = fromNostrDate(trx.confirmation_time!.timestamp);
     let btcExchangeRate: number;
 
-    if (!trx.btcExchangeRateAtConfirmation) {
-      const maybeStoredBtcExchangeRate = trx.transactionMetadata?.btcExchangeRate?.[currentFiat]
-      const maybeProvidedBtcExchangeRate = btcExchangeRatesMap?.get(trx.txid);
-      if (maybeProvidedBtcExchangeRate) {
-        if (maybeStoredBtcExchangeRate && maybeStoredBtcExchangeRate !== maybeProvidedBtcExchangeRate) {
-          transactionMetadataToUpdateMap.set(trx.txid, { ...trx.transactionMetadata!, btcExchangeRate: { [currentFiat]: maybeProvidedBtcExchangeRate } });
-        }
-        btcExchangeRate = maybeProvidedBtcExchangeRate;
-      } else if (maybeStoredBtcExchangeRate) {
-        btcExchangeRate = maybeStoredBtcExchangeRate;
-      } else {
-        btcExchangeRate = (await this.bitcoinExchangeRate.getDatedBitcoinExchangeRate(date)).rate;
-        const maybeTransactionMetadata = trx.transactionMetadata;
-        const newTransactionMetadata: TransactionMetadata = maybeTransactionMetadata ? { ...maybeTransactionMetadata, btcExchangeRate: { [currentFiat]: btcExchangeRate } } : { data: { 'txid': trx.txid }, btcExchangeRate: { [currentFiat]: btcExchangeRate } };
-        transactionMetadataToUpdateMap.set(trx.txid, newTransactionMetadata);
+    const maybeStoredBtcExchangeRate = trx.transactionMetadata?.btcExchangeRate?.[currentFiat]
+    const maybeProvidedBtcExchangeRate = btcExchangeRatesMap?.get(trx.txid);
+    if (maybeProvidedBtcExchangeRate) {
+      if (maybeStoredBtcExchangeRate && maybeStoredBtcExchangeRate !== maybeProvidedBtcExchangeRate) {
+        transactionMetadataToUpdateMap.set(trx.txid, { ...trx.transactionMetadata!, btcExchangeRate: { ...trx.transactionMetadata?.btcExchangeRate, [currentFiat]: maybeProvidedBtcExchangeRate } });
       }
-      trx.btcExchangeRateAtConfirmation = CurrencyUtil.toRoundedFloat(btcExchangeRate);
+      btcExchangeRate = maybeProvidedBtcExchangeRate;
+    } else if (maybeStoredBtcExchangeRate) {
+      btcExchangeRate = maybeStoredBtcExchangeRate;
     } else {
-      btcExchangeRate = trx.btcExchangeRateAtConfirmation;
+      btcExchangeRate = (await this.bitcoinExchangeRate.getDatedBitcoinExchangeRate(date)).rate;
+      const maybeTransactionMetadata = trx.transactionMetadata;
+      const newTransactionMetadata: TransactionMetadata = maybeTransactionMetadata ? { ...maybeTransactionMetadata, btcExchangeRate: { ...maybeTransactionMetadata.btcExchangeRate, [currentFiat]: btcExchangeRate } } : { data: { 'txid': trx.txid }, btcExchangeRate: { [currentFiat]: btcExchangeRate } };
+      transactionMetadataToUpdateMap.set(trx.txid, newTransactionMetadata);
     }
+    trx.btcExchangeRateAtConfirmation = CurrencyUtil.toRoundedFloat(btcExchangeRate);
 
     if (!trx.fee) {
       trx.fee = (await this.getFee(trx.txid)).fee;
