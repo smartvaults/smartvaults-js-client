@@ -227,7 +227,7 @@ export type PublishedTransactionMetadata = Published & {
 
 export type LabeledUtxo = Utxo & {
   label?: string
-  outPoint?: string
+  labelId?: string
   frozen: boolean
 }
 

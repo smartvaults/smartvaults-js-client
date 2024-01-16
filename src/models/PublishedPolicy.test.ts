@@ -515,9 +515,12 @@ describe('PublishedPolicy', () => {
     let date1 = new Date("2023-07-13T20:11:49.000Z")
     let date2 = new Date("2023-07-14T20:11:50.000Z")
     let date3 = new Date("2023-07-15T20:11:50.000Z")
-    let trx1 = { txid: "txid1", date: date1, sent: 0, received: 50000, net: 50000, fee: 5000, transactionMetadataText: "transactionMetadata1", confirmation_time: { height: 2441712, timestamp: 1689279109, confirmedAt: date1 } }
-    let trx2 = { txid: "txid2", date: date2, sent: 0, received: 100000, net: 100000, fee: 2000, transactionMetadataText: "transactionMetadata2", confirmation_time: { height: 2441712, timestamp: 1689365510, confirmedAt: date2 } }
-    let trx3 = { txid: "txid3", date: date3, sent: 140000, received: 0, net: -150000, fee: 6000, transactionMetadataText: "transactionMetadata3", confirmation_time: { height: 2441712, timestamp: 1689451910, confirmedAt: date3 } }
+    const trxMetadata1 = { transactionMetadata: { data: {}, text: 'transactionMetadata1' }, transactionMetadataId: 'id1' }
+    const trxMetadata2 = { transactionMetadata: { data: {}, text: 'transactionMetadata2' }, transactionMetadataId: 'id2' }
+    const trxMetadata3 = { transactionMetadata: { data: {}, text: 'transactionMetadata3' }, transactionMetadataId: 'id3' }
+    let trx1 = { txid: "txid1", date: date1, sent: 0, received: 50000, net: 50000, fee: 5000, transactionMetadata: trxMetadata1.transactionMetadata, transactionMetadataId: trxMetadata1.transactionMetadataId, transactionMetadataText: trxMetadata1.transactionMetadata.text, confirmation_time: { height: 2441712, timestamp: 1689279109, confirmedAt: date1 } }
+    let trx2 = { txid: "txid2", date: date2, sent: 0, received: 100000, net: 100000, fee: 2000, transactionMetadata: trxMetadata2.transactionMetadata, transactionMetadataId: trxMetadata2.transactionMetadataId, transactionMetadataText: trxMetadata2.transactionMetadata.text, confirmation_time: { height: 2441712, timestamp: 1689365510, confirmedAt: date2 } }
+    let trx3 = { txid: "txid3", date: date3, sent: 140000, received: 0, net: -150000, fee: 6000, transactionMetadata: trxMetadata3.transactionMetadata, transactionMetadataId: trxMetadata3.transactionMetadataId, transactionMetadataText: trxMetadata3.transactionMetadata.text, confirmation_time: { height: 2441712, timestamp: 1689451910, confirmedAt: date3 } }
 
     it('getAugmentedTransactions using SpecID should generate correct details', async () => {
 
@@ -525,7 +528,9 @@ describe('PublishedPolicy', () => {
       const getAugmentedTransactionsSpyon = jest.spyOn(policy2, 'getTrxs')
       const transactionMetadataStoreSpyon = jest.spyOn(policy2.transactionMetadataStore, 'get')
       transactionMetadataStoreSpyon
-        .mockReturnValue({})
+        .mockReturnValueOnce(trxMetadata1)
+        .mockReturnValueOnce(trxMetadata2)
+        .mockReturnValueOnce(trxMetadata3)
 
       datedBitcoinExchangeRateSpyon
         .mockResolvedValueOnce({ rate: 40000, date: date1 })
@@ -570,7 +575,9 @@ describe('PublishedPolicy', () => {
 
       const transactionMetadataStoreSpyon = jest.spyOn(policy2.transactionMetadataStore, 'get')
       transactionMetadataStoreSpyon
-        .mockReturnValue({})
+        .mockReturnValueOnce(trxMetadata1)
+        .mockReturnValueOnce(trxMetadata2)
+        .mockReturnValueOnce(trxMetadata3)
 
       const expected: AugmentedTransactionDetails[] = [
         { ...trx1, type: "RECEIVE", costBasis: 22, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 20, feeFiatAtConfirmation: 2, btcExchangeRateAtConfirmation: 40000 },
@@ -590,8 +597,9 @@ describe('PublishedPolicy', () => {
       const getAugmentedTransactionsSpyon = jest.spyOn(policy2, 'getTrxs')
       const transactionMetadataStoreSpyon = jest.spyOn(policy2.transactionMetadataStore, 'get')
       transactionMetadataStoreSpyon
-        .mockReturnValue({})
-
+        .mockReturnValueOnce(trxMetadata1)
+        .mockReturnValueOnce(trxMetadata2)
+        .mockReturnValueOnce(trxMetadata3)
       datedBitcoinExchangeRateSpyon
         .mockResolvedValueOnce({ rate: 40000, date: date1 })
         .mockResolvedValueOnce({ rate: 60000, date: date2 })
@@ -616,7 +624,9 @@ describe('PublishedPolicy', () => {
       const getAugmentedTransactionsSpyon = jest.spyOn(policy2, 'getTrxs')
       const transactionMetadataStoreSpyon = jest.spyOn(policy2.transactionMetadataStore, 'get')
       transactionMetadataStoreSpyon
-        .mockReturnValue({})
+        .mockReturnValueOnce(trxMetadata1)
+        .mockReturnValueOnce(trxMetadata2)
+        .mockReturnValueOnce(trxMetadata3)
 
       datedBitcoinExchangeRateSpyon
         .mockResolvedValueOnce({ rate: 40000, date: date1 })
@@ -641,8 +651,11 @@ describe('PublishedPolicy', () => {
       const datedBitcoinExchangeRateSpyon = jest.spyOn(policy2.bitcoinExchangeRate, 'getDatedBitcoinExchangeRate')
       const getAugmentedTransactionsSpyon = jest.spyOn(policy2, 'getTrxs')
       const transactionMetadataStoreSpyon = jest.spyOn(policy2.transactionMetadataStore, 'get')
+
       transactionMetadataStoreSpyon
-        .mockReturnValue({})
+        .mockReturnValueOnce(trxMetadata1)
+        .mockReturnValueOnce(trxMetadata2)
+        .mockReturnValueOnce(trxMetadata3)
 
       datedBitcoinExchangeRateSpyon
         .mockResolvedValueOnce({ rate: 40000, date: date1 })
