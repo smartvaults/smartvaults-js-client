@@ -2078,7 +2078,7 @@ export class SmartVaults {
       const privateKey = publishedSharedKeyAuthenticator.privateKey
       const transactionMetadataId = await this.generateIdentifier(Object.values(transactionMetadata.data)[0], privateKey)
       const maybeTransactionMetadataMap = await this.getTransactionMetadataById(transactionMetadataId)
-      const maybeTransactionMetadata = maybeTransactionMetadataMap.get(transactionMetadataId)
+      const maybeTransactionMetadata = maybeTransactionMetadataMap.get(transactionMetadataId)?.transactionMetadata
       transactionMetadata = maybeTransactionMetadata ? { ...maybeTransactionMetadata, ...transactionMetadata } : transactionMetadata
       const content = await sharedKeyAuthenticator.encryptObj(transactionMetadata)
 

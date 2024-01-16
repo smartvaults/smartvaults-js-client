@@ -677,6 +677,7 @@ export class PublishedPolicy {
 
     const trxs = await this.getAugmentedTransactions(includeFiatAccountingValuesPayload);
     const confirmedTrxs = trxs.filter(trx => trx.confirmation_time);
+    const sortedTrxs = confirmedTrxs.sort((a, b) => a.confirmation_time!.timestamp - b.confirmation_time!.timestamp);
 
     const headers = [
       'date',
@@ -699,7 +700,7 @@ export class PublishedPolicy {
     const vaultData = JSON.parse(this.getVaultData());
     const vaultDataHeaders = ['Vault name:,' + vaultData.name, 'Vault description:,' + vaultData.description, 'Vault members:,' + vaultData.publicKeys];
 
-    let csv = generateCsv(confirmedTrxs, headers, vaultDataHeaders);
+    let csv = generateCsv(sortedTrxs, headers, vaultDataHeaders);
 
     const currentFiat = this.bitcoinExchangeRate.getActiveFiatCurrency().toLocaleUpperCase();
 
