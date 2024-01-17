@@ -676,6 +676,29 @@ describe('PublishedPolicy', () => {
     }
     )
 
+    it('using provided btc exchange rate should generate correct details', async () => {
+
+      const getAugmentedTransactionsSpyon = jest.spyOn(policy2, 'getTrxs')
+      const transactionMetadataStoreSpyon = jest.spyOn(policy2.transactionMetadataStore, 'get')
+
+      transactionMetadataStoreSpyon
+        .mockReturnValueOnce(trxMetadata1)
+        .mockReturnValueOnce(trxMetadata2)
+        .mockReturnValueOnce(trxMetadata3)
+
+      const btcExchangeRateMap = new Map<string, number>(([[trx1.txid, 40000], [trx2.txid, 60000], [trx3.txid, 50000]]))
+
+      getAugmentedTransactionsSpyon.mockResolvedValueOnce(([trx1, trx2, trx3]))
+
+      const expected: AugmentedTransactionDetails[] = [
+        { ...trx1, type: "RECEIVE", costBasis: 22, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 20, feeFiatAtConfirmation: 2, btcExchangeRateAtConfirmation: 40000 },
+        { ...trx2, type: "RECEIVE", costBasis: 61.2, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 60, feeFiatAtConfirmation: 1.2, btcExchangeRateAtConfirmation: 60000 },
+        { ...trx3, type: "SEND", costBasis: 0, associatedCostBasis: "100000@61.2  50000@22", proceeds: 72, capitalGainsLoses: -11.2, netFiatAtConfirmation: -75, feeFiatAtConfirmation: 3, btcExchangeRateAtConfirmation: 50000 }
+      ]
+      const actual = await policy2.getAugmentedTransactions({ method: AccountingMethod.HIFO, btcExchangeRatesMap: btcExchangeRateMap })
+      expect(actual).toEqual(expected)
+    })
+
   }
   )
 })
