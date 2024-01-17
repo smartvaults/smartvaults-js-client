@@ -530,7 +530,7 @@ export class PublishedPolicy {
     const { method, period, costBasisProceedsMap, btcExchangeRatesMap } = IncludeFiatAccountingValuesPayload;
 
     if (method === AccountingMethod.SpecID) {
-      return await this.getSpecIDAccountingTransactionDetails(transactions, period, costBasisProceedsMap);
+      return await this.getSpecIDAccountingTransactionDetails(transactions, period, costBasisProceedsMap, btcExchangeRatesMap);
     }
 
     let confirmedTrxs = transactions.filter(trx => trx.confirmation_time);
