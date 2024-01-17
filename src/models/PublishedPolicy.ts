@@ -499,6 +499,8 @@ export class PublishedPolicy {
     if (maybeProvidedBtcExchangeRate) {
       if (maybeStoredBtcExchangeRate && maybeStoredBtcExchangeRate !== maybeProvidedBtcExchangeRate) {
         transactionMetadataToUpdateMap.set(trx.txid, { ...trx.transactionMetadata!, btcExchangeRate: { ...trx.transactionMetadata?.btcExchangeRate, [currentFiat]: maybeProvidedBtcExchangeRate } });
+        const maybeOutdatedStoredCostBasisProceeds = trx.net > 0 ? trx.transactionMetadata?.costBasis?.[currentFiat] : trx.transactionMetadata?.proceeds?.[currentFiat];
+        if (maybeOutdatedStoredCostBasisProceeds) trx.net > 0 ? trx.transactionMetadata!.costBasis![currentFiat] = 0 : trx.transactionMetadata!.proceeds![currentFiat] = 0;
       }
       btcExchangeRate = maybeProvidedBtcExchangeRate;
     } else if (maybeStoredBtcExchangeRate) {
