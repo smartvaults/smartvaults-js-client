@@ -527,9 +527,9 @@ export class PublishedPolicy {
     this.addCostBasisProceeds(trx, transactionMetadataToUpdateMap, costBasisProceedsMap);
   }
 
-  private async getAccountingTransactionDetails(transactions: AugmentedTransactionDetails[], IncludeFiatAccountingValuesPayload: IncludeFiatAccountingValuesPayload): Promise<Array<AugmentedTransactionDetails>> {
+  private async getAccountingTransactionDetails(transactions: AugmentedTransactionDetails[], includeFiatAccountingValuesPayload: IncludeFiatAccountingValuesPayload): Promise<Array<AugmentedTransactionDetails>> {
 
-    const { method, period, costBasisProceedsMap, btcExchangeRatesMap } = IncludeFiatAccountingValuesPayload;
+    const { method, period, costBasisProceedsMap, btcExchangeRatesMap } = includeFiatAccountingValuesPayload;
 
     if (method === AccountingMethod.SpecID) {
       return await this.getSpecIDAccountingTransactionDetails(transactions, period, costBasisProceedsMap, btcExchangeRatesMap);
@@ -674,7 +674,8 @@ export class PublishedPolicy {
   private async generateTxsCsv(includeFiatAccountingValuesPayload: IncludeFiatAccountingValuesPayload): Promise<string> {
 
     const trxs = await this.getAugmentedTransactions(includeFiatAccountingValuesPayload);
-    const confirmedTrxs = trxs.filter(trx => trx.confirmation_time);
+    let confirmedTrxs = trxs.filter(trx => trx.confirmation_time);
+    if (includeFiatAccountingValuesPayload.period) confirmedTrxs = confirmedTrxs.filter(trx => trx.confirmation_time!.timestamp >= TimeUtil.toSeconds(includeFiatAccountingValuesPayload.period!.start.getTime()) && trx.confirmation_time!.timestamp <= TimeUtil.toSeconds(includeFiatAccountingValuesPayload.period!.end.getTime()));
     const sortedTrxs = confirmedTrxs.sort((a, b) => a.confirmation_time!.timestamp - b.confirmation_time!.timestamp);
 
     const headers = [
