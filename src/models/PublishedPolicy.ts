@@ -448,7 +448,7 @@ export class PublishedPolicy {
 
     if (maybeProvidedCostBasisProceeds) {
       if (maybeStoredCostBasisProceeds && maybeStoredCostBasisProceeds !== maybeProvidedCostBasisProceeds) {
-        const newTransactionMetadata: TransactionMetadata = { ...trx.transactionMetadata!, [type]: { [currentFiat]: maybeProvidedCostBasisProceeds } };
+        const newTransactionMetadata: TransactionMetadata = { ...trx.transactionMetadata!, [type]: { ...trx.transactionMetadata?.[type], [currentFiat]: maybeProvidedCostBasisProceeds } };
         const maybeTransactionMetadataToUpdate = transactionMetadataToUpdateMap.get(trx.txid);
         if (maybeTransactionMetadataToUpdate) {
           transactionMetadataToUpdateMap.set(trx.txid, { ...maybeTransactionMetadataToUpdate, ...newTransactionMetadata });
@@ -462,7 +462,7 @@ export class PublishedPolicy {
     } else {
       trx[type] = Math.abs(CurrencyUtil.toRoundedFloat(trx.netFiatAtConfirmation! + trx.feeFiatAtConfirmation!));
       const maybeTransactionMetadata = trx.transactionMetadata;
-      const newTransactionMetadata: TransactionMetadata = maybeTransactionMetadata ? { ...maybeTransactionMetadata, [type]: { [currentFiat]: trx[type] } } : { data: { 'txid': trx.txid }, [type]: { [currentFiat]: trx[type] } };
+      const newTransactionMetadata: TransactionMetadata = maybeTransactionMetadata ? { ...maybeTransactionMetadata, [type]: { ...maybeTransactionMetadata[type], [currentFiat]: trx[type] } } : { data: { 'txid': trx.txid }, [type]: { [currentFiat]: trx[type] } };
       const maybeTransactionMetadataToUpdate = transactionMetadataToUpdateMap.get(trx.txid);
       if (maybeTransactionMetadataToUpdate) {
         transactionMetadataToUpdateMap.set(trx.txid, { ...maybeTransactionMetadataToUpdate, ...newTransactionMetadata });
@@ -494,26 +494,24 @@ export class PublishedPolicy {
     const date = fromNostrDate(trx.confirmation_time!.timestamp);
     let btcExchangeRate: number;
 
-    if (!trx.btcExchangeRateAtConfirmation) {
-      const maybeStoredBtcExchangeRate = trx.transactionMetadata?.btcExchangeRate?.[currentFiat]
-      const maybeProvidedBtcExchangeRate = btcExchangeRatesMap?.get(trx.txid);
-      if (maybeProvidedBtcExchangeRate) {
-        if (maybeStoredBtcExchangeRate && maybeStoredBtcExchangeRate !== maybeProvidedBtcExchangeRate) {
-          transactionMetadataToUpdateMap.set(trx.txid, { ...trx.transactionMetadata!, btcExchangeRate: { [currentFiat]: maybeProvidedBtcExchangeRate } });
-        }
-        btcExchangeRate = maybeProvidedBtcExchangeRate;
-      } else if (maybeStoredBtcExchangeRate) {
-        btcExchangeRate = maybeStoredBtcExchangeRate;
-      } else {
-        btcExchangeRate = (await this.bitcoinExchangeRate.getDatedBitcoinExchangeRate(date)).rate;
-        const maybeTransactionMetadata = trx.transactionMetadata;
-        const newTransactionMetadata: TransactionMetadata = maybeTransactionMetadata ? { ...maybeTransactionMetadata, btcExchangeRate: { [currentFiat]: btcExchangeRate } } : { data: { 'txid': trx.txid }, btcExchangeRate: { [currentFiat]: btcExchangeRate } };
-        transactionMetadataToUpdateMap.set(trx.txid, newTransactionMetadata);
+    const maybeStoredBtcExchangeRate = trx.transactionMetadata?.btcExchangeRate?.[currentFiat]
+    const maybeProvidedBtcExchangeRate = btcExchangeRatesMap?.get(trx.txid);
+    if (maybeProvidedBtcExchangeRate) {
+      if (maybeStoredBtcExchangeRate && maybeStoredBtcExchangeRate !== maybeProvidedBtcExchangeRate) {
+        transactionMetadataToUpdateMap.set(trx.txid, { ...trx.transactionMetadata!, btcExchangeRate: { ...trx.transactionMetadata?.btcExchangeRate, [currentFiat]: maybeProvidedBtcExchangeRate } });
+        const maybeOutdatedStoredCostBasisProceeds = trx.net > 0 ? trx.transactionMetadata?.costBasis?.[currentFiat] : trx.transactionMetadata?.proceeds?.[currentFiat];
+        if (maybeOutdatedStoredCostBasisProceeds) trx.net > 0 ? trx.transactionMetadata!.costBasis![currentFiat] = 0 : trx.transactionMetadata!.proceeds![currentFiat] = 0;
       }
-      trx.btcExchangeRateAtConfirmation = CurrencyUtil.toRoundedFloat(btcExchangeRate);
+      btcExchangeRate = maybeProvidedBtcExchangeRate;
+    } else if (maybeStoredBtcExchangeRate) {
+      btcExchangeRate = maybeStoredBtcExchangeRate;
     } else {
-      btcExchangeRate = trx.btcExchangeRateAtConfirmation;
+      btcExchangeRate = (await this.bitcoinExchangeRate.getDatedBitcoinExchangeRate(date)).rate;
+      const maybeTransactionMetadata = trx.transactionMetadata;
+      const newTransactionMetadata: TransactionMetadata = maybeTransactionMetadata ? { ...maybeTransactionMetadata, btcExchangeRate: { ...maybeTransactionMetadata.btcExchangeRate, [currentFiat]: btcExchangeRate } } : { data: { 'txid': trx.txid }, btcExchangeRate: { [currentFiat]: btcExchangeRate } };
+      transactionMetadataToUpdateMap.set(trx.txid, newTransactionMetadata);
     }
+    trx.btcExchangeRateAtConfirmation = CurrencyUtil.toRoundedFloat(btcExchangeRate);
 
     if (!trx.fee) {
       trx.fee = (await this.getFee(trx.txid)).fee;
@@ -529,12 +527,12 @@ export class PublishedPolicy {
     this.addCostBasisProceeds(trx, transactionMetadataToUpdateMap, costBasisProceedsMap);
   }
 
-  private async getAccountingTransactionDetails(transactions: AugmentedTransactionDetails[], IncludeFiatAccountingValuesPayload: IncludeFiatAccountingValuesPayload): Promise<Array<AugmentedTransactionDetails>> {
+  private async getAccountingTransactionDetails(transactions: AugmentedTransactionDetails[], includeFiatAccountingValuesPayload: IncludeFiatAccountingValuesPayload): Promise<Array<AugmentedTransactionDetails>> {
 
-    const { method, period, costBasisProceedsMap, btcExchangeRatesMap } = IncludeFiatAccountingValuesPayload;
+    const { method, period, costBasisProceedsMap, btcExchangeRatesMap } = includeFiatAccountingValuesPayload;
 
     if (method === AccountingMethod.SpecID) {
-      return await this.getSpecIDAccountingTransactionDetails(transactions, period, costBasisProceedsMap);
+      return await this.getSpecIDAccountingTransactionDetails(transactions, period, costBasisProceedsMap, btcExchangeRatesMap);
     }
 
     let confirmedTrxs = transactions.filter(trx => trx.confirmation_time);
@@ -582,8 +580,8 @@ export class PublishedPolicy {
       associatedCostBasis = `${bitcoinSold}` + '@' + currentCostBasis;
       if (accBitcoinSold === costBasisRemainingAmount) {
         costBasisMap.set(currentCostBasisIdx, [costBasisOrginalAmount, 0]);
-        while (accBitcoinSold < Math.abs(trx.net) && currentCostBasisIdx < costBasisArr.length - 1) {
-          currentCostBasisIdx++;
+        currentCostBasisIdx++;
+        while (accBitcoinSold < Math.abs(trx.net) && currentCostBasisIdx < costBasisArr.length) {
           const currentCostBasis = costBasisArr[currentCostBasisIdx];
           const [costBasisOrginalAmount, costBasisRemainingAmount] = costBasisMap.get(currentCostBasisIdx)!;
           bitcoinSold = costBasisRemainingAmount + accBitcoinSold > Math.abs(trx.net) ? Math.abs(trx.net) - accBitcoinSold : costBasisRemainingAmount;
@@ -592,6 +590,7 @@ export class PublishedPolicy {
           const newCostBasisRemainingAmount = costBasisRemainingAmount - bitcoinSold;
           costBasisMap.set(currentCostBasisIdx, [costBasisOrginalAmount, newCostBasisRemainingAmount]);
           accBitcoinSold += bitcoinSold;
+          if (newCostBasisRemainingAmount === 0) currentCostBasisIdx++;
         }
       } else {
         costBasisMap.set(currentCostBasisIdx, [costBasisOrginalAmount, costBasisRemainingAmount - bitcoinSold]);
@@ -676,7 +675,8 @@ export class PublishedPolicy {
   private async generateTxsCsv(includeFiatAccountingValuesPayload: IncludeFiatAccountingValuesPayload): Promise<string> {
 
     const trxs = await this.getAugmentedTransactions(includeFiatAccountingValuesPayload);
-    const confirmedTrxs = trxs.filter(trx => trx.confirmation_time);
+    let confirmedTrxs = trxs.filter(trx => trx.confirmation_time);
+    if (includeFiatAccountingValuesPayload.period) confirmedTrxs = confirmedTrxs.filter(trx => trx.confirmation_time!.timestamp >= TimeUtil.toSeconds(includeFiatAccountingValuesPayload.period!.start.getTime()) && trx.confirmation_time!.timestamp <= TimeUtil.toSeconds(includeFiatAccountingValuesPayload.period!.end.getTime()));
     const sortedTrxs = confirmedTrxs.sort((a, b) => a.confirmation_time!.timestamp - b.confirmation_time!.timestamp);
 
     const headers = [
@@ -735,7 +735,8 @@ export class PublishedPolicy {
     const csv = await this.generateTxsCsv(includeFiatAccountingValuesPayload);
     const vaultName = this.name.replace(/\s/g, '-');
     const date = new Date().toISOString().slice(0, 10);
-    const fileName = `TXS-${vaultName}-${date}-${includeFiatAccountingValuesPayload.method}`;
+    const currentFiat = this.bitcoinExchangeRate.getActiveFiatCurrency().toLocaleUpperCase();
+    const fileName = `TXS-${vaultName}-${date}-${includeFiatAccountingValuesPayload.method}-${currentFiat}`;
 
     saveFile(fileName, csv, 'Text', '.csv');
   }
