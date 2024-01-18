@@ -580,8 +580,8 @@ export class PublishedPolicy {
       associatedCostBasis = `${bitcoinSold}` + '@' + currentCostBasis;
       if (accBitcoinSold === costBasisRemainingAmount) {
         costBasisMap.set(currentCostBasisIdx, [costBasisOrginalAmount, 0]);
-        while (accBitcoinSold < Math.abs(trx.net) && currentCostBasisIdx < costBasisArr.length - 1) {
-          currentCostBasisIdx++;
+        currentCostBasisIdx++;
+        while (accBitcoinSold < Math.abs(trx.net) && currentCostBasisIdx < costBasisArr.length) {
           const currentCostBasis = costBasisArr[currentCostBasisIdx];
           const [costBasisOrginalAmount, costBasisRemainingAmount] = costBasisMap.get(currentCostBasisIdx)!;
           bitcoinSold = costBasisRemainingAmount + accBitcoinSold > Math.abs(trx.net) ? Math.abs(trx.net) - accBitcoinSold : costBasisRemainingAmount;
@@ -590,6 +590,7 @@ export class PublishedPolicy {
           const newCostBasisRemainingAmount = costBasisRemainingAmount - bitcoinSold;
           costBasisMap.set(currentCostBasisIdx, [costBasisOrginalAmount, newCostBasisRemainingAmount]);
           accBitcoinSold += bitcoinSold;
+          if (newCostBasisRemainingAmount === 0) currentCostBasisIdx++;
         }
       } else {
         costBasisMap.set(currentCostBasisIdx, [costBasisOrginalAmount, costBasisRemainingAmount - bitcoinSold]);
@@ -734,7 +735,8 @@ export class PublishedPolicy {
     const csv = await this.generateTxsCsv(includeFiatAccountingValuesPayload);
     const vaultName = this.name.replace(/\s/g, '-');
     const date = new Date().toISOString().slice(0, 10);
-    const fileName = `TXS-${vaultName}-${date}-${includeFiatAccountingValuesPayload.method}`;
+    const currentFiat = this.bitcoinExchangeRate.getActiveFiatCurrency().toLocaleUpperCase();
+    const fileName = `TXS-${vaultName}-${date}-${includeFiatAccountingValuesPayload.method}-${currentFiat}`;
 
     saveFile(fileName, csv, 'Text', '.csv');
   }
