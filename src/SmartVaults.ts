@@ -265,6 +265,15 @@ export class SmartVaults {
     return contactsEvent
   }
 
+  async getSharedSignersEvents(): Promise<Event<SmartVaultsKind.SharedSigners>[]> {
+    const sharedSignersFilter = this.getFilter(SmartVaultsKind.SharedSigners)
+    const sharedSignersEvents = await this.nostrClient.list(sharedSignersFilter)
+    if (!sharedSignersEvents) {
+      return []
+    }
+    return sharedSignersEvents
+  }
+
   /**
    * Retrieves a list of recommended contacts based on shared signers.
    * 
@@ -277,12 +286,12 @@ export class SmartVaults {
   async getRecommendedContacts(): Promise<Array<SmartVaultsTypes.Profile | string>> {
     try {
       const [rawSharedSigners, contactList] = await Promise.all([
-        this.getSharedSigners(),
+        this.getSharedSignersEvents(),
         this.getContacts()
       ]);
       if (!rawSharedSigners.length) return [];
       const contactsMap = Contact.toMap(contactList);
-      const haveSharedASigner = new Set(rawSharedSigners.map(signer => signer.ownerPubKey!));
+      const haveSharedASigner = new Set(rawSharedSigners.map(signer => signer.pubkey));
       const recommendedPubkeys = [...haveSharedASigner].filter(pubkey => !contactsMap.has(pubkey));
       const maybeProfiles = await this.getProfiles(recommendedPubkeys);
       const profileMap = new Map(maybeProfiles.map(profile => [profile.publicKey, profile]));
@@ -2336,21 +2345,16 @@ export class SmartVaults {
 
 
   private processKeyAgentEvents(events: Array<Event<SmartVaultsKind.VerifiedKeyAgents>>): Event<SmartVaultsKind.VerifiedKeyAgents> {
-    const validEvents = events.filter(event => this.isValidAuthority(event));
 
-    if (validEvents.length === 0) {
+    if (events.length === 0) {
       throw new Error('No verified key agents found');
     }
 
-    if (validEvents.length > 1) {
+    if (events.length > 1) {
       throw new Error('More than one verified key agents event found');
     }
 
-    return validEvents[0];
-  }
-
-  private isValidAuthority(keyAgentEvent: Event<SmartVaultsKind.VerifiedKeyAgents>): boolean {
-    return keyAgentEvent.pubkey === this.getAuthority();
+    return events[0];
   }
 
   getVerifiedKeyAgentsPubKeys = async (): Promise<string[]> => {
