@@ -265,6 +265,15 @@ export class SmartVaults {
     return contactsEvent
   }
 
+  async getSharedSignersEvents(): Promise<Event<SmartVaultsKind.SharedSigners>[]> {
+    const sharedSignersFilter = this.getFilter(SmartVaultsKind.SharedSigners)
+    const sharedSignersEvents = await this.nostrClient.list(sharedSignersFilter)
+    if (!sharedSignersEvents) {
+      return []
+    }
+    return sharedSignersEvents
+  }
+
   /**
    * Retrieves a list of recommended contacts based on shared signers.
    * 
@@ -277,12 +286,12 @@ export class SmartVaults {
   async getRecommendedContacts(): Promise<Array<SmartVaultsTypes.Profile | string>> {
     try {
       const [rawSharedSigners, contactList] = await Promise.all([
-        this.getSharedSigners(),
+        this.getSharedSignersEvents(),
         this.getContacts()
       ]);
       if (!rawSharedSigners.length) return [];
       const contactsMap = Contact.toMap(contactList);
-      const haveSharedASigner = new Set(rawSharedSigners.map(signer => signer.ownerPubKey!));
+      const haveSharedASigner = new Set(rawSharedSigners.map(signer => signer.pubkey));
       const recommendedPubkeys = [...haveSharedASigner].filter(pubkey => !contactsMap.has(pubkey));
       const maybeProfiles = await this.getProfiles(recommendedPubkeys);
       const profileMap = new Map(maybeProfiles.map(profile => [profile.publicKey, profile]));
@@ -551,33 +560,46 @@ export class SmartVaults {
   }
 
   async getPolicyEvent(policy_id: string): Promise<Event> {
-    const policiesFilter = filterBuilder()
-      .kinds(SmartVaultsKind.Policy)
-      .ids(policy_id)
-      .toFilters()
-    const policyEvent = await this.nostrClient.list(policiesFilter)
+    const eventsStore = this.getStore(StoreKind.Events)
+    let policyEvent = eventsStore.get(policy_id)
 
-    if (policyEvent.length === 0) {
+    if (!policyEvent) {
+      const policiesFilter = this.getFilter(SmartVaultsKind.Policy, { ids: [policy_id] })
+      policyEvent = (await this.nostrClient.list(policiesFilter))[0]
+      eventsStore.store(policyEvent)
+    }
+
+    if (!policyEvent) {
       throw new Error(`Policy with id ${policy_id} not found`)
     }
-    if (policyEvent.length !== 1) {
-      throw new Error(`More than one policy with id ${policy_id} found`)
-    }
 
-    return policyEvent[0]
+    return policyEvent
   }
 
   getPolicyIds = async (): Promise<Set<string>> => {
     const policiesFilter = this.getFilter(SmartVaultsKind.Policy, { pubkeys: [this.authenticator.getPublicKey()] })
     const policyEvents = await this.nostrClient.list(policiesFilter)
+
+    const eventsStore = this.getStore(StoreKind.Events)
+    const missingIds = eventsStore.missing(policyEvents.map(event => event.id))
+    const missingPolicyEvents = policyEvents.filter(event => missingIds.includes(event.id))
+    eventsStore.store(missingPolicyEvents)
+
     return new Set(policyEvents.map(event => event.id))
   }
 
 
   isValidPolicyId = async (id: string): Promise<boolean> => {
-    const policyFilter = this.getFilter(SmartVaultsKind.Policy, { ids: [id] })
-    const policyEvents = await this.nostrClient.list(policyFilter)
-    return policyEvents.length === 1
+    const eventsStore = this.getStore(StoreKind.Events)
+    let policyEvent = eventsStore.get(id)
+
+    if (!policyEvent) {
+      const policyFilter = this.getFilter(SmartVaultsKind.Policy, { ids: [id] })
+      policyEvent = (await this.nostrClient.list(policyFilter))[0]
+      eventsStore.store(policyEvent)
+    }
+
+    return !!policyEvent
   }
 
   getPolicyMembers = async (policy_id: string): Promise<string[]> => {
@@ -593,12 +615,7 @@ export class SmartVaults {
    * @param {Policy} payload.policy - The policy under which the spending will be proposed.
    * @param {string} payload.to_address - The target address where funds will be sent.
    * @param {string} payload.description - A description of the spend proposal.
-   * @param {number} payload.amountDescriptor - The amount to be sent, can be max or an amount in sats.
-   * @param {string | number} payload.feeRatePriority - Can be low, medium, high or a numeric value for the target block.
-   * @param {Map<string, number[]>} payload.policyPath - The policy path (a map where the key is the policy node id and the value is the list of the indexes of the items that are intended to be satisfied from the policy node).
-   * @param {string[]} [payload.utxos] - Optional: The UTXOs to be used.
-   * @param {boolean} [payload.useFrozenUtxos=false] - Optional: Whether or not to use frozen UTXOs.
-   *
+   * @param {number} payload.amountDescriptor - The amount to be sent, can be max or an amount in sats.  * @param {string | number} payload.feeRatePriority - Can be low, medium, high or a numeric value for the target block.  * @param {Map<string, number[]>} payload.policyPath - The policy path (a map where the key is the policy node id and the value is the list of the indexes of the items that are intended to be satisfied from the policy node).  * @param {string[]} [payload.utxos] - Optional: The UTXOs to be used.  * @param {boolean} [payload.useFrozenUtxos=false] - Optional: Whether or not to use frozen UTXOs.  *
    * @returns {Promise<SmartVaultsTypes.PublishedSpendingProposal>} - The published spending proposal.
    * 
    * @throws {Error} - If invalid UTXOs are provided.
@@ -1575,8 +1592,7 @@ export class SmartVaults {
 
       return this.bitcoinUtil.canFinalizePsbt(psbts);
     } catch (error) {
-      console.error(error);
-      throw error;
+      throw new Error(`Error while checking approvals PSBTs for proposal ${proposalId}: ${error}`);
     }
   }
 
@@ -1666,9 +1682,12 @@ export class SmartVaults {
 
     await this.nostrClient.publish(completedProposalEvent).onFirstOkOrCompleteFailure()
     const transactionMetadata: SmartVaultsTypes.TransactionMetadata = { data: { 'txid': txId }, text: proposal.description }
-    await this.saveTransactionMetadata(policyId, transactionMetadata)
+
+    const promises: Promise<any>[] = []
+    promises.push(this.saveTransactionMetadata(policyId, transactionMetadata))
     const proposalsIdsToDelete: string[] = (await this.getProposalsWithCommonUtxos(proposal)).map(({ proposal_id }) => proposal_id);
-    await this.deleteProposals(proposalsIdsToDelete)
+    if (proposalsIdsToDelete.length) promises.push(this.deleteProposals(proposalsIdsToDelete))
+    await Promise.all(promises)
 
 
     const publishedCompletedProposal: SmartVaultsTypes.CompletedPublishedProposal = {
@@ -2076,10 +2095,12 @@ export class SmartVaults {
       if (!publishedSharedKeyAuthenticator) throw new Error(`Shared key for policy with id ${policyId} not found`)
       const sharedKeyAuthenticator = publishedSharedKeyAuthenticator.sharedKeyAuthenticator
       const privateKey = publishedSharedKeyAuthenticator.privateKey
-      const transactionMetadataId = await this.generateIdentifier(Object.values(transactionMetadata.data)[0], privateKey)
-      const maybeTransactionMetadataMap = await this.getTransactionMetadataById(transactionMetadataId)
-      const maybeTransactionMetadata = maybeTransactionMetadataMap.get(transactionMetadataId)?.transactionMetadata
-      transactionMetadata = maybeTransactionMetadata ? { ...maybeTransactionMetadata, ...transactionMetadata } : transactionMetadata
+      const transactionMetadataStore = this.getStore(SmartVaultsKind.TransactionMetadata);
+      const sourceId = Object.values(transactionMetadata.data)[0]
+      const maybeStoredTransactionMetadata: SmartVaultsTypes.PublishedTransactionMetadata | undefined = transactionMetadataStore.get(sourceId, 'txId');
+      const transactionMetadataId = maybeStoredTransactionMetadata?.transactionMetadataId || await this.generateIdentifier(sourceId, privateKey)
+      const maybeTransactionMetadata: SmartVaultsTypes.PublishedTransactionMetadata | undefined = maybeStoredTransactionMetadata || (await this.getTransactionMetadataById(transactionMetadataId)).get(transactionMetadataId)
+      transactionMetadata = maybeTransactionMetadata ? { ...maybeTransactionMetadata.transactionMetadata, ...transactionMetadata } : transactionMetadata
       const content = await sharedKeyAuthenticator.encryptObj(transactionMetadata)
 
       const transactionMetadataEvent = await buildEvent({
@@ -2302,9 +2323,14 @@ export class SmartVaults {
 
   isKeyAgent = async (pubkey?: string): Promise<boolean> => {
     const author = pubkey || this.authenticator.getPublicKey()
-    const keyAgentFilter = this.getFilter(SmartVaultsKind.KeyAgents, { authors: author })
-    const keyAgentEvents = await this.nostrClient.list(keyAgentFilter)
-    return keyAgentEvents.length === 1 && keyAgentEvents[0].pubkey === author
+    const keyAgentsStore = this.getStore(SmartVaultsKind.KeyAgents)
+    let isKeyAgent = keyAgentsStore.get(author) ? true : false
+    if (!isKeyAgent) {
+      const keyAgentFilter = this.getFilter(SmartVaultsKind.KeyAgents, { authors: author })
+      const keyAgentEvents = await this.nostrClient.list(keyAgentFilter)
+      isKeyAgent = keyAgentEvents.length === 1 && keyAgentEvents[0].pubkey === author
+    }
+    return isKeyAgent
   }
 
   isAuthority = async (pubkey?: string): Promise<boolean> => {
@@ -2336,21 +2362,16 @@ export class SmartVaults {
 
 
   private processKeyAgentEvents(events: Array<Event<SmartVaultsKind.VerifiedKeyAgents>>): Event<SmartVaultsKind.VerifiedKeyAgents> {
-    const validEvents = events.filter(event => this.isValidAuthority(event));
 
-    if (validEvents.length === 0) {
+    if (events.length === 0) {
       throw new Error('No verified key agents found');
     }
 
-    if (validEvents.length > 1) {
+    if (events.length > 1) {
       throw new Error('More than one verified key agents event found');
     }
 
-    return validEvents[0];
-  }
-
-  private isValidAuthority(keyAgentEvent: Event<SmartVaultsKind.VerifiedKeyAgents>): boolean {
-    return keyAgentEvent.pubkey === this.getAuthority();
+    return events[0];
   }
 
   getVerifiedKeyAgentsPubKeys = async (): Promise<string[]> => {
@@ -2369,8 +2390,13 @@ export class SmartVaults {
 
   isVerifiedKeyAgent = async (pubkey?: string): Promise<boolean> => {
     const author = pubkey || this.authenticator.getPublicKey()
-    const verifiedKeyAgentsPubkeys = await this.getVerifiedKeyAgentsPubKeys()
-    return verifiedKeyAgentsPubkeys.includes(author)
+    const verifedKeyAgentsStore = this.getStore(SmartVaultsKind.VerifiedKeyAgents)
+    let isKeyAgent = verifedKeyAgentsStore.get(author) ? true : false
+    if (!isKeyAgent) {
+      const verifiedKeyAgentsPubkeys = await this.getVerifiedKeyAgentsPubKeys()
+      isKeyAgent = verifiedKeyAgentsPubkeys.includes(author)
+    }
+    return isKeyAgent
   }
 
   getVerifiedKeyAgents = async (): Promise<Array<SmartVaultsTypes.KeyAgent>> => {
@@ -2759,11 +2785,12 @@ export class SmartVaults {
         maybePolicyId = getTagValue(directMessageEvent, TagType.Event)
       } catch (e) { maybePolicyId = undefined }
 
-      if (!maybePolicyId && (ids.has(directMessageEvent.pubkey) || ids.has(getTagValues(directMessageEvent, TagType.PubKey)[0]))) continue
+      if (!maybePolicyId && (ids.has(directMessageEvent.pubkey) || ids.has(getTagValue(directMessageEvent, TagType.PubKey)))) continue
       if (maybePolicyId && ids.has(maybePolicyId!)) continue
 
       const isGroupMessage = maybePolicyId !== undefined && policiesIds.has(maybePolicyId!)
       const isValidOneToOneMessage = !isGroupMessage && getTagValues(directMessageEvent, TagType.PubKey).length === 1
+      if (!isGroupMessage && !isValidOneToOneMessage) continue
       const isOwnMessage = directMessageEvent.pubkey === this.authenticator.getPublicKey()
       const chat = this.getChat()
 
@@ -2785,7 +2812,7 @@ export class SmartVaults {
         }
         ids.add(conversationId)
       } else if (isValidOneToOneMessage) {
-        const conversationId = isOwnMessage ? getTagValues(directMessageEvent, TagType.PubKey)[0] : directMessageEvent.pubkey
+        const conversationId = isOwnMessage ? getTagValue(directMessageEvent, TagType.PubKey) : directMessageEvent.pubkey
         const savedConversation = chat._getConversation(conversationId)
         if (!savedConversation) {
           const newConversation: SmartVaultsTypes.Conversation = {

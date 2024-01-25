@@ -77,7 +77,7 @@ export function getTagValue(
  * @example
  * const isNip05Verified = await isNip05Verified(alice@smartvaults.app, aliciesPublicKey);
  */
-export async function isNip05Verified(nip05: string, publicKey: string, timeout = 2000): Promise<boolean> {
+export async function isNip05Verified(nip05: string, publicKey: string, timeout = 500): Promise<boolean> {
 
   const HTTP_OK = 200;
   const nip05Array = nip05.split('@');
