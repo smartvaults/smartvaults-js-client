@@ -471,6 +471,8 @@ export class PublishedPolicy {
       }
     }
 
+    if (transactionMetadataToUpdateMap.has(trx.txid)) trx.transactionMetadata = transactionMetadataToUpdateMap.get(trx.txid)!;
+
     switch (type) {
       case 'costBasis':
         trx.proceeds = 0
@@ -523,6 +525,8 @@ export class PublishedPolicy {
     trx.netFiatAtConfirmation = netFiatAtConfirmation;
     trx.feeFiatAtConfirmation = feeFiatAtConfirmation;
     trx.date = date;
+
+    if (transactionMetadataToUpdateMap.has(trx.txid)) trx.transactionMetadata = transactionMetadataToUpdateMap.get(trx.txid)!;
 
     this.addCostBasisProceeds(trx, transactionMetadataToUpdateMap, costBasisProceedsMap);
   }
