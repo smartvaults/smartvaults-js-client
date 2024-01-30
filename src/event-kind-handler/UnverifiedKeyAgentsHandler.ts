@@ -27,9 +27,6 @@ export class UnverifiedKeyAgentsHandler extends EventKindHandler {
 
         const unverifiedKeyAgentsPubKeys = unverifiedKeyAgentsEvents.map(event => event.pubkey);
         const missingKeyAgentsPubKeys = this.store.missing(unverifiedKeyAgentsPubKeys);
-        if (missingKeyAgentsPubKeys.length === 0) {
-            return this.store.getManyAsArray(unverifiedKeyAgentsPubKeys, 'pubkey');
-        }
         const [contacts, profiles] = await Promise.all([
             this.getContacts(),
             this.getProfiles(missingKeyAgentsPubKeys)
@@ -38,14 +35,21 @@ export class UnverifiedKeyAgentsHandler extends EventKindHandler {
         const contactsSet = new Set(contacts.map(contact => contact.publicKey));
         const profilesMap = new Map(profiles.map(profile => [profile.publicKey, profile]));
 
-        const missingKeyAgents: Array<KeyAgent> = missingKeyAgentsPubKeys.map(pubkey => {
+        const keyAgents: Array<KeyAgent> = []
+
+        for (const pubkey of unverifiedKeyAgentsPubKeys) {
+            const isCached = this.store.has(pubkey);
             const isContact = contactsSet.has(pubkey);
+            if (isCached) {
+                this.store.get(pubkey).isContact = isContact;
+                continue;
+            }
             const profile = profilesMap.get(pubkey) || { publicKey: pubkey };
 
-            return { pubkey, profile, isContact, isVerified: false };
-        });
+            keyAgents.push({ pubkey, profile, isContact, isVerified: false });
+        };
 
-        this.store.store(missingKeyAgents);
+        this.store.store(keyAgents);
 
         return this.store.getManyAsArray(unverifiedKeyAgentsPubKeys, 'pubkey');
     }

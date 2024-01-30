@@ -23,17 +23,19 @@ export class VerifiedKeyAgentsHandler extends EventKindHandler {
         const verifiedKeyAgentsEvent = verifiedKeyAgentsEvents[0]
         const keyAgents: BaseVerifiedKeyAgents = JSON.parse(verifiedKeyAgentsEvent.content)
         const keyAgentsPubkeys = Object.keys(keyAgents)
-        if (this.store.has(verifiedKeyAgentsEvent.id, 'eventId')) {
-            const cachedKeyAgents = this.store.get(verifiedKeyAgentsEvent.id, 'eventId')
-            return cachedKeyAgents
-        }
-        const [contacts, profiles] = await Promise.all([this.getContacts(), this.getProfiles(keyAgentsPubkeys)])
+        const missingKeyAgentsPubKeys = this.store.missing(keyAgentsPubkeys)
+        const [contacts, profiles] = await Promise.all([this.getContacts(), this.getProfiles(missingKeyAgentsPubKeys)])
         const contactsSet = new Set(contacts.map(contact => contact.publicKey))
         const profilesMap = new Map(profiles.map(profile => [profile.publicKey, profile]))
         const verifiedKeyAgents: Array<KeyAgent> = []
 
         for (const [pubkey, data] of Object.entries(keyAgents)) {
             const isContact = contactsSet.has(pubkey);
+            const isCached = this.store.has(pubkey);
+            if (isCached) {
+                this.store.get(pubkey).isContact = isContact;
+                continue;
+            }
             const profile = profilesMap.get(pubkey) || { publicKey: pubkey };
             const approvedAt = fromNostrDate(data.approved_at);
             verifiedKeyAgents.push({
@@ -46,7 +48,7 @@ export class VerifiedKeyAgentsHandler extends EventKindHandler {
             });
         }
 
-        this.store.store(verifiedKeyAgents)
+        this.store.store(verifiedKeyAgents);
         return verifiedKeyAgents;
 
     }
