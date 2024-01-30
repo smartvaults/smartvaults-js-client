@@ -344,6 +344,7 @@ export class SmartVaults {
       descriptor
     }
 
+    nostrPublicKeys = [...new Set(nostrPublicKeys)] // remove duplicates
     const tags = nostrPublicKeys.map(pubkey => [TagType.PubKey, pubkey])
     const content = await sharedKeyAuthenticator.encryptObj(policyContent)
     const policyEvent = await buildEvent({
@@ -2865,11 +2866,14 @@ export class SmartVaults {
   async getPoliciesByAuthor(author: string | string[], paginationOpts?: PaginationOpts): Promise<Map<string, PublishedPolicy[]>> {
     const sharedKeyEvents = await this.getSharedKeyEventsByAuthor(author, paginationOpts)
     const policiesByPubkey = new Map<string, PublishedPolicy[]>()
+    const seenPolicyIds = new Set<string>()
     try {
       const promises = Array.from(sharedKeyEvents.entries()).map(async ([pubkey, sharedKeyEvents]) => {
         const policiesPromises = sharedKeyEvents.map(async sharedKeyEvent => {
           const policyId: string = getTagValue(sharedKeyEvent, TagType.Event)
+          if (seenPolicyIds.has(policyId)) return undefined
           const policy = (await this.getPoliciesById([policyId])).get(policyId)
+          seenPolicyIds.add(policyId)
           return policy
         })
         const policies = await Promise.all(policiesPromises)
