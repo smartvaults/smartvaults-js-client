@@ -101,7 +101,7 @@ export class EventKindHandlerFactory {
           this.handlers.set(eventKind, new VerifiedKeyAgentsHandler(stores.get(eventKind)!, getContacts, getProfiles))
           break
         case SmartVaultsKind.KeyAgents:
-          this.handlers.set(eventKind, new UnverifiedKeyAgentsHandler(stores.get(eventKind)!, getContacts, getProfiles, getVerifiedKeyAgentsPubKeys))
+          this.handlers.set(eventKind, new UnverifiedKeyAgentsHandler(stores.get(eventKind)!, authenticator, nostrClient, getContacts, getProfiles, getVerifiedKeyAgentsPubKeys))
           break
         case SmartVaultsKind.SignerOffering:
           this.handlers.set(eventKind, new SignerOfferingsHandler(authenticator, nostrClient, stores.get(eventKind)!, eventsStore, getOwnedSignersByOfferingIdentifiers, getSharedSignersByOfferingIdentifiers, getContacts))

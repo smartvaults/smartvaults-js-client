@@ -59,7 +59,7 @@ export class SmartVaults {
     this.stores.set(SmartVaultsKind.TransactionMetadata, Store.createMultiIndexStore(["id", "policy_id", "transactionMetadataId", "txId"], "id"))
     this.stores.set(SmartVaultsKind.SignerOffering, Store.createMultiIndexStore(["id", "offeringId", "keyAgentPubKey", "signerDescriptor"], "id"))
     this.stores.set(SmartVaultsKind.VerifiedKeyAgents, Store.createMultiIndexStore(["eventId", "pubkey"], "pubkey"))
-    this.stores.set(SmartVaultsKind.KeyAgents, Store.createSingleIndexStore("pubkey"))
+    this.stores.set(SmartVaultsKind.KeyAgents, Store.createMultiIndexStore(["eventId", "pubkey"], "pubkey"))
     this.stores.set(Kind.EncryptedDirectMessage, Store.createMultiIndexStore(["id", "conversationId"], "id"))
   }
 
@@ -1851,6 +1851,20 @@ export class SmartVaults {
   async deletePolicies(ids: string | string[]): Promise<void> {
     const policyIds = Array.isArray(ids) ? ids : [ids]
     await this.eventKindHandlerFactor.getHandler(SmartVaultsKind.Policy).delete(policyIds)
+  }
+
+  async deleteKeyAgentSignalingEvent(deleteOfferings: boolean = false): Promise<void> {
+    const pubkey = this.authenticator.getPublicKey()
+    await this.getUnverifiedKeyAgentsByPubKeys([pubkey])
+    const id = this.getStore(SmartVaultsKind.KeyAgents).get(pubkey, 'pubkey')?.eventId
+    if (!id) throw new Error(`Key agent signaling event not found for ${pubkey}`)
+    const promises: Promise<any>[] = [this.eventKindHandlerFactor.getHandler(SmartVaultsKind.KeyAgents).delete([id])]
+    if (deleteOfferings) {
+      const offerings = await this.getOwnedSignerOfferings()
+      const offeringsIds = offerings.map(offering => offering.offeringId)
+      promises.push(this.deleteSignerOfferings(offeringsIds))
+    }
+    await Promise.all(promises)
   }
 
   /**
