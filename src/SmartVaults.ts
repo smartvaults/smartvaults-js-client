@@ -2834,4 +2834,39 @@ export class SmartVaults {
 
   }
 
+  private async getSharedKeyEventsByAuthor(author: string | string[], paginationOpts?: PaginationOpts): Promise<Map<string, Event<number>[]>> {
+    const authors = Array.isArray(author) ? author : [author]
+    const sharedKeyEventsByPubkey = new Map<string, Event<number>[]>()
+
+    const promises = authors.map(async pubkey => {
+      const sharedKeysFilter = this.getFilter(SmartVaultsKind.SharedKey, { authors: pubkey, paginationOpts })
+      const sharedKeysEvents = await this.nostrClient.list(sharedKeysFilter)
+      sharedKeyEventsByPubkey.set(pubkey, sharedKeysEvents)
+    })
+
+    await Promise.all(promises)
+    return sharedKeyEventsByPubkey
+  }
+
+  async getPoliciesByAuthor(author: string | string[], paginationOpts?: PaginationOpts): Promise<Map<string, PublishedPolicy[]>> {
+    const sharedKeyEvents = await this.getSharedKeyEventsByAuthor(author, paginationOpts)
+    const policiesByPubkey = new Map<string, PublishedPolicy[]>()
+    try {
+      const promises = Array.from(sharedKeyEvents.entries()).map(async ([pubkey, sharedKeyEvents]) => {
+        const policiesPromises = sharedKeyEvents.map(async sharedKeyEvent => {
+          const policyId: string = getTagValue(sharedKeyEvent, TagType.Event)
+          const policy = (await this.getPoliciesById([policyId])).get(policyId)
+          return policy
+        })
+        const policies = await Promise.all(policiesPromises)
+        policiesByPubkey.set(pubkey, policies.filter(policy => policy !== undefined) as PublishedPolicy[])
+      }
+      )
+      await Promise.all(promises)
+    } catch (e) {
+      throw new Error(`Error while fetching policies by pubkey: ${e}`)
+    }
+    return policiesByPubkey
+  }
+
 }
