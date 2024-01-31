@@ -2855,7 +2855,16 @@ export class SmartVaults {
 
     const promises = authors.map(async pubkey => {
       const sharedKeysFilter = this.getFilter(SmartVaultsKind.SharedKey, { authors: pubkey, paginationOpts })
-      const sharedKeysEvents = await this.nostrClient.list(sharedKeysFilter)
+      const sharedKeysEvents = (await this.nostrClient.list(sharedKeysFilter)).reduce((acc, event) => {
+        const policyId = getTagValue(event, TagType.Event)
+        if (policyId && !acc.seenIds.has(policyId)) {
+          acc.seenIds.add(policyId)
+          acc.events.push(event)
+        }
+        return acc
+
+      }, { seenIds: new Set<string>(), events: [] as Event<number>[] }).events
+
       sharedKeyEventsByPubkey.set(pubkey, sharedKeysEvents)
     })
 
@@ -2866,14 +2875,11 @@ export class SmartVaults {
   async getPoliciesByAuthor(author: string | string[], paginationOpts?: PaginationOpts): Promise<Map<string, PublishedPolicy[]>> {
     const sharedKeyEvents = await this.getSharedKeyEventsByAuthor(author, paginationOpts)
     const policiesByPubkey = new Map<string, PublishedPolicy[]>()
-    const seenPolicyIds = new Set<string>()
     try {
       const promises = Array.from(sharedKeyEvents.entries()).map(async ([pubkey, sharedKeyEvents]) => {
         const policiesPromises = sharedKeyEvents.map(async sharedKeyEvent => {
           const policyId: string = getTagValue(sharedKeyEvent, TagType.Event)
-          if (seenPolicyIds.has(policyId)) return undefined
           const policy = (await this.getPoliciesById([policyId])).get(policyId)
-          seenPolicyIds.add(policyId)
           return policy
         })
         const policies = await Promise.all(policiesPromises)
