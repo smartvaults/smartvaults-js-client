@@ -59,7 +59,7 @@ export class SmartVaults {
     this.stores.set(SmartVaultsKind.TransactionMetadata, Store.createMultiIndexStore(["id", "policy_id", "transactionMetadataId", "txId"], "id"))
     this.stores.set(SmartVaultsKind.SignerOffering, Store.createMultiIndexStore(["id", "offeringId", "keyAgentPubKey", "signerDescriptor"], "id"))
     this.stores.set(SmartVaultsKind.VerifiedKeyAgents, Store.createMultiIndexStore(["eventId", "pubkey"], "pubkey"))
-    this.stores.set(SmartVaultsKind.KeyAgents, Store.createSingleIndexStore("pubkey"))
+    this.stores.set(SmartVaultsKind.KeyAgents, Store.createMultiIndexStore(["eventId", "pubkey"], "pubkey"))
     this.stores.set(Kind.EncryptedDirectMessage, Store.createMultiIndexStore(["id", "conversationId"], "id"))
   }
 
@@ -344,6 +344,7 @@ export class SmartVaults {
       descriptor
     }
 
+    nostrPublicKeys = [...new Set(nostrPublicKeys)] // remove duplicates
     const tags = nostrPublicKeys.map(pubkey => [TagType.PubKey, pubkey])
     const content = await sharedKeyAuthenticator.encryptObj(policyContent)
     const policyEvent = await buildEvent({
@@ -1853,6 +1854,20 @@ export class SmartVaults {
     await this.eventKindHandlerFactor.getHandler(SmartVaultsKind.Policy).delete(policyIds)
   }
 
+  async deleteKeyAgentSignalingEvent(deleteOfferings: boolean = false): Promise<void> {
+    const pubkey = this.authenticator.getPublicKey()
+    await this.getUnverifiedKeyAgentsByPubKeys([pubkey])
+    const id = this.getStore(SmartVaultsKind.KeyAgents).get(pubkey, 'pubkey')?.eventId
+    if (!id) throw new Error(`Key agent signaling event not found for ${pubkey}`)
+    const promises: Promise<any>[] = [this.eventKindHandlerFactor.getHandler(SmartVaultsKind.KeyAgents).delete([id])]
+    if (deleteOfferings) {
+      const offerings = await this.getOwnedSignerOfferings()
+      const offeringsIds = offerings.map(offering => offering.offeringId)
+      promises.push(this.deleteSignerOfferings(offeringsIds))
+    }
+    await Promise.all(promises)
+  }
+
   /**
    * Asynchronously revokes shared signers with the given IDs.
    *
@@ -2832,6 +2847,50 @@ export class SmartVaults {
     }
     return conversations
 
+  }
+
+  private async getSharedKeyEventsByAuthor(author: string | string[], paginationOpts?: PaginationOpts): Promise<Map<string, Event<number>[]>> {
+    const authors = Array.isArray(author) ? author : [author]
+    const sharedKeyEventsByPubkey = new Map<string, Event<number>[]>()
+
+    const promises = authors.map(async pubkey => {
+      const sharedKeysFilter = this.getFilter(SmartVaultsKind.SharedKey, { authors: pubkey, paginationOpts })
+      const sharedKeysEvents = (await this.nostrClient.list(sharedKeysFilter)).reduce((acc, event) => {
+        const policyId = getTagValue(event, TagType.Event)
+        if (policyId && !acc.seenIds.has(policyId)) {
+          acc.seenIds.add(policyId)
+          acc.events.push(event)
+        }
+        return acc
+
+      }, { seenIds: new Set<string>(), events: [] as Event<number>[] }).events
+
+      sharedKeyEventsByPubkey.set(pubkey, sharedKeysEvents)
+    })
+
+    await Promise.all(promises)
+    return sharedKeyEventsByPubkey
+  }
+
+  async getPoliciesByAuthor(author: string | string[], paginationOpts?: PaginationOpts): Promise<Map<string, PublishedPolicy[]>> {
+    const sharedKeyEvents = await this.getSharedKeyEventsByAuthor(author, paginationOpts)
+    const policiesByPubkey = new Map<string, PublishedPolicy[]>()
+    try {
+      const promises = Array.from(sharedKeyEvents.entries()).map(async ([pubkey, sharedKeyEvents]) => {
+        const policiesPromises = sharedKeyEvents.map(async sharedKeyEvent => {
+          const policyId: string = getTagValue(sharedKeyEvent, TagType.Event)
+          const policy = (await this.getPoliciesById([policyId])).get(policyId)
+          return policy
+        })
+        const policies = await Promise.all(policiesPromises)
+        policiesByPubkey.set(pubkey, policies.filter(policy => policy !== undefined) as PublishedPolicy[])
+      }
+      )
+      await Promise.all(promises)
+    } catch (e) {
+      throw new Error(`Error while fetching policies by pubkey: ${e}`)
+    }
+    return policiesByPubkey
   }
 
 }
