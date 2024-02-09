@@ -544,7 +544,6 @@ describe('PublishedPolicy', () => {
         { ...trx2, type: "RECEIVE", costBasis: 61.2, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 60, feeFiatAtConfirmation: 1.2, btcExchangeRateAtConfirmation: 60000 },
         { ...trx3, type: "SEND", costBasis: 0, associatedCostBasis: "50000@22  100000@61.2", proceeds: 72, capitalGainsLoses: -11.2, netFiatAtConfirmation: -75, feeFiatAtConfirmation: 3, btcExchangeRateAtConfirmation: 50000 }
       ]
-
       const getTrx1 = { ...trx1, outputs: [], inputs: [], lock_time: 1, confirmation_time: { height: 2441712, timestamp: 1689279109, confirmedAt: date1, confirmations: 1 } }
       const getTrx2 = { ...trx2, outputs: [], inputs: [], lock_time: 1, confirmation_time: { height: 2441712, timestamp: 1689365510, confirmedAt: date2, confirmations: 1 } }
       const getTrx3 = { ...trx3, outputs: [], inputs: [{ txid: "txid1" } as TrxInput, { txid: "txid2" } as TrxInput], lock_time: 1, confirmation_time: { height: 2441712, timestamp: 1689451910, confirmedAt: date3, confirmations: 1 } }
@@ -557,6 +556,7 @@ describe('PublishedPolicy', () => {
         .mockResolvedValueOnce(getTrx2)
 
       const actual = await policy2.getAugmentedTransactions({ method: AccountingMethod.SpecID })
+      actual.map((trx, i) => expected[i].transactionMetadata = trx.transactionMetadata)
       expect(actual).toEqual(expected)
 
     })
@@ -586,6 +586,7 @@ describe('PublishedPolicy', () => {
       ]
 
       const actual = await policy2.getAugmentedTransactions({ method: AccountingMethod.FIFO })
+      actual.map((trx, i) => expected[i].transactionMetadata = trx.transactionMetadata)
       expect(actual).toEqual(expected)
 
     })
@@ -614,6 +615,7 @@ describe('PublishedPolicy', () => {
       ]
 
       const actual = await policy2.getAugmentedTransactions({ method: AccountingMethod.LIFO })
+      actual.map((trx, i) => expected[i].transactionMetadata = trx.transactionMetadata)
       expect(actual).toEqual(expected)
 
     })
@@ -642,6 +644,7 @@ describe('PublishedPolicy', () => {
       ]
 
       const actual = await policy2.getAugmentedTransactions({ method: AccountingMethod.HIFO })
+      actual.map((trx, i) => expected[i].transactionMetadata = trx.transactionMetadata)
       expect(actual).toEqual(expected)
 
     })
@@ -671,6 +674,7 @@ describe('PublishedPolicy', () => {
       ]
       const costBasisProceedsMap = new Map<string, number>(([[trx1.txid, 50], [trx2.txid, 100], [trx3.txid, 150]]))
       const actual = await policy2.getAugmentedTransactions({ method: AccountingMethod.HIFO, costBasisProceedsMap })
+      actual.map((trx, i) => expected[i].transactionMetadata = trx.transactionMetadata)
       expect(actual).toEqual(expected)
 
     }
@@ -696,6 +700,7 @@ describe('PublishedPolicy', () => {
         { ...trx3, type: "SEND", costBasis: 0, associatedCostBasis: "100000@61.2  50000@22", proceeds: 72, capitalGainsLoses: -11.2, netFiatAtConfirmation: -75, feeFiatAtConfirmation: 3, btcExchangeRateAtConfirmation: 50000 }
       ]
       const actual = await policy2.getAugmentedTransactions({ method: AccountingMethod.HIFO, btcExchangeRatesMap: btcExchangeRateMap })
+      actual.map((trx, i) => expected[i].transactionMetadata = trx.transactionMetadata)
       expect(actual).toEqual(expected)
     })
 

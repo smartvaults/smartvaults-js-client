@@ -55,7 +55,7 @@ export class SmartVaults {
     this.stores.set(SmartVaultsKind.Signers, Store.createSingleIndexStore("id"))
     this.stores.set(Kind.Metadata, Store.createSingleIndexStore("id"))
     this.stores.set(StoreKind.Events, Store.createSingleIndexStore("id"))
-    this.stores.set(StoreKind.MySharedSigners, Store.createMultiIndexStore(["id", "signerId"], "id"))
+    this.stores.set(StoreKind.MySharedSigners, Store.createMultiIndexStore(["id", "signerId", "sharedWith"], "id"))
     this.stores.set(SmartVaultsKind.TransactionMetadata, Store.createMultiIndexStore(["id", "policy_id", "transactionMetadataId", "txId"], "id"))
     this.stores.set(SmartVaultsKind.SignerOffering, Store.createMultiIndexStore(["id", "offeringId", "keyAgentPubKey", "signerDescriptor"], "id"))
     this.stores.set(SmartVaultsKind.VerifiedKeyAgents, Store.createMultiIndexStore(["eventId", "pubkey"], "pubkey"))
@@ -1024,32 +1024,62 @@ export class SmartVaults {
    * @see SmartVaultsTypes.MySharedSigner - For the structure of MySharedSigner objects.
    */
   getMySharedSigners = async (id?: string | string[]): Promise<Map<string, SmartVaultsTypes.MySharedSigner | Array<SmartVaultsTypes.MySharedSigner>>> => {
-    const ids: string[] | undefined = Array.isArray(id) ? id : id ? [id] : undefined;
+    const signerIds: string[] | undefined = Array.isArray(id) ? id : id ? [id] : undefined;
     const mysharedSignersStore = this.getStore(StoreKind.MySharedSigners)
     let signersFilter = this.buildMySharedSignersFilter()
-    if (ids && mysharedSignersStore.has(ids[0], "signerId")) {
-      return mysharedSignersStore.getMany(ids, "signerId");
+
+    if (signerIds) {
+      signersFilter = signersFilter.events(signerIds)
     }
-    if (ids) {
-      signersFilter = signersFilter.events(ids)
-    }
+
     const mySharedSignersEvents = await this.nostrClient.list(signersFilter.toFilters())
     const missingIds = mysharedSignersStore.missing(mySharedSignersEvents.map(e => e.id), 'id')
+
     if (missingIds.length === 0) {
-      return mysharedSignersStore.getMany(ids, "signerId")
+      return mysharedSignersStore.getMany(signerIds, "signerId")
     }
+
     const missingMySharedSignersEvents = mySharedSignersEvents.filter(e => missingIds.includes(e.id))
     const mySharedSigners = missingMySharedSignersEvents.map(event => {
-      const signerId = getTagValues(event, TagType.Event)[0];
-      const sharedWith = getTagValues(event, TagType.PubKey)[0];
+      const signerId = getTagValue(event, TagType.Event);
+      const sharedWith = getTagValue(event, TagType.PubKey);
       const sharedId = event.id;
       const sharedDate = fromNostrDate(event.created_at);
 
       return { id: sharedId, signerId, sharedWith, sharedDate } as SmartVaultsTypes.MySharedSigner;
     });
     mysharedSignersStore.store(mySharedSigners)
-    return mysharedSignersStore.getMany(ids, "signerId")
+    return mysharedSignersStore.getMany(signerIds, "signerId")
 
+  }
+
+  getMySharedSignersBySharedWith = async (pubkey?: string | string[]): Promise<Map<string, SmartVaultsTypes.MySharedSigner | Array<SmartVaultsTypes.MySharedSigner>>> => {
+    const pubkeys: string[] | undefined = Array.isArray(pubkey) ? pubkey : pubkey ? [pubkey] : undefined;
+    const mysharedSignersStore = this.getStore(StoreKind.MySharedSigners)
+    let signersFilter = this.buildMySharedSignersFilter()
+
+    if (pubkeys) {
+      signersFilter = signersFilter.pubkeys(pubkeys)
+    }
+
+    const mySharedSignersEvents = await this.nostrClient.list(signersFilter.toFilters())
+    const missingIds = mysharedSignersStore.missing(mySharedSignersEvents.map(e => e.id), 'id')
+
+    if (missingIds.length === 0) {
+      return mysharedSignersStore.getMany(pubkeys, "sharedWith")
+    }
+
+    const missingMySharedSignersEvents = mySharedSignersEvents.filter(e => missingIds.includes(e.id))
+    const mySharedSigners = missingMySharedSignersEvents.map(event => {
+      const signerId = getTagValue(event, TagType.Event);
+      const sharedWith = getTagValue(event, TagType.PubKey);
+      const sharedId = event.id;
+      const sharedDate = fromNostrDate(event.created_at);
+
+      return { id: sharedId, signerId, sharedWith, sharedDate } as SmartVaultsTypes.MySharedSigner;
+    });
+    mysharedSignersStore.store(mySharedSigners)
+    return mysharedSignersStore.getMany(pubkeys, "sharedWith")
   }
 
   private async _getSharedSigners(filter: Filter<SmartVaultsKind.SharedSigners>[]): Promise<SmartVaultsTypes.PublishedSharedSigner[]> {
@@ -2644,7 +2674,7 @@ export class SmartVaults {
     return updatedProfile
   }
 
-  private publishKeyAgentSignalingEvent = async (): Promise<void> => {
+  private publishKeyAgentSignalingEvent = async (): Promise<Event<SmartVaultsKind.KeyAgents>> => {
     const identifier = this.getNetworkIdentifier();
     const keyAgentSignalingEvent = await buildEvent({
       kind: SmartVaultsKind.KeyAgents,
@@ -2654,19 +2684,21 @@ export class SmartVaults {
       this.authenticator)
     const pub = this.nostrClient.publish(keyAgentSignalingEvent)
     await pub.onFirstOkOrCompleteFailure()
+    return keyAgentSignalingEvent
   }
 
   saveKeyAgent = async (metadata?: SmartVaultsTypes.Metadata): Promise<SmartVaultsTypes.KeyAgent> => {
     const pubkey = this.authenticator.getPublicKey();
     const [isKeyAgent, isVerifiedKeyAgent] = await Promise.all([this.isKeyAgent(pubkey), this.isVerifiedKeyAgent(pubkey)]);
 
-    if (isKeyAgent && !metadata) {
-      return { pubkey } as SmartVaultsTypes.KeyAgent;
+    if (isKeyAgent || isVerifiedKeyAgent) {
+      throw new Error('Key agent already registered.');
     }
 
     let profile: SmartVaultsTypes.Profile = { publicKey: pubkey };
+    let eventId: string | undefined;
 
-    const promises = !isKeyAgent && !isVerifiedKeyAgent ? [this.publishKeyAgentSignalingEvent()] : [];
+    const promises: Promise<any>[] = !isKeyAgent && !isVerifiedKeyAgent ? [this.publishKeyAgentSignalingEvent().then(keyAgentEvent => { eventId = keyAgentEvent.id })] : [];
 
     if (metadata) {
       promises.push(this.updateProfile(metadata).then(updatedProfile => {
@@ -2676,19 +2708,12 @@ export class SmartVaults {
 
     await Promise.all(promises);
 
-    if (metadata && isKeyAgent && this.getStore(SmartVaultsKind.KeyAgents).has(pubkey)) {
-      this.getStore(SmartVaultsKind.KeyAgents).get(pubkey).profile = profile;
-    }
-
-    if (metadata && isVerifiedKeyAgent && this.getStore(SmartVaultsKind.VerifiedKeyAgents).has(pubkey, 'pubkey')) {
-      this.getStore(SmartVaultsKind.VerifiedKeyAgents).get(pubkey, 'pubkey').profile = profile;
-    }
-
     const keyAgent: SmartVaultsTypes.KeyAgent = {
       pubkey,
       profile,
       isVerified: false,
       isContact: false,
+      eventId,
     };
 
     return keyAgent;
