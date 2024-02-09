@@ -143,6 +143,7 @@ export class SmartVaults {
    * await removeContacts(['somePubKey', 'otherPubKey']);
    */
   async removeContacts(contactsToRemove: string | string[]): Promise<Event<Kind.Contacts>> {
+    contactsToRemove = Array.isArray(contactsToRemove) ? contactsToRemove : [contactsToRemove] as string[]
     const currentContacts: Contact[] = await this.getContacts()
     const contacts = Contact.remove(contactsToRemove, currentContacts)
     const contactsEvent = await buildEvent({
@@ -153,6 +154,19 @@ export class SmartVaults {
       this.authenticator)
     const pub = this.nostrClient.publish(contactsEvent)
     await pub.onFirstOkOrCompleteFailure()
+    const keyAgentsStore = this.getStore(SmartVaultsKind.KeyAgents)
+    const verifiedKeyAgentsStore = this.getStore(SmartVaultsKind.VerifiedKeyAgents)
+    const indexKey = 'pubkey'
+
+    contactsToRemove.map(contact => {
+      if (keyAgentsStore.has(contact, indexKey)) {
+        keyAgentsStore.get(contact, indexKey).isContact = false
+      }
+      if (verifiedKeyAgentsStore.has(contact, indexKey)) {
+        verifiedKeyAgentsStore.get(contact, indexKey).isContact = false
+      }
+    })
+
     return contactsEvent
   }
 
