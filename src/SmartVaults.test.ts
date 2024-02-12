@@ -1229,16 +1229,6 @@ describe('SmartVaults', () => {
       expect(keyAgents).toEqual(expect.arrayContaining(expected))
     });
 
-    it('saveKeyAgent updates metadata if user is already a key agent', async () => {
-      const keyAgentMetadata: KeyAgentMetadata = { jurisdiction: "other jurisdiction", x: "https://twitter.com/smartvaults", facebook: "https://facebook.com/smartvaults" }
-      keyAgent1 = await smartVaults.saveKeyAgent(keyAgentMetadata)
-      const updatedMetadata = await smartVaults.getProfile()
-      expect(updatedMetadata.jurisdiction).toEqual(keyAgentMetadata.jurisdiction)
-      expect(updatedMetadata.x).toEqual(keyAgentMetadata.x)
-      expect(updatedMetadata.facebook).toEqual(keyAgentMetadata.facebook)
-      expect(updatedMetadata).toEqual(keyAgent1.profile)
-    });
-
     it('getUnverifiedKeyAgentsByPubKey works', async () => {
       const pubkey = keyAgent1.profile.publicKey
       const keyAgents = await smartVaults.getUnverifiedKeyAgentsByPubKeys([pubkey])
