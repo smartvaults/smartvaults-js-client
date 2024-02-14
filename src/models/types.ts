@@ -156,3 +156,18 @@ export type IncludeFiatAccountingValuesPayload = {
   costBasisProceedsMap?: Map<string, number>
   btcExchangeRatesMap?: Map<string, number>
 }
+
+export type Address = {
+  address: string
+  address_type: string
+  balance: number
+  txids: Array<string>
+  qr_uri: string
+  index: number
+  used: boolean
+}
+
+export type LabeledAddress = Address & {
+  label?: string
+  balanceFiat: number
+}
