@@ -1,4 +1,4 @@
-import { BaseOwnedSigner, Trx, FinalizeTrxResponse, UndecoratedBasicTrxDetails, UndecoratedTrxDetails, Utxo, PolicyPathSelector, PolicyPathsResult } from "./types"
+import { BaseOwnedSigner, Trx, FinalizeTrxResponse, UndecoratedBasicTrxDetails, UndecoratedTrxDetails, Utxo, PolicyPathSelector, PolicyPathsResult, Address } from "./types"
 import { PsbtObject } from "../types"
 
 type BalancePayload = {
@@ -56,6 +56,12 @@ export interface Wallet {
   has_timelock(): boolean
 
   get_fee(txid: string): Promise<{ fee: number }>;
+
+  get_unused_addresses(num: number): Address[];
+
+  get_used_addresses(): Address[];
+
+  get_last_unused_address(): string;
 
 }
 

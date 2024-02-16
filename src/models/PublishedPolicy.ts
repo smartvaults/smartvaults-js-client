@@ -1,7 +1,7 @@
 import { Authenticator } from '@smontero/nostr-ual'
 import { Event } from 'nostr-tools'
 import { Balance } from './Balance'
-import { BaseOwnedSigner, PolicyPathSelector, Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails, Utxo, PolicyPathsResult, AugmentedTransactionDetails, UndecoratedBasicTrxDetails, UndecoratedTrxDetails, DatePeriod, IncludeFiatAccountingValuesPayload } from './types'
+import { BaseOwnedSigner, PolicyPathSelector, Trx, Policy, FinalizeTrxResponse, BasicTrxDetails, TrxDetails, Utxo, PolicyPathsResult, AugmentedTransactionDetails, UndecoratedBasicTrxDetails, UndecoratedTrxDetails, DatePeriod, IncludeFiatAccountingValuesPayload, Address, LabeledAddress } from './types'
 import { BitcoinUtil, Wallet } from './interfaces'
 import { CurrencyUtil, PaginationOpts, TimeUtil, fromNostrDate, toPublished } from '../util'
 import { generateUiMetadata, UIMetadata, Key } from '../util/GenerateUiMetadata'
@@ -743,5 +743,34 @@ export class PublishedPolicy {
     const fileName = `TXS-${vaultName}-${date}-${includeFiatAccountingValuesPayload.method}-${currentFiat}`;
 
     saveFile(fileName, csv, 'Text', '.csv');
+  }
+
+  public async getUnusedAddresses(num: number): Promise<Array<LabeledAddress>> {
+    const addresses: Address[] = (await this.synced()).get_unused_addresses(num)
+    const labeledAddresses = await this.addAddressMetadata(addresses)
+    return labeledAddresses
+  }
+
+  public async getUsedAddresses(): Promise<Array<LabeledAddress>> {
+    const addresses: Address[] = (await this.synced()).get_used_addresses()
+    const labeledAddresses = await this.addAddressMetadata(addresses)
+    return labeledAddresses
+  }
+
+  public async getLastUnusedAddress(): Promise<string> {
+    return (await this.synced()).get_last_unused_address()
+  }
+
+  private async addAddressMetadata(address: Address[]): Promise<Array<LabeledAddress>> {
+    await this.getTransactionMetadataByPolicyId(this.id, {})
+    return Promise.all(address.map(async (addr) => {
+      const transactionMetadata: PublishedTransactionMetadata | undefined = this.transactionMetadataStore.get(addr.address, 'txId');
+      const label = transactionMetadata?.transactionMetadata.text
+      const labeledAddress: LabeledAddress = { ...addr } as LabeledAddress;
+      labeledAddress.balanceFiat = (await this.bitcoinExchangeRate.convertToFiat([addr.balance]))[0] || 0;
+      if (label) labeledAddress.label = label
+
+      return labeledAddress
+    }))
   }
 }

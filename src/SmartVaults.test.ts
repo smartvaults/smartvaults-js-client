@@ -1195,8 +1195,8 @@ describe('SmartVaults', () => {
       expect(new Set(fetchedTransactionMetadata2)).toEqual(new Set([TrxTransactionMetadata, transactionMetadata3, transactionMetadata2]))
       const transactionMetadataByTransactionMetadataId = await smartVaults.getTransactionMetadataById(transactionMetadata3.transactionMetadataId)
       expect(transactionMetadataByTransactionMetadataId.get(transactionMetadata3.transactionMetadataId)).toEqual(transactionMetadata3)
-      const transactionMetadataByTransactionMetadataData = await smartVaults.getTransactionMetadataBySourceId(spendProposal1.policy_id, transactionMetadata3.transactionMetadata.data.address)
-      const transactionMetadataByTransactionMetadataData2 = await smartVaults.getTransactionMetadataBySourceId(spendProposal1.policy_id, transactionMetadata2.transactionMetadata.data.address)
+      const transactionMetadataByTransactionMetadataData = (await smartVaults.getTransactionMetadataBySourceId(spendProposal1.policy_id, transactionMetadata3.transactionMetadata.data.address)).get(transactionMetadata3.transactionMetadata.data.address)
+      const transactionMetadataByTransactionMetadataData2 = (await smartVaults.getTransactionMetadataBySourceId(spendProposal1.policy_id, transactionMetadata2.transactionMetadata.data.address)).get(transactionMetadata2.transactionMetadata.data.address)
       expect(transactionMetadataByTransactionMetadataData).toEqual(transactionMetadata3)
       expect(transactionMetadataByTransactionMetadataData2).toEqual(transactionMetadata2)
     }

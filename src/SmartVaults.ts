@@ -2268,15 +2268,14 @@ export class SmartVaults {
    * @example
    * const transactionMetadata = await getTransactionMetadataBySourceId("policyId","trxid");
    */
-  async getTransactionMetadataBySourceId(policyId: string, sourceId: string): Promise<SmartVaultsTypes.PublishedTransactionMetadata> {
+  async getTransactionMetadataBySourceId(policyId: string, sourceId: string | string[]): Promise<Map<string, SmartVaultsTypes.PublishedTransactionMetadata>> {
+    sourceId = Array.isArray(sourceId) ? sourceId : [sourceId]
     const publishedSharedKeyAuthenticator: SmartVaultsTypes.SharedKeyAuthenticator | undefined = (await this.getSharedKeysById([policyId])).get(policyId)
     if (!publishedSharedKeyAuthenticator) throw new Error(`Shared key for policy with id ${policyId} not found`)
     const privateKey = publishedSharedKeyAuthenticator.privateKey
-    const transactionMetadataId = await this.generateIdentifier(sourceId, privateKey)
-    const transactionMetadata = (await this.getTransactionMetadataById(transactionMetadataId)).get(transactionMetadataId)
-    if (!transactionMetadata) {
-      throw new Error(`Metadata with source ID ${sourceId} not found`)
-    }
+    const transactionMetadataIdsPromise = sourceId.map(async sourceId => { return await this.generateIdentifier(sourceId, privateKey) })
+    const transactionMetadataIds = await Promise.all(transactionMetadataIdsPromise)
+    const transactionMetadata = await this.getTransactionMetadataById(transactionMetadataIds)
     return transactionMetadata
   }
 
