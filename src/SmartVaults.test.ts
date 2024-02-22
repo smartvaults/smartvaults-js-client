@@ -80,9 +80,12 @@ describe('SmartVaults', () => {
     let contact3: Contact
     beforeAll(async () => {
       profile1 = await setProfile(1, smartVaults)
+      await sleep(100)
       profile2 = await setProfile(2, smartVaults)
+      await sleep(100)
       profile3 = await setProfile(3, smartVaults)
       smartVaults.setAuthenticator(authenticator)
+      await sleep(100)
       profile4 = await smartVaults.setProfile(getMetadata(420))
       contact1 = getContact(1, profile1.publicKey)
       contact2 = getContact(2, profile2.publicKey)
@@ -177,11 +180,11 @@ describe('SmartVaults', () => {
       const newPubKey = newKeySet.mainKey().publicKey
       const newAuthenticator = new DirectPrivateKeyAuthenticator(newKeySet.mainKey().privateKey)
       smartVaults.setAuthenticator(newAuthenticator)
-      const metadata = { ...getMetadata(1), publicKey: newPubKey }
+      const metadata = { ...getMetadata(1), publicKey: newPubKey, isKeyAgent: false, isVerified: false }
       await smartVaults.setProfile(metadata)
       const profiles = await smartVaults.getContactProfiles()
       const fetchedMetadata = await smartVaults.getProfile(newPubKey)
-      expect(metadata).toEqual(fetchedMetadata)
+      expect(fetchedMetadata).toEqual(metadata)
       expect(profiles).toEqual([])
       smartVaults.setAuthenticator(authenticator)
     }
@@ -1188,7 +1191,6 @@ describe('SmartVaults', () => {
       const transactionMetadataByPolicyId = await smartVaults.getTransactionMetadataByPolicyId([spendProposal1.policy_id])
       expect(transactionMetadataByPolicyId.size).toBe(1)
       expect(transactionMetadataByPolicyId.get(spendProposal1.policy_id)).toEqual([TrxTransactionMetadata, transactionMetadata, transactionMetadata2])
-      await sleep(300)
       const transactionMetadata3 = (await smartVaults.saveTransactionMetadata(spendProposal1.policy_id, { data: { 'address': 'address1' }, text: 'text3' }))[0]
       const fetchedTransactionMetadata2 = await smartVaults.getTransactionMetadata()
       expect(fetchedTransactionMetadata2.length).toBe(3)
@@ -1229,11 +1231,11 @@ describe('SmartVaults', () => {
       expect(keyAgents).toEqual(expect.arrayContaining(expected))
     });
 
-    it('getUnverifiedKeyAgentsByPubKey works', async () => {
+    it('getUnverifiedKeyAgentEventsByPubKey works', async () => {
       const pubkey = keyAgent1.profile.publicKey
-      const keyAgents = await smartVaults.getUnverifiedKeyAgentsByPubKeys([pubkey])
+      const keyAgents = await smartVaults.getUnverifiedKeyAgentEventsByPubkey([pubkey])
       expect(keyAgents.size).toBe(1)
-      expect(keyAgents.get(pubkey)).toEqual(keyAgent1)
+      expect(keyAgents.get(pubkey)?.id).toEqual(keyAgent1.eventId)
     });
 
     it('saveSignerOffering works', async () => {
@@ -1624,6 +1626,8 @@ function assertSubscriptionCompletedProposalPayload(kind: number, payload: any, 
 
 function assertSubscriptionMetadataPayload(kind: number, payload: any, expectedPayload: any) {
   expect(kind).toBe(Kind.Metadata)
+  payload.isKeyAgent = expectedPayload.isKeyAgent
+  payload.isVerified = expectedPayload.isVerified
   expect(payload).toEqual(expectedPayload)
 }
 

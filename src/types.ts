@@ -88,6 +88,8 @@ export type KeyAgentMetadata = {
 
 export type Profile = Metadata & {
   publicKey: string
+  isKeyAgent: boolean
+  isVerified: boolean
 }
 
 export type ContactProfile = Profile & {
