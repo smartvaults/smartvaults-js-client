@@ -1720,7 +1720,7 @@ function keyAgentPaymentPayload(id: number, policy: PublishedPolicy): SpendPropo
     description: `description${id}`,
     amountDescriptor: "1000",
     feeRatePriority: "low",
-    keyAgentPayment: { signer_descriptor: `xpubdescriptor${id}`, period: { start: 1 + id, end: 2 + id } }
+    keyAgentPayment: { signer_descriptor: `xpubdescriptor${id}`, period: { from: 1 + id, to: 2 + id } }
   }
 }
 

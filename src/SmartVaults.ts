@@ -805,12 +805,12 @@ export class SmartVaults {
     const oneYear = TimeUtil.fromYearsToSeconds(1);
     const lastCompletedKeyAgentPaymentProposal = await this.getLastCompletedKeyAgentPaymentProposal(policy.id, signerDescriptor);
     const policyCreatedAt = TimeUtil.toSeconds(policy.createdAt.getTime())
-    let period: SmartVaultsTypes.Period = { start: policyCreatedAt, end: policyCreatedAt + oneYear };
+    let period: SmartVaultsTypes.Period = { from: policyCreatedAt, to: policyCreatedAt + oneYear };
     if (lastCompletedKeyAgentPaymentProposal) {
       const oneDay = TimeUtil.fromDaysToSeconds(1);
       const lastCompletedProposalCreatedAt = TimeUtil.toSeconds(new Date(lastCompletedKeyAgentPaymentProposal.completion_date).getTime());
-      period.start = lastCompletedProposalCreatedAt + oneDay;
-      period.end = period.start + oneYear;
+      period.from = lastCompletedProposalCreatedAt + oneDay;
+      period.to = period.from + oneYear;
     }
     return period;
   }
@@ -819,7 +819,7 @@ export class SmartVaults {
     let price: SmartVaultsTypes.Price | number = 0;
     let paymentAmount: number = 0;
     period = period || await this.getSuggestedPaymentPeriod(policy, signerDescriptor);
-    const years = TimeUtil.fromSecondsToYears(period.end - period.start);
+    const years = TimeUtil.fromSecondsToYears(period.to - period.from);
     if (years <= 0) throw new Error('Invalid period');
     switch (paymentType) {
       case PaymentType.PerSignature:

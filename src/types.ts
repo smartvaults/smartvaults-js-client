@@ -277,8 +277,8 @@ export type BaseVerifiedKeyAgents = {
 }
 
 export type Period = {
-  start: number,
-  end: number,
+  from: number,
+  to: number,
 }
 
 export type KeyAgentPaymentProposal = {
