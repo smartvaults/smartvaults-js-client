@@ -11,18 +11,18 @@ export class DirecMessagesHandler extends EventKindHandler {
     private readonly eventsStore: Store
     private readonly authenticator!: Authenticator
     private readonly nostrClient: NostrClient
-    private readonly getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>
-    private readonly isValidPolicyId: (id: string) => Promise<boolean>
+    private readonly getSharedKeysById: (ids?: string[]) => Promise<Map<string, SharedKeyAuthenticator>>
+    private readonly getPolicyIds: () => Promise<Set<string>>
     private readonly getChat: () => Chat
     private readonly getPolicyMembers: (policyId: string) => Promise<string[]>
-    constructor(authenticator: Authenticator, nostrClient: NostrClient, store: Store, eventsStore: Store, getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>, isValidPolicyId: (id: string) => Promise<boolean>, getPolicyMembers: (id: string) => Promise<string[]>, getChat: () => Chat) {
+    constructor(authenticator: Authenticator, nostrClient: NostrClient, store: Store, eventsStore: Store, getSharedKeysById: (ids?: string[]) => Promise<Map<string, SharedKeyAuthenticator>>, getPolicyIds: () => Promise<Set<string>>, getPolicyMembers: (id: string) => Promise<string[]>, getChat: () => Chat) {
         super()
         this.store = store
         this.eventsStore = eventsStore
         this.authenticator = authenticator
         this.nostrClient = nostrClient
         this.getSharedKeysById = getSharedKeysById
-        this.isValidPolicyId = isValidPolicyId
+        this.getPolicyIds = getPolicyIds
         this.getPolicyMembers = getPolicyMembers
         this.getChat = getChat
     }
@@ -39,6 +39,8 @@ export class DirecMessagesHandler extends EventKindHandler {
     private async getDirectMessagesAsync<K extends number>(directMessageEvents: Array<Event<K>>): Promise<DirectMessagesPayload> {
         const currentAuthPubKey = this.authenticator.getPublicKey()
         const chat = this.getChat()
+        const policyIds = await this.getPolicyIds()
+        const sharedKeys = await this.getSharedKeysById()
         let newConversationsIds: string[] = []
         const messagesPromises = directMessageEvents.map(async directMessageEvent => {
             const storeValue = this.store.get(directMessageEvent.id, 'id')
@@ -51,11 +53,10 @@ export class DirecMessagesHandler extends EventKindHandler {
             try {
                 maybePolicyId = getTagValue(directMessageEvent, TagType.Event)
             } catch (e) { maybePolicyId = undefined }
-            const isGroupMessage = maybePolicyId !== undefined && await this.isValidPolicyId(maybePolicyId)
+            const isGroupMessage = maybePolicyId !== undefined && policyIds.has(maybePolicyId)
             const isValidOneToOneMessage = !isGroupMessage && getTagValues(directMessageEvent, TagType.PubKey).length === 1
             if (isGroupMessage) {
-                const sharedKey = await this.getSharedKeysById([maybePolicyId!])
-                const sharedKeyAuthenticator = sharedKey.get(maybePolicyId!)?.sharedKeyAuthenticator
+                const sharedKeyAuthenticator = sharedKeys.get(maybePolicyId!)?.sharedKeyAuthenticator
                 if (!sharedKeyAuthenticator) {
                     return Promise.resolve(null)
                 }
@@ -154,6 +155,8 @@ export class DirecMessagesHandler extends EventKindHandler {
         const publishedDirectMessages: PublishedDirectMessage[] = []
         const rawDirectMessageEvents: Array<Event<K>> = []
         const chat = this.getChat()
+        const policyIds = await this.getPolicyIds()
+        const sharedKeys = await this.getSharedKeysById()
         let newConversationsIds: string[] = []
         for (const directMessageEvent of directMessageEvents) {
             const storeValue = this.store.get(directMessageEvent.id)
@@ -167,11 +170,10 @@ export class DirecMessagesHandler extends EventKindHandler {
             try {
                 maybePolicyId = getTagValue(directMessageEvent, TagType.Event)
             } catch (e) { maybePolicyId = undefined }
-            const isGroupMessage = maybePolicyId !== undefined && await this.isValidPolicyId(maybePolicyId)
+            const isGroupMessage = maybePolicyId !== undefined && policyIds.has(maybePolicyId)
             const isValidOneToOneMessage = !isGroupMessage && getTagValues(directMessageEvent, TagType.PubKey).length === 1
             if (isGroupMessage) {
-                const sharedKey = await this.getSharedKeysById([maybePolicyId!])
-                const sharedKeyAuthenticator = sharedKey.get(maybePolicyId!)?.sharedKeyAuthenticator
+                const sharedKeyAuthenticator = sharedKeys.get(maybePolicyId!)?.sharedKeyAuthenticator
                 if (!sharedKeyAuthenticator) {
                     continue
                 }

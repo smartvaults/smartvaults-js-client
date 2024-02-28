@@ -161,7 +161,7 @@ export type Address = {
   address: string
   address_type: string
   balance: number
-  txids: Array<string>
+  txids: string[]
   qr_uri: string
   index: number
   used: boolean

@@ -37,7 +37,7 @@ export class VerifiedKeyAgentsHandler extends EventKindHandler {
                 this.store.get(pubkey, indexKey).isContact = isContact;
                 continue;
             }
-            const profile = profilesMap.get(pubkey) || { publicKey: pubkey };
+            const profile = profilesMap.get(pubkey) || { publicKey: pubkey, isKeyAgent: true, isVerified: true };
             const approvedAt = fromNostrDate(data.approved_at);
             verifiedKeyAgents.push({
                 pubkey,
