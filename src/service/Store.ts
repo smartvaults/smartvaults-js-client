@@ -18,7 +18,7 @@ export class Store {
         const keyValues = this.indexMap[indexName].map(indexKey => obj[indexKey])
         const key = keyValues.join('-')
         const map = this.indexes.get(indexName)
-        if (!map) throw new Error('Invalid index key')
+        if (!map) throw new Error(`Invalid index key: ${indexName}`)
 
         let innerMap = map.get(obj[indexName])
         if (!innerMap) {
@@ -125,10 +125,10 @@ export class Store {
   private getIndex(indexKey?: string): Map<string, any> {
     indexKey = indexKey ?? this.indexes.keys().next().value
     if (!indexKey) {
-      throw new Error('Invalid index key')
+      throw new Error(`Invalid index key: ${indexKey}`)
     }
     if (!this.indexes.has(indexKey)) {
-      throw new Error('Invalid index key')
+      throw new Error(`Invalid index key: ${indexKey}`)
     }
     return this.indexes.get(indexKey)!
   }
