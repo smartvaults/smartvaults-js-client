@@ -92,9 +92,9 @@ export class BitcoinExchangeRate {
         } else {
             exchangeRate = await this.fetchBitcoinExchangeRate(currency);
         }
-        
-       const amount = Math.ceil( CurrencyUtil.fromBitcoinToSats(price.amount / exchangeRate)); 
-       return amount;
+
+        const amount = Math.ceil(CurrencyUtil.fromBitcoinToSats(price.amount / exchangeRate));
+        return amount;
     }
 
     private async updateExchangeRate(): Promise<void> {
