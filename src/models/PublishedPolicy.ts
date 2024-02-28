@@ -334,9 +334,11 @@ export class PublishedPolicy {
 
   async getAugmentedTransactions(includeFiatAccountingValues?: IncludeFiatAccountingValuesPayload): Promise<Array<AugmentedTransactionDetails>> {
     let trxs: Array<BasicTrxDetails> = [];
+    let utxos: Array<LabeledUtxo> = [];
     try {
-      [trxs] = await Promise.all([
+      [trxs, utxos] = await Promise.all([
         this.getTrxs(),
+        this.getLabeledUtxos(),
         this.getTransactionMetadataByPolicyId(this.id, {})
       ]);
     } catch (error) {
@@ -346,7 +348,9 @@ export class PublishedPolicy {
     const indexKey = "txId";
 
     const maybeAugmentedTrxs: Array<AugmentedTransactionDetails> = trxs.map(trx => {
-      const transactionMetadata: PublishedTransactionMetadata | undefined = this.transactionMetadataStore.get(trx.txid, indexKey);
+      const maybeMetadataSetOnAnotherVault: PublishedTransactionMetadata | undefined = this.transactionMetadataStore.get(trx.txid, indexKey)
+      const maybeMetadataSetOnThisVault: PublishedTransactionMetadata | undefined = maybeMetadataSetOnAnotherVault?.policy_id === this.id ? maybeMetadataSetOnAnotherVault : this.transactionMetadataStore.get(utxos.find(utxo => utxo.utxo.outpoint.split(':')[0] === trx.txid)?.labelId || '', 'transactionMetadataId');
+      const transactionMetadata: PublishedTransactionMetadata | undefined = maybeMetadataSetOnThisVault || maybeMetadataSetOnAnotherVault;
       if (transactionMetadata) {
         const AugmentedTrxDetails: AugmentedTransactionDetails = { ...trx, transactionMetadata: transactionMetadata.transactionMetadata, transactionMetadataText: transactionMetadata.transactionMetadata.text, transactionMetadataId: transactionMetadata.transactionMetadataId };
         return AugmentedTrxDetails;
