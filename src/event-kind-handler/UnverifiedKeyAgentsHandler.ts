@@ -51,7 +51,7 @@ export class UnverifiedKeyAgentsHandler extends EventKindHandler {
                 this.store.get(pubkey, indexKey).isContact = isContact;
                 continue;
             }
-            const profile = profilesMap.get(pubkey) || { publicKey: pubkey };
+            const profile = profilesMap.get(pubkey) || { publicKey: pubkey, isKeyAgent: true, isVerified: false };
 
             keyAgents.push({ pubkey, profile, isContact, isVerified: false, eventId: event.id });
         };

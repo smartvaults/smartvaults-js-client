@@ -88,6 +88,8 @@ export type KeyAgentMetadata = {
 
 export type Profile = Metadata & {
   publicKey: string
+  isKeyAgent: boolean
+  isVerified: boolean
 }
 
 export type ContactProfile = Profile & {
@@ -275,8 +277,8 @@ export type BaseVerifiedKeyAgents = {
 }
 
 export type Period = {
-  start: number,
-  end: number,
+  from: number,
+  to: number,
 }
 
 export type KeyAgentPaymentProposal = {

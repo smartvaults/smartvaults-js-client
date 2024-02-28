@@ -49,7 +49,7 @@ export class EventKindHandlerFactory {
       const getVerifiedKeyAgentsPubKeys = this.smartVaults.getVerifiedKeyAgentsPubKeys
       const getOwnedSignersByOfferingIdentifiers = this.smartVaults.getOwnedSignersByOfferingIdentifiers
       const getSharedSignersByOfferingIdentifiers = this.smartVaults.getSharedSignersByOfferingIdentifiers
-      const isValidPolicyId = this.smartVaults.isValidPolicyId
+      const getPolicyIds = this.smartVaults.getPolicyIds
       const getChat = this.smartVaults.getChat
       const getOwnedSignerOfferingsBySignerDescriptor = this.smartVaults.getOwnedSignerOfferingsBySignerDescriptor
       const deleteSignerOfferings = this.smartVaults.deleteSignerOfferings
@@ -107,7 +107,7 @@ export class EventKindHandlerFactory {
           this.handlers.set(eventKind, new SignerOfferingsHandler(authenticator, nostrClient, stores.get(eventKind)!, eventsStore, getOwnedSignersByOfferingIdentifiers, getSharedSignersByOfferingIdentifiers, getContacts))
           break
         case Kind.EncryptedDirectMessage:
-          this.handlers.set(eventKind, new DirecMessagesHandler(authenticator, nostrClient, stores.get(eventKind)!, eventsStore, getSharedKeysById, isValidPolicyId, getPolicyMembers, getChat))
+          this.handlers.set(eventKind, new DirecMessagesHandler(authenticator, nostrClient, stores.get(eventKind)!, eventsStore, getSharedKeysById, getPolicyIds, getPolicyMembers, getChat))
           break
         default:
           throw new Error(`There is no handler for event kind: ${eventKind}`)

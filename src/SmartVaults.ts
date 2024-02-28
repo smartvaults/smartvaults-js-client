@@ -111,7 +111,7 @@ export class SmartVaults {
    * const contact = new Contact({ publicKey: 'somePubKey', relay: 'some.relay.com' });
    * await upsertContacts(contact);
    */
-  async upsertContacts(newContacts: Contact | Contact[]): Promise<Event<Kind.Contacts>> {
+  async upsertContacts(newContacts: Contact | Contact[]): Promise<Contact[]> {
     const authPubKey = this.authenticator.getPublicKey()
     newContacts = Array.isArray(newContacts) ? newContacts : [newContacts]
     if (newContacts.some(c => c.publicKey === authPubKey)) {
@@ -127,7 +127,7 @@ export class SmartVaults {
       this.authenticator)
     const pub = this.nostrClient.publish(contactsEvent)
     await pub.onFirstOkOrCompleteFailure()
-    return contactsEvent
+    return contacts
   }
 
   /**
@@ -142,7 +142,7 @@ export class SmartVaults {
    * await removeContacts('somePubKey');
    * await removeContacts(['somePubKey', 'otherPubKey']);
    */
-  async removeContacts(contactsToRemove: string | string[]): Promise<Event<Kind.Contacts>> {
+  async removeContacts(contactsToRemove: string | string[]): Promise<Contact[]> {
     contactsToRemove = Array.isArray(contactsToRemove) ? contactsToRemove : [contactsToRemove] as string[]
     const currentContacts: Contact[] = await this.getContacts()
     const contacts = Contact.remove(contactsToRemove, currentContacts)
@@ -167,7 +167,7 @@ export class SmartVaults {
       }
     })
 
-    return contactsEvent
+    return contacts
   }
 
   /**
@@ -198,8 +198,10 @@ export class SmartVaults {
     const pub = this.nostrClient.publish(setMetadataEvent)
     await pub.onFirstOkOrCompleteFailure()
     return {
+      ...metadata,
       publicKey: publicKey,
-      ...metadata
+      isKeyAgent: false,
+      isVerified: false,
     }
   }
 
@@ -234,6 +236,12 @@ export class SmartVaults {
       .toFilters()
     const metadataEvents = await this.nostrClient.list(metadataFilter)
     const profiles: SmartVaultsTypes.Profile[] = await this.eventKindHandlerFactor.getHandler(Kind.Metadata).handle(metadataEvents)
+    const verifiedKeyAgentsPubkeys = new Set(await this.getVerifiedKeyAgentsPubKeys())
+    const unverifiedKeyAgentsPubkeys = await this.getUnverifiedKeyAgentEventsByPubkey()
+    profiles.forEach(profile => {
+      profile.isKeyAgent = unverifiedKeyAgentsPubkeys.has(profile.publicKey) || verifiedKeyAgentsPubkeys.has(profile.publicKey)
+      profile.isVerified = verifiedKeyAgentsPubkeys.has(profile.publicKey)
+    })
     return profiles
   }
 
@@ -538,19 +546,20 @@ export class SmartVaults {
    * const ids = ['id1', 'id2'];
    * const sharedKeysById = await getSharedKeysById(ids);
    */
-  getSharedKeysById = async (ids: string[]): Promise<Map<string, SmartVaultsTypes.SharedKeyAuthenticator>> => {
-    ids = [...new Set(ids)]; // remove potential duplicates from ids
+  getSharedKeysById = async (ids?: string[]): Promise<Map<string, SmartVaultsTypes.SharedKeyAuthenticator>> => {
+
     const store = this.getStore(SmartVaultsKind.SharedKey)
-    const missingIds = store.missing(ids)
-    if (missingIds.length) {
-      const sharedKeysFilter = filterBuilder()
-        .kinds(SmartVaultsKind.SharedKey)
-        .events(missingIds)
-        .pubkeys(this.authenticator.getPublicKey())
-        .toFilters()
+    if (ids?.length) {
+      const missingIds = store.missing(ids)
+      if (missingIds.length) {
+        const sharedKeysFilter = this.getFilter(SmartVaultsKind.SharedKey, { events: missingIds })
+        await this._getSharedKeys(sharedKeysFilter)
+      }
+    } else {
+      const sharedKeysFilter = this.getFilter(SmartVaultsKind.SharedKey)
       await this._getSharedKeys(sharedKeysFilter)
     }
-    let storeResult = store.getMany(ids!)
+    let storeResult = ids?.length ? store.getMany(ids) : store.getMany()
     return storeResult
   }
 
@@ -603,19 +612,6 @@ export class SmartVaults {
     return new Set(policyEvents.map(event => event.id))
   }
 
-
-  isValidPolicyId = async (id: string): Promise<boolean> => {
-    const eventsStore = this.getStore(StoreKind.Events)
-    let policyEvent = eventsStore.get(id)
-
-    if (!policyEvent) {
-      const policyFilter = this.getFilter(SmartVaultsKind.Policy, { ids: [id] })
-      policyEvent = (await this.nostrClient.list(policyFilter))[0]
-      eventsStore.store(policyEvent)
-    }
-
-    return !!policyEvent
-  }
 
   getPolicyMembers = async (policy_id: string): Promise<string[]> => {
     const policyEvent = await this.getPolicyEvent(policy_id)
@@ -809,12 +805,12 @@ export class SmartVaults {
     const oneYear = TimeUtil.fromYearsToSeconds(1);
     const lastCompletedKeyAgentPaymentProposal = await this.getLastCompletedKeyAgentPaymentProposal(policy.id, signerDescriptor);
     const policyCreatedAt = TimeUtil.toSeconds(policy.createdAt.getTime())
-    let period: SmartVaultsTypes.Period = { start: policyCreatedAt, end: policyCreatedAt + oneYear };
+    let period: SmartVaultsTypes.Period = { from: policyCreatedAt, to: policyCreatedAt + oneYear };
     if (lastCompletedKeyAgentPaymentProposal) {
       const oneDay = TimeUtil.fromDaysToSeconds(1);
       const lastCompletedProposalCreatedAt = TimeUtil.toSeconds(new Date(lastCompletedKeyAgentPaymentProposal.completion_date).getTime());
-      period.start = lastCompletedProposalCreatedAt + oneDay;
-      period.end = period.start + oneYear;
+      period.from = lastCompletedProposalCreatedAt + oneDay;
+      period.to = period.from + oneYear;
     }
     return period;
   }
@@ -823,7 +819,7 @@ export class SmartVaults {
     let price: SmartVaultsTypes.Price | number = 0;
     let paymentAmount: number = 0;
     period = period || await this.getSuggestedPaymentPeriod(policy, signerDescriptor);
-    const years = TimeUtil.fromSecondsToYears(period.end - period.start);
+    const years = TimeUtil.fromSecondsToYears(period.to - period.from);
     if (years <= 0) throw new Error('Invalid period');
     switch (paymentType) {
       case PaymentType.PerSignature:
@@ -1194,17 +1190,17 @@ export class SmartVaults {
    *
    * @async
    * @param {Object} params - Parameters for the shared signer, including `descriptor` and `fingerpring`
-   * @param {string} pubKey - Public key of the user with whom the signer is being shared.
+   * @param {string} pubkey - Public key of the user with whom the signer is being shared.
    * @returns {Promise<BaseSharedSigner>} A promise that resolves to a PublishedSharedSigner object, includes 
    * the owner's public key and shared date.
    * @throws Will throw an error if the event publishing fails or if the user tries to share a signer with themselves.
    * @example
-   * const signer = await saveSharedSigner({descriptor, fingerprint}, pubKey);
+   * const signer = await saveSharedSigner({descriptor, fingerprint}, pubkey);
    */
-  async saveSharedSigner(ownedSigner: SmartVaultsTypes.PublishedOwnedSigner, pubKeys: string | string[]): Promise<SmartVaultsTypes.PublishedSharedSigner[]> {
+  async saveSharedSigner(ownedSigner: SmartVaultsTypes.PublishedOwnedSigner, pubkeys: string | string[]): Promise<SmartVaultsTypes.PublishedSharedSigner[]> {
 
-    if (!Array.isArray(pubKeys)) {
-      pubKeys = [pubKeys]
+    if (!Array.isArray(pubkeys)) {
+      pubkeys = [pubkeys]
     }
     const ownerPubKey = this.authenticator.getPublicKey()
     const BaseSharedSigner: BaseSharedSigner = {
@@ -1212,12 +1208,12 @@ export class SmartVaults {
       fingerprint: ownedSigner.fingerprint,
     }
     const sharedSigners: SmartVaultsTypes.PublishedSharedSigner[] = []
-    for (const pubKey of pubKeys) {
-      const content = await this.authenticator.encryptObj(BaseSharedSigner, pubKey)
+    for (const pubkey of pubkeys) {
+      const content = await this.authenticator.encryptObj(BaseSharedSigner, pubkey)
       const signerEvent = await buildEvent({
         kind: SmartVaultsKind.SharedSigners,
         content,
-        tags: [[TagType.Event, ownedSigner.id], [TagType.PubKey, pubKey]],
+        tags: [[TagType.Event, ownedSigner.id], [TagType.PubKey, pubkey]],
       },
         this.authenticator)
 
@@ -1577,7 +1573,7 @@ export class SmartVaults {
    * @async
    * @param {string[] | string} policy_ids - A single policy ID or an array of policy IDs for which to fetch proposals.
    * @param {PaginationOpts} [paginationOpts={}] - Optional pagination options.
-   * @returns {Promise<Map<string, ActivePublishedProposal | Array<ActivePublishedProposal>>>} 
+   * @returns {Promise<Map<string, SmartVaultsTypes.ActivePublishedProposal | Array<SmartVaultsTypes.ActivePublishedProposal>>>} 
    *          - A promise that resolves to a Map. Each key corresponds to a policy ID, and the value is either a single ActivePublishedProposal object or an array of them.
    *
    * @throws {Error} - Throws an error if there is a failure in fetching the proposals.
@@ -1748,17 +1744,17 @@ export class SmartVaults {
     return publishedCompletedProposal
   }
 
-  private async getProposalsWithCommonUtxos(proposal: SmartVaultsTypes.PublishedSpendingProposal): Promise<Array<SmartVaultsTypes.PublishedSpendingProposal>> {
+  private async getProposalsWithCommonUtxos(proposal: SmartVaultsTypes.PublishedSpendingProposal): Promise<Array<SmartVaultsTypes.ActivePublishedProposal>> {
     const utxos = proposal.utxos;
     const policyId = proposal.policy_id;
     const proposalsMap = await this.getProposalsByPolicyId(policyId);
-    const policyProposals = Array.from(proposalsMap.values()).flat() as Array<SmartVaultsTypes.PublishedSpendingProposal>;
+    const policyProposals = Array.from(proposalsMap.values()).flat();
 
     const utxosSet = new Set(utxos);
-    const proposals: Array<SmartVaultsTypes.PublishedSpendingProposal> = [];
+    const proposals: Array<SmartVaultsTypes.ActivePublishedProposal> = [];
 
     for (const proposal of policyProposals) {
-      const proposalUtxos = proposal.utxos;
+      const proposalUtxos = proposal.utxos!;
       for (const proposalUtxo of proposalUtxos) {
         if (utxosSet.has(proposalUtxo)) {
           proposals.push(proposal);
@@ -1900,8 +1896,7 @@ export class SmartVaults {
 
   async deleteKeyAgentSignalingEvent(deleteOfferings: boolean = false): Promise<void> {
     const pubkey = this.authenticator.getPublicKey()
-    await this.getUnverifiedKeyAgentsByPubKeys([pubkey])
-    const id = this.getStore(SmartVaultsKind.KeyAgents).get(pubkey, 'pubkey')?.eventId
+    const id = (await this.getUnverifiedKeyAgentEventsByPubkey([pubkey])).get(pubkey)?.id
     if (!id) throw new Error(`Key agent signaling event not found for ${pubkey}`)
     const promises: Promise<any>[] = [this.eventKindHandlerFactor.getHandler(SmartVaultsKind.KeyAgents).delete([id])]
     if (deleteOfferings) {
@@ -2275,23 +2270,25 @@ export class SmartVaults {
     const privateKey = publishedSharedKeyAuthenticator.privateKey
     const transactionMetadataIdsPromise = sourceId.map(async sourceId => { return await this.generateIdentifier(sourceId, privateKey) })
     const transactionMetadataIds = await Promise.all(transactionMetadataIdsPromise)
-    const transactionMetadata = await this.getTransactionMetadataById(transactionMetadataIds)
-    return transactionMetadata
+    await this.getTransactionMetadataById(transactionMetadataIds)
+    const store = this.getStore(SmartVaultsKind.TransactionMetadata);
+    const metdataBySourceIds = store.getMany(sourceId, "txId");
+    return metdataBySourceIds
   }
 
   /**
    * Returns the number of contacts that have shared their signer.
    *
    * @async
-   * @param {string} pubKey - The Nostr hex public key of user for which to fetch the number of contacts that have shared their signer.
+   * @param {string} pubkey - The Nostr hex public key of user for which to fetch the number of contacts that have shared their signer.
    * @returns {Promise<number>} - 
    * A promise that resolves to the number of contacts that have shared their signer.
    *
    * @example
    * const howManySigners = await getContactSignersCount("hexPubKey");
    */
-  async getContactSignersCount(pubKey: string): Promise<number> {
-    const contactsFilter = this.getFilter(Kind.Contacts, { authors: pubKey })
+  async getContactSignersCount(pubkey: string): Promise<number> {
+    const contactsFilter = this.getFilter(Kind.Contacts, { authors: pubkey })
     const contactsEvents = await this.nostrClient.list(contactsFilter)
     if (contactsEvents.length === 0) return 0
     const contactsEvent = contactsEvents[0]
@@ -2299,7 +2296,7 @@ export class SmartVaults {
     const sharedSignersFilter = filterBuilder()
       .kinds(SmartVaultsKind.SharedSigners)
       .authors(contactsPubkeys)
-      .pubkeys(pubKey)
+      .pubkeys(pubkey)
       .toFilters()
     const sharedSignersEvents = await this.nostrClient.list(sharedSignersFilter)
     if (sharedSignersEvents.length === 0) return 0
@@ -2708,14 +2705,14 @@ export class SmartVaults {
       throw new Error('Key agent already registered.');
     }
 
-    let profile: SmartVaultsTypes.Profile = { publicKey: pubkey };
+    let profile: SmartVaultsTypes.Profile = { publicKey: pubkey, isKeyAgent: true, isVerified: false };
     let eventId: string | undefined;
 
     const promises: Promise<any>[] = !isKeyAgent && !isVerifiedKeyAgent ? [this.publishKeyAgentSignalingEvent().then(keyAgentEvent => { eventId = keyAgentEvent.id })] : [];
 
     if (metadata) {
       promises.push(this.updateProfile(metadata).then(updatedProfile => {
-        profile = updatedProfile;
+        profile = { ...updatedProfile, isKeyAgent: true };
       }));
     }
 
@@ -2740,12 +2737,15 @@ export class SmartVaults {
     return keyAgents
   }
 
-  getUnverifiedKeyAgentsByPubKeys = async (pubKeys: string[]): Promise<Map<string, Array<SmartVaultsTypes.KeyAgent>> | Map<string, SmartVaultsTypes.KeyAgent>> => {
-    const keyAgentsFilter = this.getFilter(SmartVaultsKind.KeyAgents, { authors: pubKeys })
+  getUnverifiedKeyAgentEventsByPubkey = async (pubkeys?: string[]): Promise<Map<string, Event<number>>> => {
+    const keyAgentsFilter = pubkeys ? this.getFilter(SmartVaultsKind.KeyAgents, { authors: pubkeys }) : this.getFilter(SmartVaultsKind.KeyAgents)
     const keyAgentsEvents = await this.nostrClient.list(keyAgentsFilter)
-    const keyAgentHandler = this.eventKindHandlerFactor.getHandler(SmartVaultsKind.KeyAgents)
-    await keyAgentHandler.handle(keyAgentsEvents)
-    return this.getStore(SmartVaultsKind.KeyAgents).getMany(pubKeys, "pubkey")
+    const keyAgentsEventsByPubkey = new Map<string, Event<number>>()
+    keyAgentsEvents.forEach(event => {
+      const pubkey = event.pubkey
+      keyAgentsEventsByPubkey.set(pubkey, event)
+    })
+    return keyAgentsEventsByPubkey
   }
 
   getCompletedProposalsByType = async (policyId: string, type: ProposalType,): Promise<SmartVaultsTypes.CompletedPublishedProposal[]> => {
