@@ -9,6 +9,7 @@ import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { Keys, Store } from '../service'
 import { fromNostrDate } from '../util'
 import { SmartVaults } from '../SmartVaults'
+import { LabeledUtxo } from '../types'
 
 describe('PublishedPolicy', () => {
   let policyContent: Policy
@@ -512,15 +513,26 @@ describe('PublishedPolicy', () => {
 
   describe('Augmented transaction details', () => {
 
-    let date1 = new Date("2023-07-13T20:11:49.000Z")
-    let date2 = new Date("2023-07-14T20:11:50.000Z")
-    let date3 = new Date("2023-07-15T20:11:50.000Z")
-    const trxMetadata1 = { transactionMetadata: { data: {}, text: 'transactionMetadata1' }, transactionMetadataId: 'id1' }
-    const trxMetadata2 = { transactionMetadata: { data: {}, text: 'transactionMetadata2' }, transactionMetadataId: 'id2' }
-    const trxMetadata3 = { transactionMetadata: { data: {}, text: 'transactionMetadata3' }, transactionMetadataId: 'id3' }
-    let trx1 = { txid: "txid1", date: date1, sent: 0, received: 50000, net: 50000, fee: 5000, transactionMetadata: trxMetadata1.transactionMetadata, transactionMetadataId: trxMetadata1.transactionMetadataId, transactionMetadataText: trxMetadata1.transactionMetadata.text, confirmation_time: { height: 2441712, timestamp: 1689279109, confirmedAt: date1 } }
-    let trx2 = { txid: "txid2", date: date2, sent: 0, received: 100000, net: 100000, fee: 2000, transactionMetadata: trxMetadata2.transactionMetadata, transactionMetadataId: trxMetadata2.transactionMetadataId, transactionMetadataText: trxMetadata2.transactionMetadata.text, confirmation_time: { height: 2441712, timestamp: 1689365510, confirmedAt: date2 } }
-    let trx3 = { txid: "txid3", date: date3, sent: 140000, received: 0, net: -150000, fee: 6000, transactionMetadata: trxMetadata3.transactionMetadata, transactionMetadataId: trxMetadata3.transactionMetadataId, transactionMetadataText: trxMetadata3.transactionMetadata.text, confirmation_time: { height: 2441712, timestamp: 1689451910, confirmedAt: date3 } }
+    let date1;
+    let date2;
+    let date3;
+    let trxMetadata1;
+    let trxMetadata2;
+    let trxMetadata3;
+    let trx1;
+    let trx2;
+    let trx3;
+    beforeAll(() => {
+      date1 = new Date("2023-07-13T20:11:49.000Z")
+      date2 = new Date("2023-07-14T20:11:50.000Z")
+      date3 = new Date("2023-07-15T20:11:50.000Z")
+      trxMetadata1 = { transactionMetadata: { data: {}, text: 'transactionMetadata1' }, transactionMetadataId: 'id1', policy_id: policy2.id }
+      trxMetadata2 = { transactionMetadata: { data: {}, text: 'transactionMetadata2' }, transactionMetadataId: 'id2', policy_id: policy2.id }
+      trxMetadata3 = { transactionMetadata: { data: {}, text: 'transactionMetadata3' }, transactionMetadataId: 'id3', policy_id: policy2.id }
+      trx1 = { txid: "txid1", date: date1, sent: 0, received: 50000, net: 50000, fee: 5000, transactionMetadata: trxMetadata1.transactionMetadata, transactionMetadataId: trxMetadata1.transactionMetadataId, transactionMetadataText: trxMetadata1.transactionMetadata.text, confirmation_time: { height: 2441712, timestamp: 1689279109, confirmedAt: date1 } }
+      trx2 = { txid: "txid2", date: date2, sent: 0, received: 100000, net: 100000, fee: 2000, transactionMetadata: trxMetadata2.transactionMetadata, transactionMetadataId: trxMetadata2.transactionMetadataId, transactionMetadataText: trxMetadata2.transactionMetadata.text, confirmation_time: { height: 2441712, timestamp: 1689365510, confirmedAt: date2 } }
+      trx3 = { txid: "txid3", date: date3, sent: 140000, received: 0, net: -150000, fee: 6000, transactionMetadata: trxMetadata3.transactionMetadata, transactionMetadataId: trxMetadata3.transactionMetadataId, transactionMetadataText: trxMetadata3.transactionMetadata.text, confirmation_time: { height: 2441712, timestamp: 1689451910, confirmedAt: date3 } }
+    })
 
     it('getAugmentedTransactions using SpecID should generate correct details', async () => {
 
@@ -539,6 +551,7 @@ describe('PublishedPolicy', () => {
 
       getAugmentedTransactionsSpyon.mockResolvedValueOnce(([trx1, trx2, trx3]))
 
+      jest.spyOn(policy2, 'getLabeledUtxos').mockResolvedValue([] as Array<LabeledUtxo>)
       const expected: AugmentedTransactionDetails[] = [
         { ...trx1, type: "RECEIVE", costBasis: 22, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 20, feeFiatAtConfirmation: 2, btcExchangeRateAtConfirmation: 40000 },
         { ...trx2, type: "RECEIVE", costBasis: 61.2, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 60, feeFiatAtConfirmation: 1.2, btcExchangeRateAtConfirmation: 60000 },
@@ -579,6 +592,7 @@ describe('PublishedPolicy', () => {
         .mockReturnValueOnce(trxMetadata2)
         .mockReturnValueOnce(trxMetadata3)
 
+      jest.spyOn(policy2, 'getLabeledUtxos').mockResolvedValue([] as Array<LabeledUtxo>)
       const expected: AugmentedTransactionDetails[] = [
         { ...trx1, type: "RECEIVE", costBasis: 22, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 20, feeFiatAtConfirmation: 2, btcExchangeRateAtConfirmation: 40000 },
         { ...trx2, type: "RECEIVE", costBasis: 61.2, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 60, feeFiatAtConfirmation: 1.2, btcExchangeRateAtConfirmation: 60000 },
@@ -608,6 +622,7 @@ describe('PublishedPolicy', () => {
 
       getAugmentedTransactionsSpyon.mockResolvedValueOnce(([trx1, trx2, trx3]))
 
+      jest.spyOn(policy2, 'getLabeledUtxos').mockResolvedValue([] as Array<LabeledUtxo>)
       const expected: AugmentedTransactionDetails[] = [
         { ...trx1, type: "RECEIVE", costBasis: 22, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 20, feeFiatAtConfirmation: 2, btcExchangeRateAtConfirmation: 40000 },
         { ...trx2, type: "RECEIVE", costBasis: 61.2, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 60, feeFiatAtConfirmation: 1.2, btcExchangeRateAtConfirmation: 60000 },
@@ -637,6 +652,7 @@ describe('PublishedPolicy', () => {
 
       getAugmentedTransactionsSpyon.mockResolvedValueOnce(([trx1, trx2, trx3]))
 
+      jest.spyOn(policy2, 'getLabeledUtxos').mockResolvedValue([] as Array<LabeledUtxo>)
       const expected: AugmentedTransactionDetails[] = [
         { ...trx1, type: "RECEIVE", costBasis: 22, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 20, feeFiatAtConfirmation: 2, btcExchangeRateAtConfirmation: 40000 },
         { ...trx2, type: "RECEIVE", costBasis: 61.2, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 60, feeFiatAtConfirmation: 1.2, btcExchangeRateAtConfirmation: 60000 },
@@ -667,6 +683,7 @@ describe('PublishedPolicy', () => {
 
       getAugmentedTransactionsSpyon.mockResolvedValueOnce(([trx1, trx2, trx3]))
 
+      jest.spyOn(policy2, 'getLabeledUtxos').mockResolvedValue([] as Array<LabeledUtxo>)
       const expected: AugmentedTransactionDetails[] = [
         { ...trx1, type: "RECEIVE", costBasis: 50, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 20, feeFiatAtConfirmation: 2, btcExchangeRateAtConfirmation: 40000 },
         { ...trx2, type: "RECEIVE", costBasis: 100, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 60, feeFiatAtConfirmation: 1.2, btcExchangeRateAtConfirmation: 60000 },
@@ -694,6 +711,7 @@ describe('PublishedPolicy', () => {
 
       getAugmentedTransactionsSpyon.mockResolvedValueOnce(([trx1, trx2, trx3]))
 
+      jest.spyOn(policy2, 'getLabeledUtxos').mockResolvedValue([] as Array<LabeledUtxo>)
       const expected: AugmentedTransactionDetails[] = [
         { ...trx1, type: "RECEIVE", costBasis: 22, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 20, feeFiatAtConfirmation: 2, btcExchangeRateAtConfirmation: 40000 },
         { ...trx2, type: "RECEIVE", costBasis: 61.2, associatedCostBasis: "N/A", proceeds: 0, capitalGainsLoses: 0, netFiatAtConfirmation: 60, feeFiatAtConfirmation: 1.2, btcExchangeRateAtConfirmation: 60000 },

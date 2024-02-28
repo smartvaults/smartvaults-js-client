@@ -820,17 +820,18 @@ export class SmartVaults {
     let paymentAmount: number = 0;
     period = period || await this.getSuggestedPaymentPeriod(policy, signerDescriptor);
     const years = TimeUtil.fromSecondsToYears(period.to - period.from);
-    if (years <= 0) throw new Error('Invalid period');
     switch (paymentType) {
       case PaymentType.PerSignature:
         price = offering.cost_per_signature!;
         paymentAmount = Math.ceil(await this.fromPriceToSats(price))
         break;
       case PaymentType.YearlyCost:
+        if (years <= 0) throw new Error('Invalid period');
         price = offering.yearly_cost!;
         paymentAmount = Math.ceil(await this.fromPriceToSats(price) * years);
         break;
       case PaymentType.YearlyCostBasisPoints:
+        if (years <= 0) throw new Error('Invalid period');
         price = offering.yearly_cost_basis_points!;
         const currentBalance = await policy.getBalance();
         paymentAmount = Math.ceil(CurrencyUtil.fromBasisPointsToDecimal(price) * currentBalance.totalBalance() * years);

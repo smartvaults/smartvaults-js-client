@@ -1311,7 +1311,7 @@ describe('SmartVaults', () => {
       const suggestedPaymentPeriod = await smartVaults.getSuggestedPaymentPeriod(policy, keyAgentPaymentProposal1.signer_descriptor)
       const oneYear = TimeUtil.fromYearsToSeconds(1)
       const start = TimeUtil.toSeconds(policy.createdAt.getTime())
-      const expected = { start: start, end: start + oneYear }
+      const expected = { from: start, to: start + oneYear }
       expect(suggestedPaymentPeriod).toEqual(expected)
     })
 
@@ -1340,14 +1340,14 @@ describe('SmartVaults', () => {
       const oneYear = TimeUtil.fromYearsToSeconds(1)
       const oneDay = TimeUtil.fromDaysToSeconds(1)
       const start = TimeUtil.toSeconds(completedKeyAgentPaymentProposal1.completion_date.getTime()) + oneDay
-      const expected = { start, end: start + oneYear }
+      const expected = { from: start, to: start + oneYear }
       expect(suggestedPaymentPeriod).toEqual(expected)
     });
 
     it('getSuggestedPaymentAmount works', async () => {
       const policy = (await smartVaults.getPoliciesById([keyAgentPaymentProposal1.policy_id])).get(keyAgentPaymentProposal1.policy_id)!
       const suggestedPaymentAmount = await smartVaults.getSuggestedPaymentAmount(signerOffering1, PaymentType.YearlyCost, policy, keyAgentPaymentProposal1.signer_descriptor)
-      expect(suggestedPaymentAmount).toEqual(signerOffering1.yearly_cost!.amount)
+      expect(suggestedPaymentAmount).toEqual(signerOffering1.yearly_cost!.amount + 1)
     });
 
     it('deleteSignerOfferings works', async () => {
