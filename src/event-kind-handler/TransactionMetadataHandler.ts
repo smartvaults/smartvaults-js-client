@@ -3,7 +3,7 @@ import {
 } from 'nostr-tools'
 
 import { TagType } from '../enum'
-import { getTagValues, fromNostrDate } from '../util'
+import { fromNostrDate, getTagValue } from '../util'
 import { type Store } from '../service'
 import { EventKindHandler } from './EventKindHandler'
 import {
@@ -30,13 +30,16 @@ export class TransactionMetadataHandler extends EventKindHandler {
         const missingTransactionMetadataIds = this.store.missing(transactionMetadataIds, indexKey)
 
         const missingtransactionMetadataEvents = transactionMetadataEvents.filter(transactionMetadataEvent => missingTransactionMetadataIds.includes(transactionMetadataEvent.id))
-        const policyIds = missingtransactionMetadataEvents.map(e => getTagValues(e, TagType.Event)[0])
+        if (!missingtransactionMetadataEvents.length) {
+            return this.store.getManyAsArray(transactionMetadataIds, indexKey)
+        }
+        const policyIds = missingtransactionMetadataEvents.map(e => getTagValue(e, TagType.Event))
         const policyIdSharedKeyAuthenticatorMap = await this.getSharedKeysById(policyIds)
         const transactionMetadataPromises = missingtransactionMetadataEvents.map(async transactionMetadataEvent => {
             const {
                 id: transactionMetadataEventId
             } = transactionMetadataEvent
-            const transactionMetadataId = getTagValues(transactionMetadataEvent, TagType.Identifier)[0]
+            const transactionMetadataId = getTagValue(transactionMetadataEvent, TagType.Identifier)
             if (this.store.has(transactionMetadataId, "transactionMetadataId")) {
                 const replacedtransactionMetadata = this.store.get(transactionMetadataId, "transactionMetadataId")
                 const rawReplacedtransactionMetadataEvent = this.eventsStore.get(replacedtransactionMetadata.id)
@@ -44,7 +47,7 @@ export class TransactionMetadataHandler extends EventKindHandler {
                 this.eventsStore.delete(rawReplacedtransactionMetadataEvent)
             }
 
-            const policyId = getTagValues(transactionMetadataEvent, TagType.Event)[0]
+            const policyId = getTagValue(transactionMetadataEvent, TagType.Event)
             const sharedKeyAuthenticator = policyIdSharedKeyAuthenticatorMap.get(policyId)?.sharedKeyAuthenticator
             if (!sharedKeyAuthenticator) return null
             const transactionMetadata: TransactionMetadata = await sharedKeyAuthenticator.decryptObj(transactionMetadataEvent.content)

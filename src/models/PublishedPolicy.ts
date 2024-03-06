@@ -336,11 +336,11 @@ export class PublishedPolicy {
     let trxs: Array<BasicTrxDetails> = [];
     let utxos: Array<LabeledUtxo> = [];
     try {
-      [trxs, utxos] = await Promise.all([
+      [trxs] = await Promise.all([
         this.getTrxs(),
-        this.getLabeledUtxos(),
         this.getTransactionMetadataByPolicyId(this.id, {})
       ]);
+      utxos = await this.getLabeledUtxos();
     } catch (error) {
       console.error("Error while fetching augmented transactions:", error);
       return [];
