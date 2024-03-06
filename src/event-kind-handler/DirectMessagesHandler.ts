@@ -40,7 +40,11 @@ export class DirecMessagesHandler extends EventKindHandler {
         const currentAuthPubKey = this.authenticator.getPublicKey()
         const chat = this.getChat()
         const policyIds = await this.getPolicyIds()
-        const sharedKeys = await this.getSharedKeysById()
+        const maybePolicyIds: string[] = directMessageEvents.filter(e => e.tags.some(t => t[0] === 'e' && policyIds.has(t[1]))).map(e => getTagValue(e, TagType.Event))
+        let sharedKeys = new Map<string, SharedKeyAuthenticator>()
+        if (maybePolicyIds.length) {
+            sharedKeys = await this.getSharedKeysById(maybePolicyIds)
+        }
         let newConversationsIds: string[] = []
         const messagesPromises = directMessageEvents.map(async directMessageEvent => {
             const storeValue = this.store.get(directMessageEvent.id, 'id')
@@ -156,7 +160,11 @@ export class DirecMessagesHandler extends EventKindHandler {
         const rawDirectMessageEvents: Array<Event<K>> = []
         const chat = this.getChat()
         const policyIds = await this.getPolicyIds()
-        const sharedKeys = await this.getSharedKeysById()
+        const maybePolicyIds: string[] = directMessageEvents.filter(e => e.tags.some(t => t[0] === 'e' && policyIds.has(t[1]))).map(e => getTagValue(e, TagType.Event))
+        let sharedKeys = new Map<string, SharedKeyAuthenticator>()
+        if (maybePolicyIds.length) {
+            sharedKeys = await this.getSharedKeysById(maybePolicyIds)
+        }
         let newConversationsIds: string[] = []
         for (const directMessageEvent of directMessageEvents) {
             const storeValue = this.store.get(directMessageEvent.id)
