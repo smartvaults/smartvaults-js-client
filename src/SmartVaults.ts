@@ -975,7 +975,7 @@ export class SmartVaults {
    * smartVaults.disconnect();
   */
   disconnect(): void {
-    this.nostrClient.disconnect
+    this.nostrClient.disconnect()
   }
 
 
