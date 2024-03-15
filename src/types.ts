@@ -49,7 +49,7 @@ export type SpendProposalPayload = {
   amountDescriptor: string,
   feeRatePriority: string,
   createdAt?: Date,
-  policyPath?: Map<string, Array<number>>
+  policyPath?: PolicyPath
   utxos?: Array<string>
   useFrozenUtxos?: boolean
   keyAgentPayment?: BaseKeyAgentPaymentProposal
@@ -102,10 +102,13 @@ type BaseProposal = {
   psbt: string
 }
 
+export type PolicyPath = { [key: string]: number[] }
+
 type BaseSpendingProposal = {
   to_address: string
   amount: number
   description: string,
+  policy_path?: PolicyPath
 }
 
 export type SpendingProposal = {
@@ -124,7 +127,7 @@ type PublishedProposal = {
   type: ProposalType
   createdAt: Date
   status: string
-  signer: string
+  signers: string[]
   fee: number
   feeFiat?: number
 }
@@ -299,6 +302,7 @@ export type KeyAgentPaymentProposalPayload = SpendProposalPayload & {
 export type BaseKeyAgentPaymentProposal = {
   signer_descriptor: string,
   period: Period,
+  policy_path?: PolicyPath
 }
 
 export type PublishedKeyAgentPaymentProposal = PublishedProposal & BaseProposal & BaseKeyAgentPaymentProposal & BaseSpendingProposal & BaseFiat & {
@@ -382,3 +386,5 @@ export type DirectMessagesPayload = {
   messages: PublishedDirectMessage[]
   newConversationsIds: string[]
 }
+
+export type Item = Map<string, any>

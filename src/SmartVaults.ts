@@ -2,7 +2,7 @@ import { Authenticator, DirectPrivateKeyAuthenticator } from '@smontero/nostr-ua
 import { generatePrivateKey, Kind, Event, Filter, Sub } from 'nostr-tools'
 import { SmartVaultsKind, TagType, ProposalType, ProposalStatus, ApprovalStatus, StoreKind, AuthenticatorType, NetworkType, FiatCurrency, Magic } from './enum'
 import { NostrClient, PubPool, Store } from './service'
-import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, toPublished, nostrDate, isNip05Verified, type singleKindFilterParams, FilterBuilder, TimeUtil, CurrencyUtil, getTagValue, DoublyLinkedList } from './util'
+import { buildEvent, filterBuilder, getTagValues, PaginationOpts, fromNostrDate, nostrDate, isNip05Verified, type singleKindFilterParams, FilterBuilder, TimeUtil, CurrencyUtil, getTagValue, DoublyLinkedList } from './util'
 import { BasicTrxDetails, BaseOwnedSigner, BaseSharedSigner, BitcoinUtil, Contact, Policy, PublishedPolicy, TrxDetails } from './models'
 import * as SmartVaultsTypes from './types'
 import { EventKindHandlerFactory } from './event-kind-handler'
@@ -520,7 +520,7 @@ export class SmartVaults {
    * const ids = ['id1', 'id2'];
    * const policiesById = await getPoliciesById(ids);
    */
-  async getPoliciesById(ids: string[]): Promise<Map<string, PublishedPolicy>> {
+  getPoliciesById = async (ids: string[]): Promise<Map<string, PublishedPolicy>> => {
     const store = this.getStore(SmartVaultsKind.Policy)
     const missingIds = store.missing(ids)
     if (missingIds.length) {
@@ -697,6 +697,7 @@ export class SmartVaults {
           to_address,
           amount,
           psbt,
+          policy_path: policyPath,
           ...keyAgentPayment
         }
       } as SmartVaultsTypes.KeyAgentPaymentProposal;
@@ -707,7 +708,8 @@ export class SmartVaults {
           description,
           to_address,
           amount,
-          psbt
+          psbt,
+          policy_path: policyPath,
         }
       } as SmartVaultsTypes.SpendingProposal;
     }
@@ -731,7 +733,6 @@ export class SmartVaults {
 
     await this.getChat().sendMessage(msg, policy.id)
 
-    const signer = 'Unknown'
     const fee = Number(this.bitcoinUtil.getFee(psbt))
     const utxo = this.bitcoinUtil.getPsbtUtxos(psbt)
     const [amountFiat, feeFiat] = await this.bitcoinExchangeRate.convertToFiat([amount, fee])
@@ -739,7 +740,6 @@ export class SmartVaults {
     const activeFiatCurrency = this.bitcoinExchangeRate.getActiveFiatCurrency()
     const status = ProposalStatus.Unsigned
     const commonProps = {
-      signer,
       amountFiat,
       fee,
       feeFiat,
@@ -752,17 +752,20 @@ export class SmartVaults {
       activeFiatCurrency,
     }
 
+    const ownedSigners = await this.getOwnedSigners()
     let publishedProposal: SmartVaultsTypes.PublishedSpendingProposal | SmartVaultsTypes.PublishedKeyAgentPaymentProposal
     if (keyAgentPayment) {
       publishedProposal = {
         ...proposalContent[ProposalType.KeyAgentPayment],
         ...commonProps,
+        signers: await policy.getExpectedSigners(proposalContent[ProposalType.KeyAgentPayment], ownedSigners),
         type: ProposalType.KeyAgentPayment,
       } as SmartVaultsTypes.PublishedKeyAgentPaymentProposal
     } else {
       publishedProposal = {
         ...proposalContent[ProposalType.Spending],
         ...commonProps,
+        signers: await policy.getExpectedSigners(proposalContent[ProposalType.Spending], ownedSigners),
         type: ProposalType.Spending,
       } as SmartVaultsTypes.PublishedSpendingProposal
     }
@@ -1964,7 +1967,7 @@ export class SmartVaults {
     if (!sharedKeyAuthenticator) {
       throw new Error(`Shared key for policy with id ${policy_id} not found`)
     }
-    const policy = toPublished(await sharedKeyAuthenticator.decryptObj(policyEvent.content), policyEvent)
+    const policy = (await this.getPoliciesById([policy_id])).get(policy_id)!
     const type = ProposalType.ProofOfReserve
     //proposal = policy.proof_of_reserve(wallet,message)
     const proposal: SmartVaultsTypes.ProofOfReserveProposal = {
@@ -1994,10 +1997,11 @@ export class SmartVaults {
     await this.getChat().sendMessage(msg, policy.id)
     const proposal_id = proposalEvent.id
     const status = ProposalStatus.Unsigned
-    const signer = 'Unknown'
+    const ownedSigners = await this.getOwnedSigners()
+    const signers: string[] = await policy.getExpectedSigners(proposal[type], ownedSigners)
     const fee = this.bitcoinUtil.getFee(psbt)
     const utxos = this.bitcoinUtil.getPsbtUtxos(psbt)
-    return { ...proposal[type], proposal_id, type, status, signer, fee, utxos, policy_id, createdAt }
+    return { ...proposal[type], proposal_id, type, status, signers, fee, utxos, policy_id, createdAt }
 
   }
 

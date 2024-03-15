@@ -9,7 +9,7 @@ import { DirectPrivateKeyAuthenticator } from '@smontero/nostr-ual'
 import { Keys, Store } from '../service'
 import { fromNostrDate } from '../util'
 import { SmartVaults } from '../SmartVaults'
-import { LabeledUtxo } from '../types'
+import { LabeledUtxo, PublishedOwnedSigner } from '../types'
 
 describe('PublishedPolicy', () => {
   let policyContent: Policy
@@ -190,8 +190,7 @@ describe('PublishedPolicy', () => {
       wallet.sync.mockResolvedValue()
       const expected = { amount: 3000, psbt: "psbt2" }
       wallet.build_trx.mockResolvedValue(expected)
-      let policyPath = new Map<string, Array<number>>()
-      policyPath.set("83aswe", [1])
+      let policyPath = { "83aswe": [1] }
       let utxos = ["05dce7f5440ded30bd55359d9e4f65de34fefaaef5fb16ac4cfaf72375fd204d:1", "123ce7f5440ded30bd55359d9e4f65de34fefaaef5fb16ac4cfaf72375fd204d:2"]
       let frozenUtxos = ["15dce7f5440ded30bd55359d9e4f65de34fefaaef5fb16ac4cfaf72375fd204g:3"]
       let actual = await policy.buildTrx({
@@ -508,6 +507,36 @@ describe('PublishedPolicy', () => {
       let actual = policy.hasTimelock()
       expect(true).toEqual(actual)
       expect(wallet.has_timelock).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('getExpectedSigners', () => {
+
+    it('should return the expected signers when theres no policy path', async () => {
+      const signer1 = { name: 'SmartVaults', description: undefined, fingerprint: 'f57a6b99', descriptor: "tr([f57a6b99/86'/1'/784923']tpubDC45v32EZGP2U4qVTK…tbexZUMtY4ubZGS74kQftEGibUxUpybMan7/0/*)#jakwhh0u", t: 'Seed' } as PublishedOwnedSigner
+      const signer2 = { name: 'SmartVaults', description: undefined, fingerprint: 'f3ab64d8', descriptor: "tr([f3ab64d8/86'/1'/784923']tpubDCh4uyVDVretfgTNka…91gN5LYtuSCbr1Vo6mzQmD49sF2vGpReZp2/0/*)#yavh9uq5", t: 'Seed' } as PublishedOwnedSigner
+      smartVaults.getOwnedSigners.mockResolvedValue([signer1, signer2])
+      jest.spyOn(policy, 'getPolicy').mockReturnValue(undefined!)
+      const proposal = { descriptor: "descriptor" + signer1.fingerprint }
+      const actual = await policy.getExpectedSigners(proposal, [signer1, signer2])
+      expect([signer1.fingerprint]).toEqual(actual)
+    })
+
+    it('should return the expected signers when theres policy path', async () => {
+      const signer1 = { name: 'SmartVaults', description: undefined, fingerprint: 'f57a6b99', descriptor: "tr([f57a6b99/86'/1'/784923']tpubDC45v32EZGP2U4qVTK…tbexZUMtY4ubZGS74kQftEGibUxUpybMan7/0/*)#jakwhh0u", t: 'Seed' } as PublishedOwnedSigner
+      const signer2 = { name: 'SmartVaults', description: undefined, fingerprint: 'f3ab64d8', descriptor: "tr([f3ab64d8/86'/1'/784923']tpubDCh4uyVDVretfgTNka…91gN5LYtuSCbr1Vo6mzQmD49sF2vGpReZp2/0/*)#yavh9uq5", t: 'Seed' } as PublishedOwnedSigner
+      smartVaults.getOwnedSigners.mockResolvedValue([signer1, signer2])
+      const policyPath = { "83aswe": [0], "a2A8ds": [2], "dsdnii": [0] }
+      const proposal = { descriptor: "descriptor" + signer1.fingerprint, policy_path: policyPath }
+      const policyTree = new Map<string, any>()
+      policyTree.set("id", "83aswe")
+      const lastItem = new Map<string, any>()
+      lastItem.set("id", "any")
+      lastItem.set("fingerprint", "f3ab64d8")
+      policyTree.set("items", [new Map<string, any>([["id", "a2A8ds"], ["items", [new Map(), new Map(), lastItem]]]),])
+      jest.spyOn(policy, 'getPolicy').mockReturnValue(policyTree)
+      const actual = await policy.getExpectedSigners(proposal, [signer1, signer2])
+      expect([signer2.fingerprint]).toEqual(actual)
     })
   })
 
