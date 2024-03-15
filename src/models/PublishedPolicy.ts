@@ -5,7 +5,7 @@ import { BaseOwnedSigner, PolicyPathSelector, Trx, Policy, FinalizeTrxResponse, 
 import { BitcoinUtil, Wallet } from './interfaces'
 import { CurrencyUtil, PaginationOpts, TimeUtil, fromNostrDate, toPublished } from '../util'
 import { generateUiMetadata, UIMetadata, Key } from '../util/GenerateUiMetadata'
-import { LabeledUtxo, PublishedTransactionMetadata, PublishedOwnedSigner, PublishedSharedSigner, PublishedSpendingProposal, ActivePublishedProposal, TransactionMetadata } from '../types'
+import { LabeledUtxo, PublishedTransactionMetadata, PublishedOwnedSigner, PublishedSharedSigner, PublishedSpendingProposal, ActivePublishedProposal, TransactionMetadata, PolicyPath, Item } from '../types'
 import { type Store } from '../service'
 import { StringUtil } from '../util'
 import { BitcoinExchangeRate } from '../util'
@@ -194,7 +194,7 @@ export class PublishedPolicy {
     address: string,
     amount: string,
     feeRate: string,
-    policyPath?: Map<string, Array<number>>,
+    policyPath?: PolicyPath,
     utxos?: Array<string>,
     frozenUtxos?: Array<string>
   }): Promise<Trx> {
@@ -776,5 +776,73 @@ export class PublishedPolicy {
 
       return labeledAddress
     }))
+  }
+
+  private addFingerprints = (item: Item, policyPath: PolicyPath, fingerprints: Set<string>) => {
+    if (item.has('fingerprint')) {
+      fingerprints.add(item.get('fingerprint'))
+    }
+    let items: Item[] = [];
+    const maybePolicyPathIndices = policyPath[item.get('id')]
+    if (maybePolicyPathIndices) {
+      for (const index of maybePolicyPathIndices) {
+        items.push(item.get('items')[index])
+      }
+    } else {
+      items = item.get('items')
+    }
+    if (!items?.length) return
+    if (items.some(item => policyPath[item.get('id')])) return
+    for (const item of items) {
+      this.addFingerprints(item, policyPath, fingerprints)
+    }
+  }
+
+  private searchSignerInDescriptor(fingerprints: string[], descriptor: string): string[] {
+    const result: string[] = []
+    for (const fingerprint of fingerprints) {
+      if (descriptor.includes(fingerprint)) {
+        result.push(fingerprint)
+      }
+    }
+    return result
+  }
+
+
+  public getExpectedSigners = async (proposal: { policy_path?: PolicyPath, descriptor: string }, signers: PublishedOwnedSigner[]): Promise<string[]> => {
+    const policyTree = this.getPolicy()
+    const policyPath = proposal.policy_path
+    const ownedFingerprints = signers.map(signer => signer.fingerprint)
+    if (!policyPath) {
+      return this.searchSignerInDescriptor(ownedFingerprints, proposal.descriptor)
+    }
+    const numOfExpectedConditions = Object.values(policyPath).reduce((acc, arr) => acc + arr.length, 0)
+    let current = policyTree
+    const pending = [current]
+    const conditions = [current]
+    let currentPendingIndex = 0
+    const fingerprints = new Set<string>()
+    while (conditions.length < numOfExpectedConditions) {
+      let current = pending[currentPendingIndex]
+      const indices = policyPath[current.get('id') as string]
+      const maybeItems = current.get('items')
+      if (!maybeItems) {
+        conditions.push(current)
+        if (current.has('fingerprint')) {
+          fingerprints.add(current.get('fingerprint'))
+        }
+      } else {
+        for (const index of indices) {
+          const item = current.get('items')[index]
+          conditions.push(item)
+          if (policyPath[item.get('id')]) {
+            pending.push(item)
+          }
+          this.addFingerprints(item, policyPath, fingerprints)
+        }
+      }
+      currentPendingIndex++
+    }
+    return Array.from(fingerprints).filter(fingerprint => ownedFingerprints.includes(fingerprint))
   }
 }

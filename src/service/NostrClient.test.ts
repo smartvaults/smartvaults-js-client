@@ -15,12 +15,12 @@ describe('NostrClient', () => {
   beforeAll(async () => {
     authenticator = new DirectPrivateKeyAuthenticator(generatePrivateKey())
     clientTwoRelays = new NostrClient([
-      'wss://relay.rip',
+      'ws://localhost:7777',
       'wss://relay.snort.social'
     ])
 
     clientOneOkRelay = new NostrClient([
-      'wss://relay.rip',
+      'ws://localhost:7777',
     ])
 
     clientOneFailRelay = new NostrClient([
@@ -48,14 +48,14 @@ describe('NostrClient', () => {
       let result = await pub.completePromise()
       expect(result).toHaveProperty('ok')
       expect(result).toHaveProperty('failed')
-      expect(result.ok).toEqual(['wss://relay.rip'])
+      expect(result.ok).toEqual(['ws://localhost:7777'])
       expect(result.failed).toEqual(['wss://relay.snort.social'])
 
       pub = clientOneOkRelay.publish(event)
       result = await pub.completePromise()
       expect(result).toHaveProperty('ok')
       expect(result).toHaveProperty('failed')
-      expect(result.ok).toEqual(['wss://relay.rip'])
+      expect(result.ok).toEqual(['ws://localhost:7777'])
       expect(result.failed).toEqual([])
 
       pub = clientOneFailRelay.publish(event)

@@ -4,8 +4,9 @@ import { type SpendingProposal, type PublishedSpendingProposal, type PublishedPr
 import { type Store, type NostrClient } from '../service'
 import { getTagValues, fromNostrDate, buildEvent, BitcoinExchangeRate } from '../util'
 import { EventKindHandler } from './EventKindHandler'
-import { type BitcoinUtil } from '../models'
+import { type PublishedPolicy, type BitcoinUtil } from '../models'
 import { type Authenticator } from '@smontero/nostr-ual'
+
 export class ProposalHandler extends EventKindHandler {
   private readonly store: Store
   private readonly eventsStore: Store
@@ -18,9 +19,18 @@ export class ProposalHandler extends EventKindHandler {
   private readonly getOwnedSigners: () => Promise<PublishedOwnedSigner[]>
   private readonly getApprovalsByProposalId: (proposal_ids?: string[] | string) => Promise<Map<string, Array<PublishedApprovedProposal>>>
   private readonly bitcoinExchangeRate: BitcoinExchangeRate = BitcoinExchangeRate.getInstance();
-  constructor(store: Store, eventsStore: Store, approvalsStore: Store, nostrClient: NostrClient, bitcoinUtil: BitcoinUtil, authenticator: Authenticator, getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>, checkPsbts: (proposalId: string) => Promise<boolean>,
+  private readonly getPoliciesById: (policy_ids: string[]) => Promise<Map<string, PublishedPolicy>>
+  constructor(
+    store: Store,
+    eventsStore: Store,
+    approvalsStore: Store,
+    nostrClient: NostrClient,
+    bitcoinUtil: BitcoinUtil,
+    authenticator: Authenticator,
+    getSharedKeysById: (ids: string[]) => Promise<Map<string, SharedKeyAuthenticator>>, checkPsbts: (proposalId: string) => Promise<boolean>,
     getOwnedSigners: () => Promise<Array<PublishedOwnedSigner>>,
-    getApprovalsByProposalId: (proposal_ids?: string[] | string) => Promise<Map<string, Array<PublishedApprovedProposal>>>) {
+    getApprovalsByProposalId: (proposal_ids?: string[] | string) => Promise<Map<string, Array<PublishedApprovedProposal>>>,
+    getPoliciesById: (policy_ids: string[]) => Promise<Map<string, PublishedPolicy>>) {
     super()
     this.store = store
     this.eventsStore = eventsStore
@@ -32,15 +42,7 @@ export class ProposalHandler extends EventKindHandler {
     this.checkPsbts = checkPsbts
     this.getOwnedSigners = getOwnedSigners
     this.getApprovalsByProposalId = getApprovalsByProposalId
-  }
-
-  private searchSignerInDescriptor(fingerprints: string[], descriptor: string): string | null {
-    for (const fingerprint of fingerprints) {
-      if (descriptor.includes(fingerprint)) {
-        return fingerprint
-      }
-    }
-    return null
+    this.getPoliciesById = getPoliciesById
   }
 
   protected async _handle<K extends number>(proposalEvents: Array<Event<K>>): Promise<Array<ActivePublishedProposal | PublishedKeyAgentPaymentProposal>> {
@@ -52,10 +54,7 @@ export class ProposalHandler extends EventKindHandler {
       this.checkPsbts(proposalId).then(status => ({ proposalId, status: status ? ProposalStatus.Signed : ProposalStatus.Unsigned }))
     );
 
-    const [statusResults, signers] = await Promise.all([
-      Promise.all(statusPromises),
-      this.getOwnedSigners()
-    ]);
+    const [statusResults, ownedSigners] = await Promise.all([await Promise.all(statusPromises), this.getOwnedSigners()])
 
     const bitcoinExchangeRate = await this.bitcoinExchangeRate.getExchangeRate();
     const activeFiatCurrency = this.bitcoinExchangeRate.getActiveFiatCurrency();
@@ -63,7 +62,6 @@ export class ProposalHandler extends EventKindHandler {
 
     const decryptedProposals: Array<ActivePublishedProposal | PublishedKeyAgentPaymentProposal> = []
     const rawEvents: Array<Event<K>> = []
-    const fingerprints: string[] = signers.map(signer => signer.fingerprint)
 
     const decryptPromises: Promise<any>[] = proposalEvents.map(async (proposalEvent) => {
       const storedProposal: PublishedSpendingProposal | PublishedKeyAgentPaymentProposal = this.store.get(proposalEvent.id, 'proposal_id')
@@ -112,8 +110,8 @@ export class ProposalHandler extends EventKindHandler {
         const type = Object.keys(decryptedProposalObj)[0] as ProposalType;
         const proposalContent = decryptedProposalObj[type]
         const createdAt = fromNostrDate(proposalEvent.created_at)
-        const signerResult: string | null = this.searchSignerInDescriptor(fingerprints, proposalContent.descriptor)
-        const signer = signerResult ?? 'Unknown'
+        const policy = (await this.getPoliciesById([policyId])).get(policyId)
+        const signers = await policy?.getExpectedSigners(proposalContent, ownedSigners) || []
         const psbt = proposalContent.psbt
         const utxos = this.bitcoinUtil.getPsbtUtxos(psbt)
         const fee = Number(this.bitcoinUtil.getFee(psbt))
@@ -122,7 +120,7 @@ export class ProposalHandler extends EventKindHandler {
         let publishedProposal: ActivePublishedProposal;
         const commonProps = {
           type,
-          signer,
+          signers,
           fee,
           utxos,
           createdAt,
