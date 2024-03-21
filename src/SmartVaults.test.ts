@@ -29,8 +29,6 @@ describe('SmartVaults', () => {
     keySet2 = keySet1.derive(2)
     altKeySet = new KeySet(2)
     nostrClient = new NostrClient([
-      //'wss://relay.rip',
-      // 'wss://test.relay.report'
       'ws://localhost:7777'
     ])
     bitcoinUtil = mock<BitcoinUtil>()
@@ -53,7 +51,7 @@ describe('SmartVaults', () => {
     jest.spyOn(smartVaults, 'signedPsbtSanityCheck').mockResolvedValue()
   })
 
-  afterEach(() => {
+  afterAll(() => {
     smartVaults.disconnect()
   })
 

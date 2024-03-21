@@ -43,6 +43,12 @@ export class EventDeletionHandler extends EventKindHandler {
             const existingPayload = payloadMap.get(kind) || [];
             existingPayload.push(id);
             payloadMap.set(kind, existingPayload);
+            const eventDeleteStore = this.stores.get(Kind.EventDeletion)
+            if (eventDeleteStore) {
+              eventDeleteStore.store({ id: event.id, kind: event.kind })
+            } else {
+              console.log(`EventDeletion store not found`)
+            }
           }
         }
       };
