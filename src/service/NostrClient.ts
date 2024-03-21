@@ -68,7 +68,8 @@ export class NostrClient {
       ok: [],
       failed: []
     }
-    function onResponse(status, relay) {
+
+    function onOkResponse(status: string, relay: string): void {
       result[status].push(relay)
       numRelays--
       if (numRelays <= 0) {
@@ -76,11 +77,36 @@ export class NostrClient {
         listeners = new Set()
       }
     }
+
+    const onFailedResponse = (status: string, relay: string, count: number): void => {
+      if (count === 1) console.log(`Event with id ${event.id} failed to publish to ${relay}, retrying...`)
+      if (count > 5) {
+        console.log(`Event with id ${event.id} failed to publish to ${relay}, max retries reached`)
+        return
+      }
+      result[status].push(relay)
+      numRelays--
+      // Retry 
+      setTimeout(() => {
+        const pub = this.pool.publish([relay], event)
+        pub.on('ok', (relay) => {
+          console.log(`Retry ${count} for event ${event.id} suceeded`, relay)
+        })
+        pub.on('failed', (relay) => {
+          console.log(`Retry ${count} for event ${event.id} failed, retrying...`, relay)
+          onFailedResponse('failed', relay, count + 1)
+        })
+      }, 61000)
+      if (numRelays <= 0) {
+        listeners.forEach(cb => { cb(result) })
+        listeners = new Set()
+      }
+    }
     pub.on('ok', (relay) => {
-      onResponse('ok', relay)
+      onOkResponse('ok', relay)
     })
     pub.on('failed', (relay) => {
-      onResponse('failed', relay)
+      onFailedResponse('failed', relay, 1)
     })
     return {
       on(type, cb) {
