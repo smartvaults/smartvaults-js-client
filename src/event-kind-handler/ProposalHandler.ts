@@ -11,6 +11,8 @@ export class ProposalHandler extends EventKindHandler {
   private readonly store: Store
   private readonly eventsStore: Store
   private readonly approvalsStore: Store
+  private readonly completedProposalStore: Store
+  private readonly eventDeletionStore: Store
   private readonly nostrClient: NostrClient
   private readonly bitcoinUtil: BitcoinUtil
   private readonly authenticator: Authenticator
@@ -24,6 +26,8 @@ export class ProposalHandler extends EventKindHandler {
     store: Store,
     eventsStore: Store,
     approvalsStore: Store,
+    completedProposalStore: Store,
+    eventDeletionStore: Store,
     nostrClient: NostrClient,
     bitcoinUtil: BitcoinUtil,
     authenticator: Authenticator,
@@ -35,6 +39,8 @@ export class ProposalHandler extends EventKindHandler {
     this.store = store
     this.eventsStore = eventsStore
     this.approvalsStore = approvalsStore
+    this.completedProposalStore = completedProposalStore
+    this.eventDeletionStore = eventDeletionStore
     this.nostrClient = nostrClient
     this.bitcoinUtil = bitcoinUtil
     this.authenticator = authenticator
@@ -46,6 +52,7 @@ export class ProposalHandler extends EventKindHandler {
   }
 
   protected async _handle<K extends number>(proposalEvents: Array<Event<K>>): Promise<Array<ActivePublishedProposal | PublishedKeyAgentPaymentProposal>> {
+    proposalEvents = proposalEvents.filter(e => !this.eventDeletionStore.has(e.id) && !this.completedProposalStore.has(e.id, 'proposal_id'))
     const proposalIds = proposalEvents.map(proposal => proposal.id)
     if (!proposalIds.length) return []
     const policiesIds = proposalEvents.map(proposal => getTagValues(proposal, TagType.Event)[0])

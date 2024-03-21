@@ -50,7 +50,7 @@ export class SmartVaults {
     this.stores.set(SmartVaultsKind.Proposal, Store.createMultiIndexStore(["proposal_id", "policy_id"], "proposal_id"))
     this.stores.set(SmartVaultsKind.ApprovedProposal, Store.createMultiIndexStore(["approval_id", "proposal_id", "policy_id"], "approval_id"))
     this.stores.set(SmartVaultsKind.SharedKey, Store.createSingleIndexStore("policyId"))
-    this.stores.set(SmartVaultsKind.CompletedProposal, Store.createMultiIndexStore(["id", "txId", "policy_id"], "id"))
+    this.stores.set(SmartVaultsKind.CompletedProposal, Store.createMultiIndexStore(["id", "txId", "policy_id", "proposal_id"], "id"))
     this.stores.set(SmartVaultsKind.SharedSigners, Store.createSingleIndexStore("id"))
     this.stores.set(SmartVaultsKind.Signers, Store.createSingleIndexStore("id"))
     this.stores.set(Kind.Metadata, Store.createSingleIndexStore("id"))
@@ -61,6 +61,7 @@ export class SmartVaults {
     this.stores.set(SmartVaultsKind.VerifiedKeyAgents, Store.createMultiIndexStore(["eventId", "pubkey"], "pubkey"))
     this.stores.set(SmartVaultsKind.KeyAgents, Store.createMultiIndexStore(["eventId", "pubkey"], "pubkey"))
     this.stores.set(Kind.EncryptedDirectMessage, Store.createMultiIndexStore(["id", "conversationId"], "id"))
+    this.stores.set(Kind.EventDeletion, Store.createSingleIndexStore("id"))
   }
 
   initEventKindHandlerFactory() {
