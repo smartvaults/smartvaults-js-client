@@ -42,7 +42,7 @@ export class MetadataHandler extends EventKindHandler {
         }
       }
 
-      this.store.store({ content: { publicKey, ...metadata }, id: event.id });
+      this.store.store({ content: { publicKey, ...metadata, isKeyAgent: false, isVerified: false }, id: event.id });
     });
 
     const results = await Promise.allSettled(fetchPromises);

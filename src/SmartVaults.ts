@@ -236,12 +236,6 @@ export class SmartVaults {
       .toFilters()
     const metadataEvents = await this.nostrClient.list(metadataFilter)
     const profiles: SmartVaultsTypes.Profile[] = await this.eventKindHandlerFactor.getHandler(Kind.Metadata).handle(metadataEvents)
-    const verifiedKeyAgentsPubkeys = new Set(await this.getVerifiedKeyAgentsPubKeys())
-    const unverifiedKeyAgentsPubkeys = await this.getUnverifiedKeyAgentEventsByPubkey()
-    profiles.forEach(profile => {
-      profile.isKeyAgent = unverifiedKeyAgentsPubkeys.has(profile.publicKey) || verifiedKeyAgentsPubkeys.has(profile.publicKey)
-      profile.isVerified = verifiedKeyAgentsPubkeys.has(profile.publicKey)
-    })
     return profiles
   }
 
