@@ -14,11 +14,11 @@ import {
 export class NostrClient {
   private pool: SimplePool
   private relays: string[]
-  private timeouts: any[]
+  private timeouts: Set<any>
   constructor(relays: string[], options: { eoseSubTimeout?: number; getTimeout?: number } = {}) {
     this.pool = new SimplePool(options)
     this.relays = relays
-    this.timeouts = []
+    this.timeouts = new Set()
   }
 
   addRelays(relays: string[]) {
@@ -90,6 +90,7 @@ export class NostrClient {
       // Retry 
       const id = setTimeout(() => {
         const pub = this.pool.publish([relay], event)
+        this.timeouts.delete(id)
         pub.on('ok', (relay) => {
           console.log(`Retry ${count} for event ${event.id} suceeded`, relay)
         })
@@ -98,7 +99,7 @@ export class NostrClient {
           onFailedResponse('failed', relay, count + 1)
         })
       }, 61000)
-      this.timeouts.push(id)
+      this.timeouts.add(id)
       if (numRelays <= 0) {
         listeners.forEach(cb => { cb(result) })
         listeners = new Set()
@@ -166,9 +167,10 @@ export class NostrClient {
 
   disconnect(): void {
     this.pool.close(this.relays)
-    for (let id of this.timeouts) {
+    for (const id of this.timeouts) {
       clearTimeout(id)
     }
+    this.timeouts.clear()
   }
 
 }
